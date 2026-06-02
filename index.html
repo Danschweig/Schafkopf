@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Schafkopf Tracker</title>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#0b160b"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Schafkopf"/>
+  <link rel="apple-touch-icon" href="icon.svg"/>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{background:#0b160b;overscroll-behavior:none}
+    #root{min-height:100vh}
+    #loading{display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:#4a7a4a;font-size:13px;letter-spacing:2px}
+    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0b160b}::-webkit-scrollbar-thumb{background:#2a4a2a;border-radius:2px}
+  </style>
+</head>
+<body>
+  <div id="loading">SCHAFKOPF LÄDT …</div>
+  <div id="root" style="display:none"></div>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/prop-types@15/prop-types.min.js" crossorigin></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" crossorigin></script>
+  <script src="https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js" crossorigin></script>
+  <script>window.addEventListener('load',function(){document.getElementById('loading').style.display='none';document.getElementById('root').style.display='block';});</script>
+  <script type="text/babel" data-presets="react">
+    const {useState,useMemo,useEffect}=React;
+    const {LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,ReferenceLine,ResponsiveContainer,BarChart,Bar}=Recharts;
+
+    const LS_KEY="schafkopf-v1";
+    const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a"];
+    const BUILTIN_IDS=["sauspiel","hochzeit","wenz","geier","farbsolo","ramsch"];
+
+    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo":{label:"Solo",color:"#f5c842"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
+
+    const DEFAULT_GAME_TYPES=[
+      {id:"sauspiel", label:"Sauspiel",  desc:"Rufspiel – Spieler + Sau-Partner",cat:"2vs2",   isBuiltin:true, hasFarbe:false,hasTout:false,hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
+      {id:"hochzeit", label:"Hochzeit",  desc:"Partner via ersten Stich",         cat:"2vs2",   isBuiltin:true, hasFarbe:false,hasTout:false,hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
+      {id:"wenz",     label:"Wenz",      desc:"Nur Unter als Trumpf",             cat:"solo",   isBuiltin:true, hasFarbe:true, hasTout:true, hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:2,useDefaultTariff:true,customBetrag:null},
+      {id:"geier",    label:"Geier",     desc:"Nur Ober als Trumpf",              cat:"solo",   isBuiltin:true, hasFarbe:false, hasTout:true, hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:2,useDefaultTariff:true,customBetrag:null},
+      {id:"farbsolo", label:"Farbsolo",  desc:"Farbe + Ober/Unter Trumpf",        cat:"solo",   isBuiltin:true, hasFarbe:false,hasTout:true, hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
+      {id:"ramsch",   label:"Ramsch",    desc:"Meiste Augen verliert",            cat:"ramsch", isBuiltin:true, hasFarbe:false,hasTout:false,hasSchneiderSchwarz:false,hasLaufende:false,laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
+    ];
+
+    const ALL_DISPLAY_TYPES=[...DEFAULT_GAME_TYPES,{id:"farbwenz",label:"Farbwenz",cat:"solo"},{id:"farbgeier",label:"Farbgeier",cat:"solo"}];
+
+    function effectiveType(r){
+      if(r.typeId==="wenz"&&r.mitFarbe)return{id:"farbwenz",label:"Farbwenz",cat:"solo"};
+      if(r.typeId==="geier"&&r.mitFarbe)return{id:"farbgeier",label:"Farbgeier",cat:"solo"};
+      return{id:r.typeId,label:r.typeLabel,cat:r.typeCat};
+    }
+
+    function calcBetrag(form,typeCfg,tariff){
+      const base=typeCfg.useDefaultTariff?(typeCfg.cat==="2vs2"?tariff.sauspiel:typeCfg.cat==="ramsch"?tariff.sauspiel:tariff.solo):(typeCfg.customBetrag||25);
+      let mods=0;
+      const isTout=typeCfg.hasTout&&form.tout;
+      if(!isTout&&typeCfg.hasSchneiderSchwarz){mods+=(form.schneider?1:0)+(form.schwarz?1:0);}
+      if(typeCfg.hasLaufende){const minL=typeCfg.laufendeFrom||3;mods+=form.laufende>=minL?form.laufende-(minL-1):0;}
+      let b=base+mods*tariff.sl;
+      if(isTout)b*=2;
+      return b;
+    }
+
+    function calcDeltas(form,players,betrag,typeCfg,aussetzer=null){
+      const active=aussetzer?players.filter(p=>p!==aussetzer):players;
+      const d=Object.fromEntries(players.map(p=>[p,0]));
+      const sm=Math.pow(2,form.sticht||0);
+      const B=betrag*sm;
+      if(typeCfg.cat==="2vs2"){
+        if(!form.spieler||!form.partner)return null;
+        const w=form.gewonnen?[form.spieler,form.partner]:active.filter(p=>p!==form.spieler&&p!==form.partner);
+        const l=active.filter(p=>!w.includes(p));
+        w.forEach(p=>d[p]=+B);l.forEach(p=>d[p]=-Math.round(B*w.length/l.length));
+      }else if(typeCfg.cat==="solo"){
+        if(!form.solist)return null;
+        const gegner=active.filter(p=>p!==form.solist);
+        const sign=form.gewonnen?1:-1;
+        d[form.solist]=sign*gegner.length*B;
+        gegner.forEach(p=>d[p]=-sign*B);
+      }else if(typeCfg.cat==="ramsch"){
+        if(!form.verlierer)return null;
+        const jm=Math.pow(2,form.jungfrauen||0);
+        const RB=B*jm;
+        const w=active.filter(p=>p!==form.verlierer);
+        if(form.durchmarsch){d[form.verlierer]=+w.length*RB;w.forEach(p=>d[p]=-RB);}
+        else{d[form.verlierer]=-w.length*RB;w.forEach(p=>d[p]=+RB);}
+      }
+      return d;
+    }
+
+    const C={bg1:"#0c180c",bg2:"#111f11",border:"#1a321a",text:"#c8e0c8",dim:"#4a7a4a",mute:"#2a4a2a"};
+    const s={
+      page:{background:"linear-gradient(160deg,#0b160b,#101e10)",minHeight:"100vh",fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:72},
+      topbar:{background:"#080f08",borderBottom:`1px solid ${C.border}`,padding:"10px 16px",position:"sticky",top:0,zIndex:10},
+      card:(bc=C.border,bg=C.bg1)=>({background:bg,border:`1px solid ${bc}`,borderRadius:10,padding:"12px 14px",marginBottom:10}),
+      sec:{fontSize:9,color:"#4a7a4a",letterSpacing:2,textTransform:"uppercase",marginBottom:8},
+      btn:(on,ac="#5a9a5a")=>({background:on?ac+"28":C.bg1,border:`1px solid ${on?ac:C.border}`,color:on?ac:C.dim,borderRadius:7,padding:"8px 12px",cursor:"pointer",fontSize:12,fontFamily:"'Courier New',monospace",transition:"all 0.15s"}),
+      pBtn:(on,col)=>({flex:1,padding:"10px 4px",textAlign:"center",background:on?col+"22":C.bg1,border:`2px solid ${on?col:C.border}`,color:on?col:C.mute,borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"'Courier New',monospace",transition:"all 0.15s"}),
+      navBtn:(on)=>({flex:1,padding:"10px 4px",background:"transparent",border:"none",borderTop:`2px solid ${on?"#5a9a5a":"transparent"}`,color:on?"#8ad08a":C.mute,cursor:"pointer",fontSize:10,fontFamily:"'Courier New',monospace"}),
+      subTab:(on)=>({background:on?"#1e3a1e":"transparent",border:`1px solid ${on?"#3a6a3a":C.border}`,color:on?"#a0d0a0":C.dim,borderRadius:7,padding:"7px 16px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}),
+      input:{background:"#080f08",border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 10px",color:C.text,fontSize:13,fontFamily:"'Courier New',monospace",width:"100%"},
+      pChip:(on,col)=>({background:on?col+"22":"transparent",border:`1px solid ${on?col:C.border}`,color:on?col:C.mute,borderRadius:20,padding:"5px 14px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace",transition:"all 0.15s"}),
+    };
+
+    // ── Toggle-Switch ────────────────────────────────────────────
+    function Toggle({label,value,onChange,small}){
+      return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:small?6:10}}>
+        <span style={{fontSize:small?11:12,color:C.text}}>{label}</span>
+        <div onClick={()=>onChange(!value)} style={{width:40,height:22,borderRadius:11,background:value?"#2a5a2a":"#1a2a1a",border:`1px solid ${value?"#4a8a4a":"#2a4a2a"}`,cursor:"pointer",position:"relative",transition:"all 0.2s",flexShrink:0}}>
+          <div style={{width:16,height:16,borderRadius:"50%",background:value?"#7de87a":"#3a5a3a",position:"absolute",top:2,left:value?20:2,transition:"left 0.2s"}}/>
+        </div>
+      </div>;
+    }
+
+    // ── Stepper ──────────────────────────────────────────────────
+    function Stepper({label,value,min=0,max=8,onChange,hint,color="#f5c842",small}){
+      return <div style={{marginBottom:small?8:12}}>
+        <div style={{...s.sec,marginBottom:6,fontSize:small?8:9}}>{label}: <strong style={{color}}>{value}</strong>
+          {hint&&<span style={{marginLeft:6,fontSize:9,color:C.dim}}>{hint}</span>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <button style={{...s.btn(false),padding:small?"5px 12px":"7px 16px",fontSize:16}} onClick={()=>onChange(Math.max(min,value-1))}>−</button>
+          <div style={{flex:1,textAlign:"center",fontSize:small?18:22,color,fontWeight:"bold"}}>{value}</div>
+          <button style={{...s.btn(false),padding:small?"5px 12px":"7px 16px",fontSize:16}} onClick={()=>onChange(Math.min(max,value+1))}>+</button>
+        </div>
+      </div>;
+    }
+
+    // ── ErgebnisBlock ────────────────────────────────────────────
+    function ErgebnisBlock({form,upd,typeCfg}){
+      const minL=typeCfg.laufendeFrom||3;
+      const lHint=form.laufende>=minL?`→ +${form.laufende-(minL-1)} × S&L`:`Zählt ab ${minL}`;
+      return <div style={s.card()}>
+        <div style={s.sec}>Ergebnis</div>
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <button style={{...s.btn(form.gewonnen,"#7de87a"),flex:1,fontSize:14,padding:10}} onClick={()=>upd("gewonnen",true)}>✓ Gewonnen</button>
+          <button style={{...s.btn(!form.gewonnen,"#e85d4a"),flex:1,fontSize:14,padding:10}} onClick={()=>upd("gewonnen",false)}>✗ Verloren</button>
+        </div>
+        {typeCfg.hasSchneiderSchwarz&&<div style={{display:"flex",gap:8,marginBottom:12}}>
+          <button style={{...s.btn(form.schneider,"#f5c842"),flex:1}} onClick={()=>{upd("schneider",!form.schneider);if(form.schneider)upd("schwarz",false);}}>Schneider {form.schneider?"✓":""}</button>
+          <button style={{...s.btn(form.schwarz&&form.schneider,"#f5c842"),flex:1,opacity:form.schneider?1:0.35}} onClick={()=>{if(form.schneider)upd("schwarz",!form.schwarz);}}>Schwarz {form.schwarz?"✓":""}</button>
+        </div>}
+        {typeCfg.hasLaufende&&<Stepper label="Laufende" value={form.laufende} max={8} onChange={v=>upd("laufende",v)} hint={lHint}/>}
+      </div>;
+    }
+
+    // ── Chart-Tooltips ───────────────────────────────────────────
+    function TKonto({active,payload,label,rounds,startkapital,gameTypes}){
+      if(!active||!payload?.length)return null;
+      const sorted=[...payload].sort((a,b)=>b.value-a.value);
+      const r=label>0?rounds[label-1]:null;
+      return <div style={{background:"#0a1a0a",border:"1px solid #2a4a2a",borderRadius:8,padding:"10px 14px",fontSize:12,fontFamily:"'Courier New',monospace"}}>
+        <div style={{color:"#7aaa7a",fontWeight:"bold",marginBottom:4}}>Runde {label}</div>
+        {r&&<div style={{fontSize:10,color:TYPE_CATS[r.typeCat]?.color||"#888",marginBottom:6}}>
+          {effectiveType(r).label}{r.aussetzer?` (${r.aussetzer} out)`:""}{r.solist?` · ${r.solist}`:r.spieler?` · ${r.spieler}`:""}{r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}
+        </div>}
+        {sorted.map(p=>{const diff=p.value-startkapital;return <div key={p.name} style={{color:p.color,marginBottom:2}}>{p.name}: <strong>{p.value.toLocaleString("de-DE")}</strong><span style={{fontSize:10,marginLeft:6,color:diff>=0?"#7de87a":"#e85d4a"}}>{diff>=0?"+":""}{diff}</span></div>;})}
+      </div>;
+    }
+
+    function TDelta({active,payload,label,rounds}){
+      if(!active||!payload?.length)return null;
+      const r=rounds[Number(label)-1];if(!r)return null;
+      const sorted=[...payload].filter(p=>p.value!==null).sort((a,b)=>b.value-a.value);
+      return <div style={{background:"#0a1a0a",border:"1px solid #2a4a2a",borderRadius:8,padding:"10px 14px",fontSize:12,fontFamily:"'Courier New',monospace"}}>
+        <div style={{color:"#7aaa7a",fontWeight:"bold",marginBottom:4}}>Runde {label}</div>
+        <div style={{fontSize:10,color:TYPE_CATS[r.typeCat]?.color||"#888",marginBottom:6}}>{effectiveType(r).label}{r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}</div>
+        {sorted.map(p=><div key={p.name} style={{color:p.fill,marginBottom:2}}>{p.name}: <span style={{color:p.value>0?"#7de87a":p.value<0?"#e85d4a":"#3a5a3a",fontWeight:"bold"}}>{p.value>0?"+":""}{p.value}</span></div>)}
+      </div>;
+    }
+
+    // ── ChartTab ─────────────────────────────────────────────────
+    function ChartTab({rounds,players,startkapital,gameTypes}){
+      const [sub,setSub]=useState("konto");
+      const [hid,setHid]=useState(new Set());
+      const tog=p=>setHid(prev=>{const s=new Set(prev);s.has(p)?s.delete(p):s.add(p);return s;});
+      const allTypes=[...gameTypes,{id:"farbwenz",label:"Farbwenz",cat:"solo"},{id:"farbgeier",label:"Farbgeier",cat:"solo"}];
+
+      const kontoData=useMemo(()=>{const rows=[{round:0,...Object.fromEntries(players.map(p=>[p,startkapital]))}];const cur=Object.fromEntries(players.map(p=>[p,startkapital]));rounds.forEach((r,i)=>{players.forEach(p=>cur[p]+=(r.deltas[p]||0));rows.push({round:i+1,...cur});});return rows;},[rounds,players,startkapital]);
+      const deltaData=useMemo(()=>{const raw=rounds.map((r,i)=>({round:i+1,...Object.fromEntries(players.map(p=>[p,r.deltas[p]||0]))}));const out=[];raw.forEach((d,i)=>{out.push({...d});if(i<raw.length-1)out.push({round:`${d.round}.`,...Object.fromEntries(players.map(p=>[p,null]))});});return out;},[rounds,players]);
+      const stats=useMemo(()=>{const st=Object.fromEntries(players.map(p=>[p,{angesagt:0,partner:0,gewonnen:0,verloren:0,total:0,byType:{}}]));rounds.forEach(r=>{const e=effectiveType(r);players.forEach(p=>{const d=r.deltas[p]||0;st[p].total+=d;if(d>0)st[p].gewonnen++;if(d<0)st[p].verloren++;});if(r.spieler){st[r.spieler].angesagt++;st[r.spieler].byType[e.id]=(st[r.spieler].byType[e.id]||0)+1;}if(r.solist){st[r.solist].angesagt++;st[r.solist].byType[e.id]=(st[r.solist].byType[e.id]||0)+1;}if(r.partner)st[r.partner].partner++;});return st;},[rounds,players]);
+      const sessionTypes=useMemo(()=>{const tc={};rounds.forEach(r=>{const e=effectiveType(r);tc[e.id]=(tc[e.id]||0)+1;});return Object.entries(tc).sort((a,b)=>b[1]-a[1]);},[rounds]);
+      const last=kontoData[kontoData.length-1]||{};
+      const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:last[p]||startkapital,diff:(last[p]||startkapital)-startkapital})).sort((a,b)=>b.value-a.value);
+
+      if(rounds.length===0)return <div style={{textAlign:"center",color:C.mute,padding:40}}>Noch keine Runden.</div>;
+
+      return <>
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          <button style={s.subTab(sub==="konto")} onClick={()=>setSub("konto")}>Kontostand</button>
+          <button style={s.subTab(sub==="delta")} onClick={()=>setSub("delta")}>Δ Delta</button>
+          <button style={s.subTab(sub==="verlauf")} onClick={()=>setSub("verlauf")}>Verlauf</button>
+        </div>
+        {sub==="konto"&&<>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>{players.map((p,i)=><button key={p} onClick={()=>tog(p)} style={s.pChip(!hid.has(p),PCOLORS[i])}>— {p}</button>)}</div>
+          <ResponsiveContainer width="100%" height={260}><LineChart data={kontoData} margin={{top:10,right:12,left:0,bottom:14}}><CartesianGrid strokeDasharray="3 3" stroke="#1e3a1e"/><XAxis dataKey="round" stroke="#3a6a3a" tick={{fill:"#5a8a5a",fontSize:10}} label={{value:"Runde",position:"insideBottom",offset:-8,fill:C.dim,fontSize:10}}/><YAxis stroke="#3a6a3a" tick={{fill:"#5a8a5a",fontSize:10}} tickFormatter={v=>v.toLocaleString("de-DE")} width={54}/><Tooltip content={<TKonto rounds={rounds} startkapital={startkapital}/>}/><ReferenceLine y={startkapital} stroke="#2a4a2a" strokeDasharray="4 3" label={{value:"Start",position:"right",fill:C.mute,fontSize:9}}/>{players.map((p,i)=>!hid.has(p)&&<Line key={p} type="monotone" dataKey={p} stroke={PCOLORS[i]} strokeWidth={2} dot={{r:3,fill:PCOLORS[i],strokeWidth:0}} activeDot={{r:5}} animationDuration={400}/>)}</LineChart></ResponsiveContainer>
+        </>}
+        {sub==="delta"&&<>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>{players.map((p,i)=><div key={p} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:PCOLORS[i]}}><div style={{width:10,height:10,background:PCOLORS[i],borderRadius:2}}/>{p}</div>)}</div>
+          <ResponsiveContainer width="100%" height={260}><BarChart data={deltaData} margin={{top:10,right:10,left:0,bottom:14}} barSize={8} barGap={2} barCategoryGap="20%"><CartesianGrid strokeDasharray="3 3" stroke="#1e3a1e"/><XAxis dataKey="round" stroke="#3a6a3a" tick={({x,y,payload})=>!String(payload.value).includes(".")?<text x={x} y={y+10} textAnchor="middle" fill="#5a8a5a" fontSize={10}>{payload.value}</text>:null} label={{value:"Runde",position:"insideBottom",offset:-8,fill:C.dim,fontSize:10}}/><YAxis stroke="#3a6a3a" tick={{fill:"#5a8a5a",fontSize:10}} width={40}/><Tooltip content={<TDelta rounds={rounds}/>}/><ReferenceLine y={0} stroke="#3a6a3a" strokeWidth={1}/>{players.map((p,i)=><Bar key={p} dataKey={p} fill={PCOLORS[i]} opacity={0.85} radius={[2,2,0,0]} animationDuration={400}/>)}</BarChart></ResponsiveContainer>
+        </>}
+        {sub==="verlauf"&&<div>{[...rounds].reverse().map(r=>{
+          const sm=Math.pow(2,r.sticht||0);const jm=r.jungfrauen>0?Math.pow(2,r.jungfrauen):1;
+          const et=effectiveType(r);const cc=TYPE_CATS[r.typeCat]?.color||"#fff";
+          return <div key={r.id||r.runde} style={s.card()}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:4}}>
+              <span style={{fontSize:11,color:C.dim}}>Runde {r.runde}{r.aussetzer&&<span style={{color:"#a080e0"}}> · {r.aussetzer} out</span>}</span>
+              <span style={{fontSize:11,color:cc}}>
+                {et.label}{r.tout&&<span style={{color:"#ff8c42"}}> Tout</span>}
+                {r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}
+                {r.schneider?" · Schndr.":""}{r.schwarz?" · Schwz.":""}
+                {r.laufende>=2?` · ${r.laufende} Lfd.`:""}
+                {r.sticht>0&&<span style={{color:"#d080e0"}}> · St×{sm}</span>}
+              </span>
+            </div>
+            <div style={{fontSize:10,color:C.mute,marginBottom:6}}>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+              {players.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}>
+                <div style={{fontSize:9,color:r.aussetzer===p?"#a080e0":PCOLORS[i]}}>{p}</div>
+                <div style={{fontSize:16,fontWeight:"bold",color:r.aussetzer===p?"#a080e0":d>0?"#7de87a":d<0?"#e85d4a":"#2a4a2a"}}>{r.aussetzer===p?"–":d>0?`+${d}`:d}</div>
+              </div>;})}
+            </div>
+          </div>;
+        })}</div>}
+
+        <div style={{marginTop:20}}>
+          <div style={{...s.sec,fontSize:10,letterSpacing:3,marginBottom:12}}>STATISTIK</div>
+          <div style={s.card()}><div style={s.sec}>Meistgespielte Spielarten</div>{sessionTypes.map(([tid,cnt])=>{const t=allTypes.find(g=>g.id===tid);const col=TYPE_CATS[t?.cat||"2vs2"]?.color||"#888";const pct=Math.round(cnt/rounds.length*100);return <div key={tid} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}><span style={{color:col}}>{t?.label||tid}</span><span style={{color:C.dim}}>{cnt}× · {pct}%</span></div><div style={{height:5,background:C.border,borderRadius:3}}><div style={{height:"100%",width:`${pct}%`,background:col+"99",borderRadius:3}}/></div></div>;})}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {standings.map((p,i)=>{const st=stats[p.name];const total=st.gewonnen+st.verloren;const rate=total>0?Math.round(st.gewonnen/total*100):0;const top=Object.entries(st.byType).sort((a,b)=>b[1]-a[1]);return <div key={p.name} style={s.card(p.color+"44",p.color+"0d")}><div style={{fontSize:13,fontWeight:"bold",color:p.color,marginBottom:6}}>{p.name}</div><div style={{fontSize:17,fontWeight:"bold",color:"#e8ead0",marginBottom:4}}>{p.value.toLocaleString("de-DE")}<span style={{fontSize:11,marginLeft:6,color:p.diff>=0?"#7de87a":"#e85d4a"}}>{p.diff>=0?"+":""}{p.diff}</span></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,marginBottom:10}}>{[["Gespielt",st.angesagt,p.color],["Partner",st.partner,"#6a9a6a"],["Siege",st.gewonnen,"#7de87a"],["Siegrate",rate+"%",rate>=50?"#7de87a":"#e85d4a"]].map(([l,v,c])=><div key={l} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 4px",textAlign:"center"}}><div style={{fontSize:8,color:C.dim,marginBottom:1}}>{l}</div><div style={{fontSize:14,fontWeight:"bold",color:c}}>{v}</div></div>)}</div>{top.length>0&&<><div style={{...s.sec,marginBottom:5}}>Meist angesagt</div>{top.slice(0,4).map(([tid,cnt],rank)=>{const t=allTypes.find(g=>g.id===tid);const col=TYPE_CATS[t?.cat||"2vs2"]?.color||"#888";const pct=st.angesagt>0?Math.round(cnt/st.angesagt*100):0;return <div key={tid} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}><div style={{fontSize:9,color:C.mute,width:12}}>#{rank+1}</div><div style={{fontSize:10,color:col,width:62}}>{t?.label||tid}</div><div style={{flex:1,height:4,background:C.border,borderRadius:2}}><div style={{height:"100%",width:`${pct}%`,background:col+"88",borderRadius:2}}/></div><div style={{fontSize:9,color:C.dim,width:20,textAlign:"right"}}>{cnt}×</div></div>;})}}</>}</div>;})}
+          </div>
+        </div>
+      </>;
+    }
+
+    // ── Spielart-Edit-Panel ──────────────────────────────────────
+    function GameTypeEditPanel({type,onChange,onSave,onCancel,tariff}){
+      const upd=(k,v)=>onChange(t=>({...t,[k]:v}));
+      const base=type.useDefaultTariff?(type.cat==="2vs2"?tariff.sauspiel:tariff.solo):(type.customBetrag||25);
+      return <div style={{...s.card("#2a5a2a","#0a1a0a"),margin:"8px 0"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+          <div><div style={{fontSize:9,color:C.dim,marginBottom:4}}>Name</div><input style={s.input} value={type.label} onChange={e=>upd("label",e.target.value)}/></div>
+          <div><div style={{fontSize:9,color:C.dim,marginBottom:4}}>Beschreibung</div><input style={s.input} value={type.desc||""} onChange={e=>upd("desc",e.target.value)}/></div>
+        </div>
+        <div style={s.sec}>Gruppe</div>
+        <div style={{display:"flex",gap:6,marginBottom:12}}>
+          {Object.entries(TYPE_CATS).map(([cat,info])=><button key={cat} style={{...s.btn(type.cat===cat,info.color),flex:1}} onClick={()=>upd("cat",cat)}>{info.label}</button>)}
+        </div>
+        {type.cat!=="ramsch"&&<>
+          <div style={s.sec}>Spielfunktionen</div>
+          <Toggle label="Schneider / Schwarz" value={type.hasSchneiderSchwarz} onChange={v=>upd("hasSchneiderSchwarz",v)} small/>
+          <Toggle label="Laufende" value={type.hasLaufende} onChange={v=>upd("hasLaufende",v)} small/>
+          {type.hasLaufende&&<div style={{marginLeft:12,marginBottom:8}}>
+            <Stepper label="Laufende ab" value={type.laufendeFrom||3} min={1} max={8} onChange={v=>upd("laufendeFrom",v)} color="#f5c842" small/>
+          </div>}
+          {type.cat==="solo"&&<>
+            <Toggle label="Mit Farbe-Option" value={type.hasFarbe} onChange={v=>upd("hasFarbe",v)} small/>
+            <Toggle label="Tout-Option (×2)" value={type.hasTout} onChange={v=>upd("hasTout",v)} small/>
+          </>}
+        </>}
+        <div style={s.sec}>Tarif</div>
+        <Toggle label={`Standard-Tarif (${base} Chips)`} value={type.useDefaultTariff} onChange={v=>upd("useDefaultTariff",v)} small/>
+        {!type.useDefaultTariff&&<div style={{marginLeft:12,marginBottom:8}}>
+          <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Eigener Betrag (Chips)</div>
+          <input style={{...s.input,width:120}} type="number" value={type.customBetrag||0} onChange={e=>upd("customBetrag",Number(e.target.value))}/>
+        </div>}
+        <div style={{display:"flex",gap:8,marginTop:10}}>
+          <button onClick={()=>onSave(type)} style={{...s.btn(true,"#5a9a5a"),flex:1}}>✓ Speichern</button>
+          <button onClick={onCancel} style={{...s.btn(false,"#5a5a8a"),padding:"8px 14px"}}>✕</button>
+        </div>
+      </div>;
+    }
+
+    // ── Spielarten-Editor ────────────────────────────────────────
+    function GameTypeEditor({gameTypes,setGameTypes,tariff}){
+      const [editing,setEditing]=useState(null);
+      const [editBuf,setEditBuf]=useState(null);
+      const [showNew,setShowNew]=useState(false);
+      const [newBuf,setNewBuf]=useState(null);
+
+      function moveType(id,dir){setGameTypes(ts=>{const a=[...ts];const i=a.findIndex(t=>t.id===id);const ni=i+dir;if(ni<0||ni>=a.length)return a;[a[i],a[ni]]=[a[ni],a[i]];return a;});}
+      function startEdit(t){setEditing(t.id);setEditBuf({...t});setShowNew(false);}
+      function saveEdit(updated){setGameTypes(ts=>ts.map(t=>t.id===updated.id?updated:t));setEditing(null);setEditBuf(null);}
+      function deleteType(id){if(window.confirm("Spielart löschen?"))setGameTypes(ts=>ts.filter(t=>t.id!==id));}
+      function startNew(){setShowNew(true);setNewBuf({id:"custom_"+Date.now(),label:"Neues Spiel",desc:"",cat:"solo",isBuiltin:false,hasFarbe:false,hasTout:false,hasSchneiderSchwarz:true,hasLaufende:true,laufendeFrom:3,useDefaultTariff:true,customBetrag:null});setEditing(null);}
+      function saveNew(t){setGameTypes(ts=>[...ts,t]);setShowNew(false);setNewBuf(null);}
+
+      return <div>
+        {gameTypes.map((t,i)=>{
+          const catInfo=TYPE_CATS[t.cat]||{color:"#888",label:t.cat};
+          const isEdit=editing===t.id;
+          return <div key={t.id}>
+            <div style={{...s.card(),display:"flex",alignItems:"center",gap:8,padding:"10px 12px",marginBottom:4}}>
+              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                <button style={{...s.btn(false),padding:"2px 6px",fontSize:10,lineHeight:1}} onClick={()=>moveType(t.id,-1)} disabled={i===0}>↑</button>
+                <button style={{...s.btn(false),padding:"2px 6px",fontSize:10,lineHeight:1}} onClick={()=>moveType(t.id,1)} disabled={i===gameTypes.length-1}>↓</button>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:"bold",color:catInfo.color}}>{t.label}</div>
+                <div style={{fontSize:9,color:C.dim}}>{t.desc}</div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <span style={{fontSize:9,color:catInfo.color,background:catInfo.color+"22",border:`1px solid ${catInfo.color}44`,borderRadius:10,padding:"2px 7px"}}>{catInfo.label}</span>
+                <button style={{...s.btn(isEdit,"#5a9a5a"),padding:"5px 8px"}} onClick={()=>isEdit?(setEditing(null),setEditBuf(null)):startEdit(t)}>✏</button>
+                {!t.isBuiltin&&<button style={{...s.btn(false,"#e85d4a"),padding:"5px 8px"}} onClick={()=>deleteType(t.id)}>🗑</button>}
+              </div>
+            </div>
+            {isEdit&&editBuf&&<GameTypeEditPanel type={editBuf} onChange={setEditBuf} onSave={saveEdit} onCancel={()=>{setEditing(null);setEditBuf(null);}} tariff={tariff}/>}
+          </div>;
+        })}
+        {showNew&&newBuf&&<GameTypeEditPanel type={newBuf} onChange={setNewBuf} onSave={saveNew} onCancel={()=>{setShowNew(false);setNewBuf(null);}} tariff={tariff}/>}
+        <button onClick={startNew} style={{...s.btn(false,"#4ab8e8"),width:"100%",padding:10,marginTop:6}}>+ Neues Spiel anlegen</button>
+      </div>;
+    }
+
+    // ── Entry Form ───────────────────────────────────────────────
+    function EntryForm({form,upd,players,tariff,konten,typeCfg,preview,onSave,onBack,isEdit,roundNr,aussetzer}){
+      const catColor=TYPE_CATS[typeCfg.cat]?.color||"#fff";
+      const activePlayers=aussetzer?players.filter(p=>p!==aussetzer):players;
+      const b=preview?calcBetrag(form,typeCfg,tariff):0;
+      const sm=Math.pow(2,form.sticht||0);
+      const jm=typeCfg.cat==="ramsch"?Math.pow(2,form.jungfrauen||0):1;
+
+      return <>
+        <div style={s.card(catColor+"44",catColor+"0e")}>
+          <div style={{fontSize:11,color:catColor}}>{typeCfg.desc}</div>
+          {aussetzer&&<div style={{fontSize:11,color:"#a080e0",marginTop:4}}>⚬ {aussetzer} sitzt aus</div>}
+          <div style={{fontSize:11,color:"#8ab0aa",marginTop:4}}>
+            {typeCfg.cat==="2vs2"?`Basis: ${typeCfg.useDefaultTariff?tariff.sauspiel:typeCfg.customBetrag} + Modif. à ${tariff.sl} Chips`:
+             typeCfg.cat==="ramsch"?`Basis: ${typeCfg.useDefaultTariff?tariff.sauspiel:typeCfg.customBetrag} + Jungfrauen-Verdoppelung`:
+             `Basis: ${typeCfg.useDefaultTariff?tariff.solo:typeCfg.customBetrag} + Modif. à ${tariff.sl} Chips${typeCfg.hasLaufende?` · Lfd. ab ${typeCfg.laufendeFrom}`:""}`}
+          </div>
+        </div>
+
+        {typeCfg.cat==="2vs2"&&<div style={s.card()}>
+          <div style={s.sec}>Spieler</div>
+          <div style={{display:"flex",gap:6,marginBottom:12}}>
+            {activePlayers.map((p)=>{const i=players.indexOf(p);return <button key={p} style={s.pBtn(form.spieler===p,PCOLORS[i])} onClick={()=>{upd("spieler",form.spieler===p?null:p);if(form.partner===p)upd("partner",null);}}>{p}</button>;})}
+          </div>
+          <div style={s.sec}>Partner</div>
+          <div style={{display:"flex",gap:6}}>
+            {activePlayers.filter(p=>p!==form.spieler).map(p=>{const i=players.indexOf(p);return <button key={p} style={s.pBtn(form.partner===p,PCOLORS[i])} onClick={()=>upd("partner",form.partner===p?null:p)}>{p}</button>;})}
+          </div>
+        </div>}
+
+        {typeCfg.cat==="solo"&&<div style={s.card()}>
+          <div style={s.sec}>Solist</div>
+          <div style={{display:"flex",gap:6,marginBottom:(typeCfg.hasFarbe||typeCfg.hasTout)?12:0}}>
+            {activePlayers.map((p)=>{const i=players.indexOf(p);return <button key={p} style={s.pBtn(form.solist===p,PCOLORS[i])} onClick={()=>upd("solist",form.solist===p?null:p)}>{p}</button>;})}
+          </div>
+          {(typeCfg.hasFarbe||typeCfg.hasTout)&&<div style={{display:"flex",gap:8}}>
+            {typeCfg.hasFarbe&&<button style={{...s.btn(form.mitFarbe,"#a080e0"),flex:1}} onClick={()=>upd("mitFarbe",!form.mitFarbe)}>Mit Farbe {form.mitFarbe?"✓":""}</button>}
+            {typeCfg.hasTout&&<button style={{...s.btn(form.tout,"#ff8c42"),flex:1}} onClick={()=>upd("tout",!form.tout)}>Tout (×2) {form.tout?"✓":""}</button>}
+          </div>}
+        </div>}
+
+        {typeCfg.cat==="ramsch"&&<div style={s.card()}>
+          <div style={s.sec}>Verlierer (meiste Augen)</div>
+          <div style={{display:"flex",gap:6,marginBottom:16}}>
+            {activePlayers.map((p)=>{const i=players.indexOf(p);return <button key={p} style={s.pBtn(form.verlierer===p,PCOLORS[i])} onClick={()=>upd("verlierer",form.verlierer===p?null:p)}>{p}</button>;})}
+          </div>
+          <div style={{marginBottom:14}}><Stepper label="Jungfrauen" value={form.jungfrauen} max={3} onChange={v=>upd("jungfrauen",v)} color="#e85d4a" hint={form.jungfrauen>0?`Faktor ×${Math.pow(2,form.jungfrauen)}`:undefined}/></div>
+          <div style={{display:"flex",gap:8}}>
+            <button style={{...s.btn(form.durchmarsch,"#7de87a"),flex:1}} onClick={()=>upd("durchmarsch",!form.durchmarsch)}>Durchmarsch {form.durchmarsch?"✓":""}</button>
+            <button style={{...s.btn(form.pflichtramsch,"#a080e0"),flex:1}} onClick={()=>upd("pflichtramsch",!form.pflichtramsch)}>Pflichtramsch {form.pflichtramsch?"✓":""}</button>
+          </div>
+        </div>}
+
+        {typeCfg.cat!=="ramsch"&&!form.tout&&<ErgebnisBlock form={form} upd={upd} typeCfg={typeCfg}/>}
+        {typeCfg.cat!=="ramsch"&&form.tout&&<div style={s.card()}>
+          <div style={s.sec}>Ergebnis</div>
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            <button style={{...s.btn(form.gewonnen,"#7de87a"),flex:1,fontSize:14,padding:10}} onClick={()=>upd("gewonnen",true)}>✓ Gewonnen</button>
+            <button style={{...s.btn(!form.gewonnen,"#e85d4a"),flex:1,fontSize:14,padding:10}} onClick={()=>upd("gewonnen",false)}>✗ Verloren</button>
+          </div>
+          {typeCfg.hasLaufende&&<Stepper label="Laufende" value={form.laufende} max={8} onChange={v=>upd("laufende",v)}
+            hint={form.laufende>=(typeCfg.laufendeFrom||3)?`→ +${form.laufende-(typeCfg.laufendeFrom||3)-1} × S&L (×2)`:`Zählt ab ${typeCfg.laufendeFrom||3}`}/>}
+          <div style={{fontSize:10,color:C.dim,marginTop:8}}>Tout: Schneider & Schwarz werden nicht gerechnet</div>
+        </div>}
+
+        <div style={s.card()}>
+          <div style={s.sec}>Sticht (Kontra / Re)</div>
+          <Stepper label={["–","Sticht","Re-Sticht","×8","×16"][form.sticht]||`×${Math.pow(2,form.sticht)}`} value={form.sticht} max={4} onChange={v=>upd("sticht",v)} color="#d080e0" hint={form.sticht>0?`Faktor ×${Math.pow(2,form.sticht)}`:undefined}/>
+        </div>
+
+        {preview&&<div style={{background:"#0a1a0a",border:"1px solid #2a5a2a",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
+          <div style={{...s.sec,color:"#3a8a3a"}}>
+            Vorschau · {b}{sm>1?` × ${sm}`:""}{jm>1?` × ${jm}`:""} = <strong style={{color:"#7de87a"}}>{b*sm*jm} Chips</strong>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+            {players.map((p,i)=>{const delta=preview[p];return <div key={p} style={{textAlign:"center"}}>
+              <div style={{fontSize:9,color:PCOLORS[i]}}>{p}</div>
+              <div style={{fontSize:20,fontWeight:"bold",color:delta>0?"#7de87a":delta<0?"#e85d4a":aussetzer===p?"#a080e0":"#2a4a2a"}}>{aussetzer===p?"out":delta>0?`+${delta}`:delta}</div>
+              <div style={{fontSize:10,color:"#2a5a2a"}}>{konten[p]+delta}</div>
+            </div>;})}
+          </div>
+        </div>}
+
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onBack} style={{...s.btn(false,"#5a5a8a"),padding:"12px 16px"}}>← Zurück</button>
+          <button onClick={onSave} disabled={!preview}
+            style={{flex:1,padding:14,fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:14,
+              background:preview?"#1a4a1a":C.bg1,border:`1px solid ${preview?"#4a9a4a":C.border}`,
+              color:preview?"#7de87a":"#2a4a2a",borderRadius:8,cursor:preview?"pointer":"default"}}>
+            {isEdit?"💾 Speichern":`✓ Runde ${roundNr} eintragen`}
+          </button>
+        </div>
+      </>;
+    }
+
+    // ── Export-Funktion ──────────────────────────────────────────
+    
+    const EXPORT_COMPONENT_CODE = `
+    const {useState,useMemo}=React;
+    const {LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,ReferenceLine,ResponsiveContainer,BarChart,Bar}=Recharts;
+    const SESSION=JSON.parse(document.getElementById('sk-data').textContent);
+    const ALL_TYPES_RAW=JSON.parse(document.getElementById('sk-types').textContent);
+    const PLAYERS=SESSION.players;const ROUNDS=SESSION.rounds||[];const START=SESSION.startkapital||1100;const TARIFF=SESSION.tariff||{sl:25,sauspiel:25,solo:50};
+    const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a"];
+    const ALL_TYPES=[...ALL_TYPES_RAW,{id:"farbwenz",label:"Farbwenz",cat:"solo"},{id:"farbgeier",label:"Farbgeier",cat:"solo"}];
+    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo":{label:"Solo",color:"#f5c842"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
+    function et(r){if(r.typeId==="wenz"&&r.mitFarbe)return{id:"farbwenz",label:"Farbwenz",cat:"solo"};if(r.typeId==="geier"&&r.mitFarbe)return{id:"farbgeier",label:"Farbgeier",cat:"solo"};return{id:r.typeId,label:r.typeLabel,cat:r.typeCat};}
+    const C={bg1:"#0c180c",bg2:"#111f11",border:"#1a321a",text:"#c8e0c8",dim:"#4a7a4a",mute:"#2a4a2a"};
+    const ss={card:(bc,bg)=>({background:bg||"#0c180c",border:\`1px solid \${bc||"#1a321a"}\`,borderRadius:10,padding:"12px 14px",marginBottom:10}),sec:{fontSize:9,color:"#4a7a4a",letterSpacing:2,textTransform:"uppercase",marginBottom:8},subTab:(on)=>({background:on?"#1e3a1e":"transparent",border:\`1px solid \${on?"#3a6a3a":"#1a321a"}\`,color:on?"#a0d0a0":"#4a7a4a",borderRadius:7,padding:"7px 16px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}),pChip:(on,col)=>({background:on?col+"22":"transparent",border:\`1px solid \${on?col:"#1a321a"}\`,color:on?col:"#2a4a2a",borderRadius:20,padding:"5px 14px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"})};
+    const kontoData=(()=>{const rows=[{round:0,...Object.fromEntries(PLAYERS.map(p=>[p,START]))}];const cur=Object.fromEntries(PLAYERS.map(p=>[p,START]));ROUNDS.forEach((r,i)=>{PLAYERS.forEach(p=>cur[p]+=(r.deltas[p]||0));rows.push({round:i+1,...cur});});return rows;})();
+    const deltaData=(()=>{const raw=ROUNDS.map((r,i)=>({round:i+1,...Object.fromEntries(PLAYERS.map(p=>[p,r.deltas[p]||0]))}));const out=[];raw.forEach((d,i)=>{out.push({...d});if(i<raw.length-1)out.push({round:\`\${d.round}.\`,...Object.fromEntries(PLAYERS.map(p=>[p,null]))});});return out;})();
+    const stats=(()=>{const st=Object.fromEntries(PLAYERS.map(p=>[p,{angesagt:0,partner:0,gewonnen:0,verloren:0,total:0,byType:{}}]));ROUNDS.forEach(r=>{const e=et(r);PLAYERS.forEach(p=>{const d=r.deltas[p]||0;st[p].total+=d;if(d>0)st[p].gewonnen++;if(d<0)st[p].verloren++;});if(r.spieler){st[r.spieler].angesagt++;st[r.spieler].byType[e.id]=(st[r.spieler].byType[e.id]||0)+1;}if(r.solist){st[r.solist].angesagt++;st[r.solist].byType[e.id]=(st[r.solist].byType[e.id]||0)+1;}if(r.partner)st[r.partner].partner++;});return st;})();
+    const sessionTypes=(()=>{const tc={};ROUNDS.forEach(r=>{const e=et(r);tc[e.id]=(tc[e.id]||0)+1;});return Object.entries(tc).sort((a,b)=>b[1]-a[1]);})();
+    const last=kontoData[kontoData.length-1]||{};
+    const standings=PLAYERS.map((p,i)=>({name:p,color:PCOLORS[i],value:last[p]||START,diff:(last[p]||START)-START})).sort((a,b)=>b.value-a.value);
+    function TK({active,payload,label}){if(!active||!payload?.length)return null;const sorted=[...payload].sort((a,b)=>b.value-a.value);const r=label>0?ROUNDS[label-1]:null;return <div style={{background:"#0a1a0a",border:"1px solid #2a4a2a",borderRadius:8,padding:"10px 14px",fontSize:12,fontFamily:"'Courier New',monospace"}}><div style={{color:"#7aaa7a",fontWeight:"bold",marginBottom:4}}>Runde {label}</div>{r&&<div style={{fontSize:10,color:TYPE_CATS[r.typeCat]?.color||"#888",marginBottom:6}}>{et(r).label}{r.solist?\` · \${r.solist}\`:r.spieler?\` · \${r.spieler}\`:""}{r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}</div>}{sorted.map(p=>{const diff=p.value-START;return <div key={p.name} style={{color:p.color,marginBottom:2}}>{p.name}: <strong>{p.value.toLocaleString("de-DE")}</strong><span style={{fontSize:10,marginLeft:6,color:diff>=0?"#7de87a":"#e85d4a"}}>{diff>=0?"+":""}{diff}</span></div>;})}</div>;}
+    function TD({active,payload,label}){if(!active||!payload?.length)return null;const r=ROUNDS[Number(label)-1];if(!r)return null;const sorted=[...payload].filter(p=>p.value!==null).sort((a,b)=>b.value-a.value);return <div style={{background:"#0a1a0a",border:"1px solid #2a4a2a",borderRadius:8,padding:"10px 14px",fontSize:12,fontFamily:"'Courier New',monospace"}}><div style={{color:"#7aaa7a",fontWeight:"bold",marginBottom:4}}>Runde {label}</div><div style={{fontSize:10,color:TYPE_CATS[r.typeCat]?.color||"#888",marginBottom:6}}>{et(r).label}{r.solist?\` · \${r.solist}\`:r.spieler?\` · \${r.spieler}\`:""}{r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}</div>{sorted.map(p=><div key={p.name} style={{color:p.fill,marginBottom:2}}>{p.name}: <span style={{color:p.value>0?"#7de87a":p.value<0?"#e85d4a":"#3a5a3a",fontWeight:"bold"}}>{p.value>0?"+":""}{p.value}</span></div>)}</div>;}
+    function Stat(){
+      return <div style={{marginTop:20}}>
+        <div style={{...ss.sec,fontSize:10,letterSpacing:3,marginBottom:12}}>STATISTIK</div>
+        <div style={ss.card()}><div style={ss.sec}>Meistgespielte Spielarten</div>{sessionTypes.map(([tid,cnt])=>{const t=ALL_TYPES.find(g=>g.id===tid);const col=TYPE_CATS[t?.cat||"2vs2"]?.color||"#888";const pct=Math.round(cnt/Math.max(ROUNDS.length,1)*100);return <div key={tid} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}><span style={{color:col}}>{t?.label||tid}</span><span style={{color:C.dim}}>{cnt}× · {pct}%</span></div><div style={{height:5,background:C.border,borderRadius:3}}><div style={{height:"100%",width:\`\${pct}%\`,background:col+"99",borderRadius:3}}/></div></div>;})}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          {standings.map((p,i)=>{const st=stats[p.name];const total=st.gewonnen+st.verloren;const rate=total>0?Math.round(st.gewonnen/total*100):0;const top=Object.entries(st.byType).sort((a,b)=>b[1]-a[1]);return <div key={p.name} style={ss.card(p.color+"44",p.color+"0d")}>
+            <div style={{fontSize:13,fontWeight:"bold",color:p.color,marginBottom:6}}>{p.name}</div>
+            <div style={{fontSize:17,fontWeight:"bold",color:"#e8ead0",marginBottom:4}}>{p.value.toLocaleString("de-DE")}<span style={{fontSize:11,marginLeft:6,color:p.diff>=0?"#7de87a":"#e85d4a"}}>{p.diff>=0?"+":""}{p.diff}</span></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,marginBottom:10}}>{[["Gespielt",st.angesagt,p.color],["Partner",st.partner,"#6a9a6a"],["Siege",st.gewonnen,"#7de87a"],["Siegrate",rate+"%",rate>=50?"#7de87a":"#e85d4a"]].map(([l,v,c])=><div key={l} style={{background:C.bg2,border:\`1px solid \${C.border}\`,borderRadius:6,padding:"5px 4px",textAlign:"center"}}><div style={{fontSize:8,color:C.dim,marginBottom:1}}>{l}</div><div style={{fontSize:14,fontWeight:"bold",color:c}}>{v}</div></div>)}</div>
+            {top.length>0&&<><div style={{...ss.sec,marginBottom:5}}>Meist angesagt</div>{top.slice(0,4).map(([tid,cnt],rank)=>{const t=ALL_TYPES.find(g=>g.id===tid);const col=TYPE_CATS[t?.cat||"2vs2"]?.color||"#888";const pct=st.angesagt>0?Math.round(cnt/st.angesagt*100):0;return <div key={tid} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}><div style={{fontSize:9,color:C.mute,width:12}}>#{rank+1}</div><div style={{fontSize:10,color:col,width:62}}>{t?.label||tid}</div><div style={{flex:1,height:4,background:C.border,borderRadius:2}}><div style={{height:"100%",width:\`\${pct}%\`,background:col+"88",borderRadius:2}}/></div><div style={{fontSize:9,color:C.dim,width:20,textAlign:"right"}}>{cnt}×</div></div>;})}</>}
+          </div>;})}
+        </div>
+      </div>;
+    }
+    function App(){
+      const [sub,setSub]=useState("konto");
+      const [hid,setHid]=useState(new Set());
+      const tog=p=>setHid(prev=>{const s=new Set(prev);s.has(p)?s.delete(p):s.add(p);return s;});
+      return <div style={{background:"linear-gradient(160deg,#0b160b,#101e10)",minHeight:"100vh",fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:32}}>
+        <div style={{background:"#080f08",borderBottom:\`1px solid \${C.border}\`,padding:"14px 16px",textAlign:"center"}}>
+          <div style={{fontSize:20,fontWeight:"bold",color:"#ffffff",marginBottom:6}}>Schafkopf · {SESSION.exportDate||""}</div>
+          <div style={{fontSize:12,color:"#ffffff",marginTop:2}}>S&L {TARIFF.sl} · Sauspiel {TARIFF.sauspiel} · Solo {TARIFF.solo} Chips · {ROUNDS.length} Runden</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,padding:"12px 16px 0"}}>
+          {standings.map((p,i)=><div key={p.name} style={{background:\`\${p.color}12\`,border:\`1px solid \${p.color}44\`,borderRadius:8,padding:"8px 4px",textAlign:"center"}}>
+            <div style={{fontSize:9,color:p.color}}>#{i+1} {p.name}</div>
+            <div style={{fontSize:16,fontWeight:"bold",color:"#eeeedd"}}>{p.value.toLocaleString("de-DE")}</div>
+            <div style={{fontSize:10,color:p.diff>=0?"#7de87a":"#e85d4a"}}>{p.diff>=0?"+":""}{p.diff}</div>
+          </div>)}
+        </div>
+        <div style={{display:"flex",gap:8,padding:"12px 16px 0"}}>
+          <button style={ss.subTab(sub==="konto")} onClick={()=>setSub("konto")}>Kontostand</button>
+          <button style={ss.subTab(sub==="delta")} onClick={()=>setSub("delta")}>Δ Delta</button>
+          <button style={ss.subTab(sub==="verlauf")} onClick={()=>setSub("verlauf")}>Verlauf</button>
+        </div>
+        <div style={{padding:"12px 16px"}}>
+          {sub==="konto"&&<>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>{PLAYERS.map((p,i)=><button key={p} onClick={()=>tog(p)} style={ss.pChip(!hid.has(p),PCOLORS[i])}>— {p}</button>)}</div>
+            <ResponsiveContainer width="100%" height={260}><LineChart data={kontoData} margin={{top:10,right:12,left:0,bottom:14}}><CartesianGrid strokeDasharray="3 3" stroke="#1e3a1e"/><XAxis dataKey="round" stroke="#3a6a3a" tick={{fill:"#5a8a5a",fontSize:10}} label={{value:"Runde",position:"insideBottom",offset:-8,fill:C.dim,fontSize:10}}/><YAxis stroke="#3a6a3a" tick={{fill:"#5a8a5a",fontSize:10}} tickFormatter={v=>v.toLocaleString("de-DE")} width={54}/><Tooltip content={<TK/>}/><ReferenceLine y={START} stroke="#2a4a2a" strokeDasharray="4 3" label={{value:"Start",position:"right",fill:C.mute,fontSize:9}}/>{PLAYERS.map((p,i)=>!hid.has(p)&&<Line key={p} type="monotone" dataKey={p} stroke={PCOLORS[i]} strokeWidth={2} dot={{r:3,fill:PCOLORS[i],strokeWidth:0}} activeDot={{r:5}} animationDuration={400}/>)}</LineChart></ResponsiveContainer>
+          </>}
+          {sub==="delta"&&<>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>{PLAYERS.map((p,i)=><div key={p} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:PCOLORS[i]}}><div style={{width:10,height:10,background:PCOLORS[i],borderRadius:2}}/>{p}</div>)}</div>
+            <ResponsiveContainer width="100%" height={260}><BarChart data={deltaData} margin={{top:10,right:10,left:0,bottom:14}} barSize={8} barGap={2} barCategoryGap="20%"><CartesianGrid strokeDasharray="3 3" stroke="#1e3a1e"/><XAxis dataKey="round" stroke="#3a6a3a" tick={({x,y,payload})=>!String(payload.value).includes(".")?<text x={x} y={y+10} textAnchor="middle" fill="#5a8a5a" fontSize={10}>{payload.value}</text>:null} label={{value:"Runde",position:"insideBottom",offset:-8,fill:C.dim,fontSize:10}}/><YAxis stroke="#3a6a3a" tick={{fill:"#5a8a5a",fontSize:10}} width={40}/><Tooltip content={<TD/>}/><ReferenceLine y={0} stroke="#3a6a3a" strokeWidth={1}/>{PLAYERS.map((p,i)=><Bar key={p} dataKey={p} fill={PCOLORS[i]} opacity={0.85} radius={[2,2,0,0]} animationDuration={400}/>)}</BarChart></ResponsiveContainer>
+          </>}
+          {sub==="verlauf"&&<div>{[...ROUNDS].reverse().map(r=>{const sm=Math.pow(2,r.sticht||0);const jm=r.jungfrauen>0?Math.pow(2,r.jungfrauen):1;const e=et(r);const cc=TYPE_CATS[r.typeCat]?.color||"#fff";return <div key={r.runde} style={ss.card()}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:4}}><span style={{fontSize:11,color:C.dim}}>Runde {r.runde}{r.aussetzer&&<span style={{color:"#a080e0"}}> · {r.aussetzer} out</span>}</span><span style={{fontSize:11,color:cc}}>{e.label}{r.tout&&<span style={{color:"#ff8c42"}}> Tout</span>}{r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}{r.schneider?" · Schndr.":""}{r.schwarz?" · Schwz.":""}{r.laufende>=2?\` · \${r.laufende} Lfd.\`:""}{r.sticht>0&&<span style={{color:"#d080e0"}}> · St×{sm}</span>}</span></div><div style={{fontSize:10,color:C.mute,marginBottom:6}}>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong>{r.solist&&<span style={{color:C.dim}}> · {r.solist}</span>}{r.spieler&&<span style={{color:C.dim}}> · {r.spieler}{r.partner?\`+\${r.partner}\`:""}</span>}</div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>{PLAYERS.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}><div style={{fontSize:9,color:PCOLORS[i]}}>{p}</div><div style={{fontSize:16,fontWeight:"bold",color:d>0?"#7de87a":d<0?"#e85d4a":"#2a4a2a"}}>{d>0?"+":""}{d}</div></div>;})}</div></div>;})}
+          </div>}
+          <Stat/>
+        </div>
+      </div>;
+    }
+    window.addEventListener('load',function(){document.getElementById('loading').style.display='none';document.getElementById('root').style.display='block';});
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+`;
+    
+
+    function buildExportHTML(players,rounds,startkapital,tariff,gameTypes){
+      const dataJson=JSON.stringify({type:"schafkopf-data",players,rounds,startkapital,tariff,gameTypes,exportDate:new Date().toLocaleDateString("de-DE")});
+      const typesJson=JSON.stringify(gameTypes);
+      const date=new Date().toLocaleDateString("de-DE");
+      return [
+        '<!DOCTYPE html><html lang="de"><head>',
+        '<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>',
+        '<title>Schafkopf · '+date+'<\/title>',
+        '<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0b160b;overscroll-behavior:none}#root{min-height:100vh}#loading{display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:#4a7a4a;font-size:13px;letter-spacing:2px}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0b160b}::-webkit-scrollbar-thumb{background:#2a4a2a;border-radius:2px}<\/style>',
+        '<\/head><body>',
+        '<div id="loading">LÄDT …<\/div><div id="root" style="display:none"><\/div>',
+        '<script id="sk-data" type="application/json">'+dataJson+'<\/script>',
+        '<script id="sk-types" type="application/json">'+typesJson+'<\/script>',
+        '<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin><\/script>',
+        '<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin><\/script>',
+        '<script src="https://unpkg.com/prop-types@15/prop-types.min.js" crossorigin><\/script>',
+        '<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" crossorigin><\/script>',
+        '<script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js" crossorigin><\/script>',
+        '<script type="text/babel" data-presets="react">',
+        EXPORT_COMPONENT_CODE,
+        '<\/script><\/body><\/html>'
+      ].join('\n');
+    }
+
+    // ── Haupt-Komponente ─────────────────────────────────────────
+    function emptyForm(){return{spieler:null,partner:null,solist:null,verlierer:null,gewonnen:true,schneider:false,schwarz:false,laufende:0,jungfrauen:0,sticht:0,pflichtramsch:false,durchmarsch:false,mitFarbe:false,tout:false};}
+
+    function SchafkopfTracker(){
+      const getSaved=()=>{try{const s=localStorage.getItem(LS_KEY);if(s)return JSON.parse(s);}catch{}return null;};
+      const sv=getSaved();
+      const [nav,setNav]            = useState("home");
+      const [players,setPlayers]    = useState(sv?.players||["Spieler 1","Spieler 2","Spieler 3","Spieler 4"]);
+      const [tariff,setTariff]      = useState(sv?.tariff||{sl:25,sauspiel:25,solo:50});
+      const [startkapital,setStart] = useState(sv?.startkapital||1500);
+      const [rounds,setRounds]      = useState(sv?.rounds||[]);
+      const [gameTypes,setGameTypes]= useState(()=>{const saved=sv?.gameTypes;if(saved&&saved.length>0)return saved;return DEFAULT_GAME_TYPES;});
+      const [selType,setSelType]    = useState(null);
+      const [form,setForm]          = useState(emptyForm());
+      const [editRound,setEditRound]= useState(null);
+      const [aussetzer,setAussetzer]= useState(null); // Aussetzen-Modus
+      const [aussetzenStep,setAussetzenStep]=useState(0);
+      const [settingsTab,setSettingsTab]=useState("allg"); // 0=wer, 1=spieltyp
+
+      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes}));}catch{}},[players,tariff,startkapital,rounds,gameTypes]);
+
+      const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
+      const updT=(k,v)=>setTariff(t=>({...t,[k]:v}));
+
+      const konten=useMemo(()=>{const k=Object.fromEntries(players.map(p=>[p,startkapital]));rounds.forEach(r=>players.forEach(p=>k[p]+=(r.deltas[p]||0)));return k;},[rounds,players,startkapital]);
+      const kontenForEdit=useMemo(()=>{if(!editRound)return konten;const k=Object.fromEntries(players.map(p=>[p,startkapital]));rounds.filter(r=>r.id!==editRound.id).forEach(r=>players.forEach(p=>k[p]+=(r.deltas[p]||0)));return k;},[rounds,players,startkapital,editRound,konten]);
+
+      const typeCfg=selType?gameTypes.find(t=>t.id===selType):null;
+      const preview=useMemo(()=>{if(!typeCfg)return null;const b=calcBetrag(form,typeCfg,tariff);return calcDeltas(form,players,b,typeCfg,aussetzer);},[form,players,tariff,typeCfg,aussetzer]);
+
+      function openEdit(round){setEditRound(round);setSelType(round.typeId);setAussetzer(round.aussetzer||null);setForm({spieler:round.spieler||null,partner:round.partner||null,solist:round.solist||null,verlierer:round.verlierer||null,gewonnen:round.gewonnen??true,schneider:round.schneider||false,schwarz:round.schwarz||false,laufende:round.laufende||0,jungfrauen:round.jungfrauen||0,sticht:round.sticht||0,pflichtramsch:round.pflichtramsch||false,durchmarsch:round.durchmarsch||false,mitFarbe:round.mitFarbe||false,tout:round.tout||false});setNav("entry");}
+
+      function saveRound(){
+        if(!preview)return;
+        const b=calcBetrag(form,typeCfg,tariff);
+        if(editRound){
+          setRounds(r=>r.map(round=>round.id===editRound.id?{...round,...form,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,aussetzer:aussetzer||null,betrag:b,deltas:preview}:round));
+          setEditRound(null);setNav("verlauf");
+        }else{
+          setRounds(r=>[...r,{id:Date.now(),runde:r.length+1,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,...form,aussetzer:aussetzer||null,betrag:b,deltas:preview}]);
+          setNav("home");
+        }
+        setForm(emptyForm());setSelType(null);setAussetzer(null);setAussetzenStep(0);
+      }
+
+      function cancelEntry(){setEditRound(null);setSelType(null);setForm(emptyForm());setAussetzer(null);setAussetzenStep(0);setNav(editRound?"verlauf":"home");}
+
+      // Export
+      function exportData(){
+        const data={
+          players,rounds,startkapital,tariff,
+          gameTypes,
+          exportDate:new Date().toLocaleDateString("de-DE")
+        };
+        const compressed=LZString.compressToEncodedURIComponent(JSON.stringify(data));
+        const url=window.location.href.split('#')[0]+'#v1='+compressed;
+        if(navigator.clipboard){
+          navigator.clipboard.writeText(url).then(()=>alert('Link kopiert! ✓\nEinfach per WhatsApp oder iMessage teilen.'));
+        } else {
+          prompt('Link zum Kopieren:',url);
+        }
+      }
+
+      function exportConfig(){
+        const cfg={type:"schafkopf-config",players,tariff,startkapital,gameTypes};
+        const blob=new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
+        const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+        a.download=`schafkopf-config-${new Date().toISOString().slice(0,10)}.json`;a.click();
+      }
+
+      function importFile(e){
+        const file=e.target.files[0];if(!file)return;
+        const reader=new FileReader();
+        reader.onload=ev=>{
+          try{
+            const text=ev.target.result;
+            let data;
+            if(file.name.endsWith(".html")){
+              const parser=new DOMParser();
+              const doc=parser.parseFromString(text,"text/html");
+              const el=doc.getElementById("sk-data");
+              if(el)data=JSON.parse(el.textContent);
+            }else{
+              data=JSON.parse(text);
+            }
+            if(!data)return;
+            if(data.players)setPlayers(data.players);
+            if(data.tariff)setTariff(data.tariff);
+            if(data.startkapital)setStart(data.startkapital);
+            if(data.rounds)setRounds(data.rounds);
+            if(data.gameTypes)setGameTypes(data.gameTypes);
+          }catch(err){alert("Import fehlgeschlagen: "+err.message);}
+        };
+        reader.readAsText(file);
+      }
+
+      const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital})).sort((a,b)=>b.value-a.value);
+
+      return <div style={s.page}>
+        <div style={s.topbar}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:9,color:C.mute,letterSpacing:3}}>SCHAFKOPF</div>
+              <div style={{fontSize:15,fontWeight:"bold",color:"#e8ead0"}}>
+                {nav==="home"&&(aussetzenStep>0?`Aussetzen · ${aussetzenStep===1?"Wer?":"Spieltyp"}`:"Spieltyp wählen")}
+                {nav==="entry"&&(editRound?`✏ ${typeCfg?.label||""}`:aussetzer?`⚬ ${typeCfg?.label||""} (${aussetzer} out)`:typeCfg?.label||"")}
+                {nav==="verlauf"&&`Verlauf (${rounds.length})`}
+                {nav==="chart"&&"Chart & Statistik"}
+                {nav==="settings"&&"Einstellungen"}
+              </div>
+            </div>
+            <div style={{textAlign:"right",fontSize:10,color:"#e8ead0"}}>
+              <div>S&L {tariff.sl} · Ssp {tariff.sauspiel} · Solo {tariff.solo}</div>
+            </div>
+          </div>
+          <div style={{background:"#0f1f0f",border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 12px",margin:"8px 0",textAlign:"center"}}>
+            <span style={{fontSize:9,color:C.dim,letterSpacing:2,marginRight:8}}>RUNDE</span>
+            <span style={{fontSize:22,fontWeight:"bold",color:"#a0d0a0"}}>{rounds.length}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+            {standings.map((p,i)=><div key={p.name} style={{textAlign:"center"}}>
+              <div style={{fontSize:9,color:p.color}}>{p.name}</div>
+              <div style={{fontSize:14,fontWeight:"bold",color:"#e8ead0"}}>{p.value.toLocaleString("de-DE")}</div>
+              <div style={{fontSize:10,color:p.diff>=0?"#7de87a":"#e85d4a"}}>{p.diff>=0?"+":""}{p.diff}</div>
+            </div>)}
+          </div>
+        </div>
+
+        <div style={{padding:"14px 16px"}}>
+
+          {/* HOME */}
+          {nav==="home"&&aussetzenStep===0&&<>
+            {Object.entries(TYPE_CATS).map(([cat,catInfo])=><div key={cat} style={{marginBottom:16}}>
+              <div style={{...s.sec,color:catInfo.color+"99"}}>{catInfo.label}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {gameTypes.filter(t=>t.cat===cat).map(t=><div key={t.id}
+                  onClick={()=>{setSelType(t.id);setForm(emptyForm());setEditRound(null);setAussetzer(null);setNav("entry");}}
+                  style={{background:catInfo.color+"0e",border:`1px solid ${catInfo.color}33`,borderRadius:10,padding:"12px",cursor:"pointer"}}>
+                  <div style={{fontSize:15,fontWeight:"bold",color:catInfo.color,marginBottom:2}}>{t.label}</div>
+                  <div style={{fontSize:10,color:C.dim}}>{t.desc}</div>
+                </div>)}
+              </div>
+            </div>)}
+            {/* Aussetzen */}
+            <div style={{...s.card("#a080e044","#1a0a1a"),marginBottom:10}}>
+              <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>⚬ AUSSETZEN</div>
+              <div style={{fontSize:11,color:C.dim,marginBottom:10}}>Ein Spieler hat 6 Spatz – die anderen 3 spielen.</div>
+              <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:10}}>Aussetzen starten</button>
+            </div>
+            {rounds.length>0&&<button onClick={()=>setRounds(r=>r.slice(0,-1))} style={{...s.btn(false,"#9a5a5a"),width:"100%",padding:10,marginTop:4}}>↩ Letzte Runde rückgängig</button>}
+          </>}
+
+          {/* AUSSETZEN – Schritt 1: Wer sitzt aus? */}
+          {nav==="home"&&aussetzenStep===1&&<>
+            <div style={s.card("#a080e044","#1a0a1a")}>
+              <div style={s.sec}>Wer sitzt aus? (6 Spatz, kein Trumpf)</div>
+              <div style={{display:"flex",gap:6,marginBottom:16}}>
+                {players.map((p,i)=><button key={p}
+                  style={s.pBtn(aussetzer===p,"#a080e0")}
+                  onClick={()=>setAussetzer(aussetzer===p?null:p)}>{p}</button>)}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{setAussetzer(null);setAussetzenStep(0);}} style={{...s.btn(false,"#5a5a8a"),padding:"10px 14px"}}>← Zurück</button>
+                <button onClick={()=>aussetzer&&setAussetzenStep(2)} disabled={!aussetzer}
+                  style={{...s.btn(!!aussetzer,"#a080e0"),flex:1,padding:10}}>
+                  Weiter → Spieltyp wählen
+                </button>
+              </div>
+            </div>
+          </>}
+
+          {/* AUSSETZEN – Schritt 2: Spieltyp */}
+          {nav==="home"&&aussetzenStep===2&&<>
+            <div style={{...s.card("#a080e044","#1a0a1a"),marginBottom:12}}>
+              <div style={{fontSize:12,color:"#a080e0"}}>⚬ {aussetzer} sitzt aus · {players.filter(p=>p!==aussetzer).join(", ")} spielen</div>
+            </div>
+            {Object.entries(TYPE_CATS).map(([cat,catInfo])=><div key={cat} style={{marginBottom:14}}>
+              <div style={{...s.sec,color:catInfo.color+"99"}}>{catInfo.label}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {gameTypes.filter(t=>t.cat===cat).map(t=><div key={t.id}
+                  onClick={()=>{setSelType(t.id);setForm(emptyForm());setEditRound(null);setNav("entry");}}
+                  style={{background:catInfo.color+"0e",border:`1px solid ${catInfo.color}33`,borderRadius:10,padding:"12px",cursor:"pointer"}}>
+                  <div style={{fontSize:15,fontWeight:"bold",color:catInfo.color,marginBottom:2}}>{t.label}</div>
+                  <div style={{fontSize:10,color:C.dim}}>{t.desc}</div>
+                </div>)}
+              </div>
+            </div>)}
+            <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(false,"#5a5a8a"),width:"100%",padding:10}}>← Zurück</button>
+          </>}
+
+          {/* EINTRAGEN */}
+          {nav==="entry"&&typeCfg&&<EntryForm form={form} upd={upd} players={players} tariff={tariff}
+            konten={editRound?kontenForEdit:konten} typeCfg={typeCfg} preview={preview}
+            onSave={saveRound} onBack={cancelEntry} isEdit={!!editRound} roundNr={rounds.length+1} aussetzer={aussetzer}/>}
+
+          {/* VERLAUF */}
+          {nav==="verlauf"&&(rounds.length===0
+            ?<div style={{textAlign:"center",color:C.mute,padding:40}}>Noch keine Runden.</div>
+            :[...rounds].reverse().map(r=>{
+              const sm=Math.pow(2,r.sticht||0);const jm=r.jungfrauen>0?Math.pow(2,r.jungfrauen):1;
+              const catColor=TYPE_CATS[r.typeCat]?.color||"#fff";const et=effectiveType(r);
+              return <div key={r.id} style={s.card()}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,flexWrap:"wrap",gap:4}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,color:C.dim}}>Runde {r.runde}</span>
+                    {r.aussetzer&&<span style={{fontSize:9,color:"#a080e0",background:"#a080e022",border:"1px solid #a080e044",borderRadius:8,padding:"1px 6px"}}>⚬ {r.aussetzer}</span>}
+                    <button onClick={()=>openEdit(r)} style={{background:"#1a2a1a",border:`1px solid ${C.border}`,color:C.dim,borderRadius:5,padding:"2px 8px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}}>✏</button>
+                  </div>
+                  <span style={{fontSize:11,color:catColor}}>
+                    {et.label}{r.tout&&<span style={{color:"#ff8c42"}}> Tout</span>}
+                    {r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}
+                    {r.schneider?" · Schndr.":""}{r.schwarz?" · Schwz.":""}{r.laufende>=2?` · ${r.laufende} Lfd.`:""}
+                    {r.sticht>0&&<span style={{color:"#d080e0"}}> · Sticht ×{sm}</span>}
+                    {r.typeCat==="ramsch"&&r.jungfrauen>0?` · ${r.jungfrauen} Jungfr.`:""}
+                    {r.pflichtramsch?" · Pflicht":""}{r.durchmarsch?" · Durchm.":""}
+                  </span>
+                </div>
+                <div style={{fontSize:10,color:C.mute,marginBottom:6}}>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong></div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                  {players.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}>
+                    <div style={{fontSize:9,color:r.aussetzer===p?"#a080e0":PCOLORS[i]}}>{p}{r.aussetzer===p?" ⚬":""}</div>
+                    <div style={{fontSize:16,fontWeight:"bold",color:r.aussetzer===p?"#a080e0":d>0?"#7de87a":d<0?"#e85d4a":"#2a4a2a"}}>{r.aussetzer===p?"–":d>0?`+${d}`:d}</div>
+                  </div>;})}</div>
+              </div>;
+            })
+          )}
+
+          {nav==="chart"&&<ChartTab rounds={rounds} players={players} startkapital={startkapital} gameTypes={gameTypes}/>}
+
+          {/* EINSTELLUNGEN */}
+          {nav==="settings"&&<>
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              <button style={s.subTab(settingsTab==="allg")} onClick={()=>setSettingsTab("allg")}>Allgemein</button>
+              <button style={s.subTab(settingsTab==="spiele")} onClick={()=>setSettingsTab("spiele")}>Spielarten</button>
+            </div>
+            {settingsTab==="allg"&&<>
+              <div style={s.card()}>
+                <div style={s.sec}>Spielernamen</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {players.map((p,i)=><div key={i}>
+                    <div style={{fontSize:9,color:PCOLORS[i],marginBottom:4}}>Spieler {i+1}</div>
+                    <input style={{...s.input,borderColor:PCOLORS[i]+"55"}} value={p} onChange={e=>setPlayers(pl=>pl.map((n,j)=>j===i?e.target.value:n))}/>
+                  </div>)}
+                </div>
+              </div>
+              <div style={s.card()}>
+                <div style={s.sec}>Tarif</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                  {[["Schneider & Lfd.","sl"],["Sauspiel","sauspiel"],["Solo","solo"]].map(([label,key])=><div key={key}>
+                    <div style={{fontSize:9,color:C.dim,marginBottom:4}}>{label}</div>
+                    <input style={s.input} type="number" value={tariff[key]} onChange={e=>updT(key,Number(e.target.value))}/>
+                  </div>)}
+                </div>
+                <div style={{fontSize:9,color:C.mute,marginTop:10,display:"flex",alignItems:"center",gap:8}}>
+                  Standard: S&L 25 · Sauspiel 25 · Solo 50
+                  <button onClick={()=>setTariff({sl:25,sauspiel:25,solo:50})} style={{...s.btn(false),padding:"3px 8px",fontSize:9}}>Reset</button>
+                </div>
+              </div>
+              <div style={s.card()}>
+                <div style={s.sec}>Startkapital</div>
+                <input style={s.input} type="number" value={startkapital} onChange={e=>setStart(Number(e.target.value))}/>
+              </div>
+            </>}
+            {settingsTab==="spiele"&&<>
+              <div style={s.card()}>
+                <div style={s.sec}>Spielarten</div>
+                <GameTypeEditor gameTypes={gameTypes} setGameTypes={setGameTypes} tariff={tariff}/>
+              </div>
+            </>}
+
+            <div style={s.card()}>
+              <div style={s.sec}>Daten</div>
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <button onClick={exportData} style={{...s.btn(false,"#7de87a"),flex:1,padding:10}}>📤 Teilen</button>
+                <label style={{...s.btn(false,"#4ab8e8"),flex:1,padding:10,textAlign:"center",cursor:"pointer"}}>
+                  ↑ Import<input type="file" accept=".json,.html" style={{display:"none"}} onChange={importFile}/>
+                </label>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{if(window.confirm("Alle Runden löschen?"))setRounds([]);}}
+                  style={{...s.btn(false,"#e85d4a"),flex:1,padding:8}}>🗑 Alle Runden löschen</button>
+                <button onClick={()=>{if(window.confirm("Alles zurücksetzen? Runden UND Einstellungen werden auf Standard zurückgesetzt.")){
+                  setPlayers(["Spieler 1","Spieler 2","Spieler 3","Spieler 4"]);
+                  setTariff({sl:25,sauspiel:25,solo:50});
+                  setStart(1500);
+                  setGameTypes(DEFAULT_GAME_TYPES);
+                  setRounds([]);
+                }}} style={{...s.btn(false,"#e85d4a"),flex:1,padding:8}}>🔄 Alles zurücksetzen</button>
+              </div>
+            </div>
+          </>}
+
+        </div>
+
+        <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#080f08",borderTop:`1px solid ${C.border}`,display:"flex"}}>
+          {[["home","🂡","Spiel"],["verlauf",`📋 ${rounds.length}`,"Verlauf"],["chart","📊","Chart"],["settings","⚙","Einst."]].map(([key,icon,label])=><button key={key}
+            style={s.navBtn(nav===key||(nav==="entry"&&key==="home")||(aussetzenStep>0&&key==="home"))}
+            onClick={()=>{if(nav==="entry")cancelEntry();else{setAussetzer(null);setAussetzenStep(0);}setNav(key);if(key!=="entry")setSelType(null);}}>
+            <div style={{fontSize:16}}>{icon}</div><div>{label}</div>
+          </button>)}
+        </div>
+      </div>;
+    }
+
+
+    // ── Viewer-Modus (URL-Hash) ──────────────────────────────────
+    function getSharedData() {
+      const hash = window.location.hash;
+      if (!hash.startsWith('#v1=')) return null;
+      try {
+        const compressed = hash.slice(4);
+        const json = LZString.decompressFromEncodedURIComponent(compressed);
+        return JSON.parse(json);
+      } catch { return null; }
+    }
+
+    function ViewerApp({data}) {
+      const {players, rounds, startkapital, tariff, gameTypes:gTypes, exportDate} = data;
+      const gt = gTypes || DEFAULT_GAME_TYPES;
+      const allTypes = [...gt, {id:"farbwenz",label:"Farbwenz",cat:"solo"},{id:"farbgeier",label:"Farbgeier",cat:"solo"}];
+
+      const konten = Object.fromEntries(players.map(p=>[p,startkapital]));
+      rounds.forEach(r=>players.map(p=>konten[p]+=(r.deltas[p]||0)));
+      const standings = players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital})).sort((a,b)=>b.value-a.value);
+
+      function importAndOpen() {
+        try { localStorage.setItem(LS_KEY, JSON.stringify({players,rounds,startkapital,tariff,gameTypes:gt})); } catch{}
+        window.location.href = window.location.href.split('#')[0];
+      }
+
+      return <div style={{...s.page, paddingBottom:80}}>
+        <div style={{background:"#080f08",borderBottom:`1px solid ${C.border}`,padding:"14px 16px",textAlign:"center"}}>
+          <div style={{fontSize:20,fontWeight:"bold",color:"#ffffff",marginBottom:6}}>Schafkopf · {exportDate||""}</div>
+          <div style={{fontSize:12,color:"#ffffff"}}>S&L {tariff.sl} · Sauspiel {tariff.sauspiel} · Solo {tariff.solo} Chips · {rounds.length} Runden</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,padding:"12px 16px 0"}}>
+          {standings.map((p,i)=><div key={p.name} style={{background:`${p.color}12`,border:`1px solid ${p.color}44`,borderRadius:8,padding:"8px 4px",textAlign:"center"}}>
+            <div style={{fontSize:9,color:p.color}}>#{i+1} {p.name}</div>
+            <div style={{fontSize:16,fontWeight:"bold",color:"#eeeedd"}}>{p.value.toLocaleString("de-DE")}</div>
+            <div style={{fontSize:10,color:p.diff>=0?"#7de87a":"#e85d4a"}}>{p.diff>=0?"+":""}{p.diff}</div>
+          </div>)}
+        </div>
+        <div style={{padding:"14px 16px"}}>
+          <ChartTab rounds={rounds} players={players} startkapital={startkapital} gameTypes={gt}/>
+        </div>
+        <div style={{padding:"0 16px 16px"}}>
+          <button onClick={importAndOpen}
+            style={{...s.btn(false,"#7de87a"),width:"100%",padding:12,fontSize:13}}>
+            ↓ In Tracker importieren
+          </button>
+        </div>
+      </div>;
+    }
+
+    // ── Root render ──────────────────────────────────────────────
+    const sharedData = getSharedData();
+    ReactDOM.createRoot(document.getElementById("root")).render(
+      sharedData ? <ViewerApp data={sharedData}/> : <SchafkopfTracker/>
+    );
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js')
+          .then(function(reg) { console.log('SW registriert:', reg.scope); })
+          .catch(function(err) { console.log('SW Fehler:', err); });
+      });
+    }
+  </script>
+</body>
+</html>
