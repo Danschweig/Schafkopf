@@ -36,22 +36,22 @@
     const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a"];
     const BUILTIN_IDS=["sauspiel","hochzeit","wenz","geier","farbsolo","ramsch"];
 
-    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo":{label:"Solo",color:"#f5c842"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
+    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo2",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
 
     const DEFAULT_GAME_TYPES=[
       {id:"sauspiel", label:"Sauspiel",  desc:"Rufspiel – Spieler + Sau-Partner",cat:"2vs2",   isBuiltin:true, hasFarbe:false,hasTout:false,hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
       {id:"hochzeit", label:"Hochzeit",  desc:"Partner via ersten Stich",         cat:"2vs2",   isBuiltin:true, hasFarbe:false,hasTout:false,hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
-      {id:"wenz",     label:"Wenz",      desc:"Nur Unter als Trumpf",             cat:"solo",   isBuiltin:true, hasFarbe:true, hasTout:true, hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:2,useDefaultTariff:true,customBetrag:null},
-      {id:"geier",    label:"Geier",     desc:"Nur Ober als Trumpf",              cat:"solo",   isBuiltin:true, hasFarbe:false, hasTout:true, hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:2,useDefaultTariff:true,customBetrag:null},
-      {id:"farbsolo", label:"Farbsolo",  desc:"Farbe + Ober/Unter Trumpf",        cat:"solo",   isBuiltin:true, hasFarbe:false,hasTout:true, hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
+      {id:"wenz",     label:"Wenz",      desc:"Nur Unter als Trumpf",             cat:"solo2",  isBuiltin:true, hasFarbe:true, hasTout:true, hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:2,useDefaultTariff:true,customBetrag:null},
+      {id:"geier",    label:"Geier",     desc:"Nur Ober als Trumpf",              cat:"solo1",  isBuiltin:true, hasFarbe:false, hasTout:true, hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
+      {id:"farbsolo", label:"Farbsolo",  desc:"Farbe + Ober/Unter Trumpf",        cat:"solo1",  isBuiltin:true, hasFarbe:false,hasTout:true, hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
       {id:"ramsch",   label:"Ramsch",    desc:"Meiste Augen verliert",            cat:"ramsch", isBuiltin:true, hasFarbe:false,hasTout:false,hasSchneiderSchwarz:false,hasLaufende:false,laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
     ];
 
-    const ALL_DISPLAY_TYPES=[...DEFAULT_GAME_TYPES,{id:"farbwenz",label:"Farbwenz",cat:"solo"},{id:"farbgeier",label:"Farbgeier",cat:"solo"}];
+    const ALL_DISPLAY_TYPES=[...DEFAULT_GAME_TYPES,{id:"farbwenz",label:"Farbwenz",cat:"solo2"},{id:"farbgeier",label:"Farbgeier",cat:"solo1"}];
 
     function effectiveType(r){
-      if(r.typeId==="wenz"&&r.mitFarbe)return{id:"farbwenz",label:"Farbwenz",cat:"solo"};
-      if(r.typeId==="geier"&&r.mitFarbe)return{id:"farbgeier",label:"Farbgeier",cat:"solo"};
+      if(r.typeId==="wenz"&&r.mitFarbe)return{id:"farbwenz",label:"Farbwenz",cat:"solo2"};
+      if(r.typeId==="geier"&&r.mitFarbe)return{id:"farbgeier",label:"Farbgeier",cat:"solo1"};
       return{id:r.typeId,label:r.typeLabel,cat:r.typeCat};
     }
 
@@ -60,7 +60,7 @@
       let mods=0;
       const isTout=typeCfg.hasTout&&form.tout;
       if(!isTout&&typeCfg.hasSchneiderSchwarz){mods+=(form.schneider?1:0)+(form.schwarz?1:0);}
-      if(typeCfg.hasLaufende){const minL=typeCfg.laufendeFrom||3;mods+=form.laufende>=minL?form.laufende-(minL-1):0;}
+      if(typeCfg.hasLaufende){const minL=typeCfg.laufendeFrom||3;mods+=form.laufende>=minL?form.laufende:0;}
       let b=base+mods*tariff.sl;
       if(isTout)b*=2;
       return b;
@@ -76,7 +76,7 @@
         const w=form.gewonnen?[form.spieler,form.partner]:active.filter(p=>p!==form.spieler&&p!==form.partner);
         const l=active.filter(p=>!w.includes(p));
         w.forEach(p=>d[p]=+B);l.forEach(p=>d[p]=-Math.round(B*w.length/l.length));
-      }else if(typeCfg.cat==="solo"){
+      }else if(typeCfg.cat==="solo1"||typeCfg.cat==="solo2"){
         if(!form.solist)return null;
         const gegner=active.filter(p=>p!==form.solist);
         const sign=form.gewonnen?1:-1;
@@ -134,7 +134,7 @@
     // ── ErgebnisBlock ────────────────────────────────────────────
     function ErgebnisBlock({form,upd,typeCfg}){
       const minL=typeCfg.laufendeFrom||3;
-      const lHint=form.laufende>=minL?`→ +${form.laufende-(minL-1)} × S&L`:`Zählt ab ${minL}`;
+      const lHint=form.laufende>=minL?`→ +${form.laufende} × S&L`:`Zählt ab ${minL}`;
       return <div style={s.card()}>
         <div style={s.sec}>Ergebnis</div>
         <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -179,11 +179,30 @@
       const [sub,setSub]=useState("konto");
       const [hid,setHid]=useState(new Set());
       const tog=p=>setHid(prev=>{const s=new Set(prev);s.has(p)?s.delete(p):s.add(p);return s;});
-      const allTypes=[...gameTypes,{id:"farbwenz",label:"Farbwenz",cat:"solo"},{id:"farbgeier",label:"Farbgeier",cat:"solo"}];
+      const allTypes=[...gameTypes,{id:"farbwenz",label:"Farbwenz",cat:"solo2"},{id:"farbgeier",label:"Farbgeier",cat:"solo1"}];
 
       const kontoData=useMemo(()=>{const rows=[{round:0,...Object.fromEntries(players.map(p=>[p,startkapital]))}];const cur=Object.fromEntries(players.map(p=>[p,startkapital]));rounds.forEach((r,i)=>{players.forEach(p=>cur[p]+=(r.deltas[p]||0));rows.push({round:i+1,...cur});});return rows;},[rounds,players,startkapital]);
       const deltaData=useMemo(()=>{const raw=rounds.map((r,i)=>({round:i+1,...Object.fromEntries(players.map(p=>[p,r.deltas[p]||0]))}));const out=[];raw.forEach((d,i)=>{out.push({...d});if(i<raw.length-1)out.push({round:`${d.round}.`,...Object.fromEntries(players.map(p=>[p,null]))});});return out;},[rounds,players]);
-      const stats=useMemo(()=>{const st=Object.fromEntries(players.map(p=>[p,{angesagt:0,partner:0,gewonnen:0,verloren:0,total:0,byType:{}}]));rounds.forEach(r=>{const e=effectiveType(r);players.forEach(p=>{const d=r.deltas[p]||0;st[p].total+=d;if(d>0)st[p].gewonnen++;if(d<0)st[p].verloren++;});if(r.spieler){st[r.spieler].angesagt++;st[r.spieler].byType[e.id]=(st[r.spieler].byType[e.id]||0)+1;}if(r.solist){st[r.solist].angesagt++;st[r.solist].byType[e.id]=(st[r.solist].byType[e.id]||0)+1;}if(r.partner)st[r.partner].partner++;});return st;},[rounds,players]);
+      const stats=useMemo(()=>{
+        const st=Object.fromEntries(players.map(p=>[p,{angesagt:0,partner:0,gewonnen:0,verloren:0,total:0,byType:{},currentWinStreak:0,currentLossStreak:0,maxWinStreak:0,maxLossStreak:0}]));
+        const curWin=Object.fromEntries(players.map(p=>[p,0]));
+        const curLoss=Object.fromEntries(players.map(p=>[p,0]));
+        rounds.forEach(r=>{
+          const e=effectiveType(r);
+          players.forEach(p=>{
+            const d=(r.deltas && r.deltas[p])||0;
+            st[p].total+=d;
+            if(d>0){ st[p].gewonnen++; curWin[p]+=1; curLoss[p]=0; if(curWin[p]>st[p].maxWinStreak)st[p].maxWinStreak=curWin[p]; }
+            else if(d<0){ st[p].verloren++; curLoss[p]+=1; curWin[p]=0; if(curLoss[p]>st[p].maxLossStreak)st[p].maxLossStreak=curLoss[p]; }
+            else { curWin[p]=0; curLoss[p]=0; }
+          });
+          if(r.spieler){st[r.spieler].angesagt++;st[r.spieler].byType[e.id]=(st[r.spieler].byType[e.id]||0)+1;}
+          if(r.solist){st[r.solist].angesagt++;st[r.solist].byType[e.id]=(st[r.solist].byType[e.id]||0)+1;}
+          if(r.partner)st[r.partner].partner++;
+        });
+        players.forEach(p=>{st[p].currentWinStreak=curWin[p];st[p].currentLossStreak=curLoss[p];});
+        return st;
+      },[rounds,players]);
       const sessionTypes=useMemo(()=>{const tc={};rounds.forEach(r=>{const e=effectiveType(r);tc[e.id]=(tc[e.id]||0)+1;});return Object.entries(tc).sort((a,b)=>b[1]-a[1]);},[rounds]);
       const last=kontoData[kontoData.length-1]||{};
       const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:last[p]||startkapital,diff:(last[p]||startkapital)-startkapital})).sort((a,b)=>b.value-a.value);
@@ -230,6 +249,19 @@
 
         <div style={{marginTop:20}}>
           <div style={{...s.sec,fontSize:10,letterSpacing:3,marginBottom:12}}>STATISTIK</div>
+          <div style={s.card()}>
+            <div style={{fontSize:11,color:C.dim,marginBottom:8}}>Serien & Highscores</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+              {players.map((p,i)=>{
+                const st=stats[p]||{};
+                return <div key={p} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:8,padding:8,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:PCOLORS[i],marginBottom:6}}>{p}</div>
+                  <div style={{fontSize:12,fontWeight:"bold",color:st.currentWinStreak>0?"#7de87a":st.currentLossStreak>0?"#e85d4a":C.dim}}>{st.currentWinStreak>0?`+${st.currentWinStreak}`:st.currentLossStreak>0?`-${st.currentLossStreak}`:"—"}</div>
+                  <div style={{fontSize:9,color:C.dim,marginTop:6}}>Best W: <strong style={{color:"#7de87a"}}>{st.maxWinStreak||0}</strong> · Best L: <strong style={{color:"#e85d4a"}}>{st.maxLossStreak||0}</strong></div>
+                </div>;
+              })}
+            </div>
+          </div>
           <div style={s.card()}><div style={s.sec}>Meistgespielte Spielarten</div>{sessionTypes.map(([tid,cnt])=>{const t=allTypes.find(g=>g.id===tid);const col=TYPE_CATS[t?.cat||"2vs2"]?.color||"#888";const pct=Math.round(cnt/rounds.length*100);return <div key={tid} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}><span style={{color:col}}>{t?.label||tid}</span><span style={{color:C.dim}}>{cnt}× · {pct}%</span></div><div style={{height:5,background:C.border,borderRadius:3}}><div style={{height:"100%",width:`${pct}%`,background:col+"99",borderRadius:3}}/></div></div>;})}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -259,7 +291,7 @@
           {type.hasLaufende&&<div style={{marginLeft:12,marginBottom:8}}>
             <Stepper label="Laufende ab" value={type.laufendeFrom||3} min={1} max={8} onChange={v=>upd("laufendeFrom",v)} color="#f5c842" small/>
           </div>}
-          {type.cat==="solo"&&<>
+          {(type.cat==="solo1"||type.cat==="solo2")&&<>
             <Toggle label="Mit Farbe-Option" value={type.hasFarbe} onChange={v=>upd("hasFarbe",v)} small/>
             <Toggle label="Tout-Option (×2)" value={type.hasTout} onChange={v=>upd("hasTout",v)} small/>
           </>}
@@ -288,7 +320,7 @@
       function startEdit(t){setEditing(t.id);setEditBuf({...t});setShowNew(false);}
       function saveEdit(updated){setGameTypes(ts=>ts.map(t=>t.id===updated.id?updated:t));setEditing(null);setEditBuf(null);}
       function deleteType(id){if(window.confirm("Spielart löschen?"))setGameTypes(ts=>ts.filter(t=>t.id!==id));}
-      function startNew(){setShowNew(true);setNewBuf({id:"custom_"+Date.now(),label:"Neues Spiel",desc:"",cat:"solo",isBuiltin:false,hasFarbe:false,hasTout:false,hasSchneiderSchwarz:true,hasLaufende:true,laufendeFrom:3,useDefaultTariff:true,customBetrag:null});setEditing(null);}
+      function startNew(){setShowNew(true);setNewBuf({id:"custom_"+Date.now(),label:"Neues Spiel",desc:"",cat:"solo1",isBuiltin:false,hasFarbe:false,hasTout:false,hasSchneiderSchwarz:true,hasLaufende:true,laufendeFrom:3,useDefaultTariff:true,customBetrag:null});setEditing(null);}
       function saveNew(t){setGameTypes(ts=>[...ts,t]);setShowNew(false);setNewBuf(null);}
 
       return <div>
@@ -349,7 +381,7 @@
           </div>
         </div>}
 
-        {typeCfg.cat==="solo"&&<div style={s.card()}>
+        {(typeCfg.cat==="solo1"||typeCfg.cat==="solo2")&&<div style={s.card()}>
           <div style={s.sec}>Solist</div>
           <div style={{display:"flex",gap:6,marginBottom:(typeCfg.hasFarbe||typeCfg.hasTout)?12:0}}>
             {activePlayers.map((p)=>{const i=players.indexOf(p);return <button key={p} style={s.pBtn(form.solist===p,PCOLORS[i])} onClick={()=>upd("solist",form.solist===p?null:p)}>{p}</button>;})}
@@ -380,7 +412,7 @@
             <button style={{...s.btn(!form.gewonnen,"#e85d4a"),flex:1,fontSize:14,padding:10}} onClick={()=>upd("gewonnen",false)}>✗ Verloren</button>
           </div>
           {typeCfg.hasLaufende&&<Stepper label="Laufende" value={form.laufende} max={8} onChange={v=>upd("laufende",v)}
-            hint={form.laufende>=(typeCfg.laufendeFrom||3)?`→ +${form.laufende-(typeCfg.laufendeFrom||3)-1} × S&L (×2)`:`Zählt ab ${typeCfg.laufendeFrom||3}`}/>}
+            hint={form.laufende>=(typeCfg.laufendeFrom||3)?`→ +${form.laufende} × S&L (×2)`:`Zählt ab ${typeCfg.laufendeFrom||3}`}/>}
           <div style={{fontSize:10,color:C.dim,marginTop:8}}>Tout: Schneider & Schwarz werden nicht gerechnet</div>
         </div>}
 
@@ -423,9 +455,9 @@
     const ALL_TYPES_RAW=JSON.parse(document.getElementById('sk-types').textContent);
     const PLAYERS=SESSION.players;const ROUNDS=SESSION.rounds||[];const START=SESSION.startkapital||1100;const TARIFF=SESSION.tariff||{sl:25,sauspiel:25,solo:50};
     const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a"];
-    const ALL_TYPES=[...ALL_TYPES_RAW,{id:"farbwenz",label:"Farbwenz",cat:"solo"},{id:"farbgeier",label:"Farbgeier",cat:"solo"}];
-    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo":{label:"Solo",color:"#f5c842"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
-    function et(r){if(r.typeId==="wenz"&&r.mitFarbe)return{id:"farbwenz",label:"Farbwenz",cat:"solo"};if(r.typeId==="geier"&&r.mitFarbe)return{id:"farbgeier",label:"Farbgeier",cat:"solo"};return{id:r.typeId,label:r.typeLabel,cat:r.typeCat};}
+    const ALL_TYPES=[...ALL_TYPES_RAW,{id:"farbwenz",label:"Farbwenz",cat:"solo2"},{id:"farbgeier",label:"Farbgeier",cat:"solo1"}];
+    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo2",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
+    function et(r){if(r.typeId==="wenz"&&r.mitFarbe)return{id:"farbwenz",label:"Farbwenz",cat:"solo2"};if(r.typeId==="geier"&&r.mitFarbe)return{id:"farbgeier",label:"Farbgeier",cat:"solo1"};return{id:r.typeId,label:r.typeLabel,cat:r.typeCat};}
     const C={bg1:"#0c180c",bg2:"#111f11",border:"#1a321a",text:"#c8e0c8",dim:"#4a7a4a",mute:"#2a4a2a"};
     const ss={card:(bc,bg)=>({background:bg||"#0c180c",border:\`1px solid \${bc||"#1a321a"}\`,borderRadius:10,padding:"12px 14px",marginBottom:10}),sec:{fontSize:9,color:"#4a7a4a",letterSpacing:2,textTransform:"uppercase",marginBottom:8},subTab:(on)=>({background:on?"#1e3a1e":"transparent",border:\`1px solid \${on?"#3a6a3a":"#1a321a"}\`,color:on?"#a0d0a0":"#4a7a4a",borderRadius:7,padding:"7px 16px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}),pChip:(on,col)=>({background:on?col+"22":"transparent",border:\`1px solid \${on?col:"#1a321a"}\`,color:on?col:"#2a4a2a",borderRadius:20,padding:"5px 14px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"})};
     const kontoData=(()=>{const rows=[{round:0,...Object.fromEntries(PLAYERS.map(p=>[p,START]))}];const cur=Object.fromEntries(PLAYERS.map(p=>[p,START]));ROUNDS.forEach((r,i)=>{PLAYERS.forEach(p=>cur[p]+=(r.deltas[p]||0));rows.push({round:i+1,...cur});});return rows;})();
@@ -526,8 +558,10 @@
       const [players,setPlayers]    = useState(sv?.players||["Spieler 1","Spieler 2","Spieler 3","Spieler 4"]);
       const [tariff,setTariff]      = useState(sv?.tariff||{sl:25,sauspiel:25,solo:50});
       const [startkapital,setStart] = useState(sv?.startkapital||1500);
-      const [rounds,setRounds]      = useState(sv?.rounds||[]);
-      const [gameTypes,setGameTypes]= useState(()=>{const saved=sv?.gameTypes;if(saved&&saved.length>0)return saved;return DEFAULT_GAME_TYPES;});
+      const migrateRounds=(rs)=>{if(!rs)return[];return rs.map(r=>({...r,typeCat:r.typeCat==="solo"? (r.typeId==="wenz"?"solo2":"solo1"):r.typeCat}));};
+      const migrateGameTypes=(gt)=>{if(!gt)return[];return gt.map(t=>({...t,cat:t.cat==="solo"?"solo1":t.cat}));};
+      const [rounds,setRounds]      = useState(migrateRounds(sv?.rounds)||[]);
+      const [gameTypes,setGameTypes]= useState(()=>{const saved=sv?.gameTypes;if(saved&&saved.length>0)return migrateGameTypes(saved);return DEFAULT_GAME_TYPES;});
       const [selType,setSelType]    = useState(null);
       const [form,setForm]          = useState(emptyForm());
       const [editRound,setEditRound]= useState(null);
@@ -605,8 +639,8 @@
             if(data.players)setPlayers(data.players);
             if(data.tariff)setTariff(data.tariff);
             if(data.startkapital)setStart(data.startkapital);
-            if(data.rounds)setRounds(data.rounds);
-            if(data.gameTypes)setGameTypes(data.gameTypes);
+            if(data.rounds)setRounds(migrateRounds(data.rounds));
+            if(data.gameTypes)setGameTypes(migrateGameTypes(data.gameTypes));
           }catch(err){alert("Import fehlgeschlagen: "+err.message);}
         };
         reader.readAsText(file);
@@ -764,7 +798,7 @@
               <div style={s.card()}>
                 <div style={s.sec}>Tarif</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-                  {[["Schneider & Lfd.","sl"],["Sauspiel","sauspiel"],["Solo","solo"]].map(([label,key])=><div key={key}>
+                  {[["Schneider & Lfd.","sl"],["Sauspiel","sauspiel"],["Solo1","solo"]].map(([label,key])=><div key={key}>
                     <div style={{fontSize:9,color:C.dim,marginBottom:4}}>{label}</div>
                     <input style={s.input} type="number" value={tariff[key]} onChange={e=>updT(key,Number(e.target.value))}/>
                   </div>)}
@@ -835,7 +869,7 @@
     function ViewerApp({data}) {
       const {players, rounds, startkapital, tariff, gameTypes:gTypes, exportDate} = data;
       const gt = gTypes || DEFAULT_GAME_TYPES;
-      const allTypes = [...gt, {id:"farbwenz",label:"Farbwenz",cat:"solo"},{id:"farbgeier",label:"Farbgeier",cat:"solo"}];
+      const allTypes = [...gt, {id:"farbwenz",label:"Farbwenz",cat:"solo2"},{id:"farbgeier",label:"Farbgeier",cat:"solo1"}];
 
       const konten = Object.fromEntries(players.map(p=>[p,startkapital]));
       rounds.forEach(r=>players.map(p=>konten[p]+=(r.deltas[p]||0)));
