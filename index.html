@@ -668,7 +668,9 @@
         const compressed=LZString.compressToEncodedURIComponent(JSON.stringify(data));
         const url=window.location.href.split('#')[0]+'#v1='+compressed;
         if(navigator.clipboard){
-          navigator.clipboard.writeText(url).then(()=>alert('Link kopiert! ✓\nEinfach per WhatsApp oder iMessage teilen.'));
+          navigator.clipboard.writeText(url)
+            .then(()=>alert('Link kopiert! ✓\nEinfach per WhatsApp oder iMessage teilen.'))
+            .catch(()=>prompt('Link zum Kopieren:',url));
         } else {
           prompt('Link zum Kopieren:',url);
         }
@@ -681,20 +683,22 @@
         a.download=`schafkopf-config-${new Date().toISOString().slice(0,10)}.json`;a.click();
       }
 
-      function exportRounds(){
-        const blob=new Blob([JSON.stringify(rounds,null,2)],{type:"application/json"});
+      function exportSession(){
+        const data={type:"schafkopf-session",players,rounds,startkapital,tariff,gameTypes,exportDate:new Date().toLocaleDateString("de-DE")};
+        const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
-        a.download=`schafkopf-rounds-${new Date().toISOString().slice(0,10)}.json`;a.click();
+        a.download=`schafkopf-sicherung-${new Date().toISOString().slice(0,10)}.json`;a.click();
       }
 
       function importFile(e){
         const file=e.target.files[0];if(!file)return;
+        const fileName=file.name.toLowerCase();
         const reader=new FileReader();
         reader.onload=ev=>{
           try{
             const text=ev.target.result;
             let data;
-            if(file.name.endsWith(".html")){
+            if(fileName.endsWith(".html")){
               const parser=new DOMParser();
               const doc=parser.parseFromString(text,"text/html");
               const el=doc.getElementById("sk-data");
@@ -702,17 +706,22 @@
             }else{
               data=JSON.parse(text);
             }
-            if(!data)return;
+            if(!data)throw new Error("Keine Schafkopf-Daten gefunden.");
             if(Array.isArray(data)){
+              const importedPlayers=Array.from(new Set(data.flatMap(r=>Object.keys(r.deltas||{})))).filter(Boolean);
+              if(importedPlayers.length===4)setPlayers(importedPlayers);
               setRounds(migrateRounds(data));
             } else {
-              if(data.players)setPlayers(data.players);
-              if(data.tariff)setTariff(data.tariff);
-              if(data.startkapital)setStart(data.startkapital);
-              if(data.rounds)setRounds(migrateRounds(data.rounds));
-              if(data.gameTypes)setGameTypes(migrateGameTypes(data.gameTypes));
+              let imported=false;
+              if(Array.isArray(data.players)){setPlayers(data.players);imported=true;}
+              if(data.tariff){setTariff(data.tariff);imported=true;}
+              if(data.startkapital!=null){setStart(data.startkapital);imported=true;}
+              if(Array.isArray(data.rounds)){setRounds(migrateRounds(data.rounds));imported=true;}
+              if(Array.isArray(data.gameTypes)){setGameTypes(migrateGameTypes(data.gameTypes));imported=true;}
+              if(!imported)throw new Error("Unbekanntes Importformat.");
             }
           }catch(err){alert("Import fehlgeschlagen: "+err.message);}
+          finally{e.target.value="";}
         };
         reader.readAsText(file);
       }
@@ -898,18 +907,19 @@
 
             <div style={s.card()}>
               <div style={s.sec}>Daten</div>
+              <div style={{fontSize:10,color:C.dim,marginBottom:6}}>Export</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                <button onClick={exportData} style={{...s.btn(false,"#7de87a"),padding:10}}>📤 Teilen</button>
-                <button onClick={exportRounds} style={{...s.btn(false,"#7de87a"),padding:10}}>💾 Runden exportieren</button>
+                <button onClick={exportData} style={{...s.btn(false,"#7de87a"),padding:10}}>📤 Link teilen</button>
+                <button onClick={exportSession} style={{...s.btn(false,"#7de87a"),padding:10}}>💾 Sicherung exportieren</button>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+              <button onClick={exportConfig} style={{...s.btn(false,"#5a9a5a"),width:"100%",padding:10,marginBottom:12}}>⚙ Einstellungen exportieren</button>
+              <div style={{fontSize:10,color:C.dim,marginBottom:6}}>Import</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8,marginBottom:12}}>
                 <label style={{...s.btn(false,"#4ab8e8"),padding:10,textAlign:"center",cursor:"pointer"}}>
-                  ↑ Import Konfig<input type="file" accept=".json,.html" style={{display:"none"}} onChange={importFile}/>
-                </label>
-                <label style={{...s.btn(false,"#4ab8e8"),padding:10,textAlign:"center",cursor:"pointer"}}>
-                  ↑ Import Runden<input type="file" accept=".json" style={{display:"none"}} onChange={importFile}/>
+                  ↑ Datei importieren<input type="file" accept=".json,.html" style={{display:"none"}} onChange={importFile}/>
                 </label>
               </div>
+              <div style={{fontSize:10,color:C.dim,marginBottom:6}}>Löschen</div>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={()=>{if(window.confirm("Alle Runden löschen?"))setRounds([]);}}
                   style={{...s.btn(false,"#e85d4a"),flex:1,padding:8}}>🗑 Alle Runden löschen</button>
