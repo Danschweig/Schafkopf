@@ -36,7 +36,12 @@
     const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a"];
     const BUILTIN_IDS=["sauspiel","hochzeit","wenz","geier","farbsolo","ramsch"];
 
-    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo2",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
+    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
+    const PLAY_TYPE_SECTIONS=[
+      {id:"2vs2",label:"2 vs 2",color:TYPE_CATS["2vs2"].color,cats:["2vs2"]},
+      {id:"solo",label:"Solo",color:TYPE_CATS.solo1.color,cats:["solo1","solo2"]},
+      {id:"ramsch",label:"Ramsch",color:TYPE_CATS.ramsch.color,cats:["ramsch"]},
+    ];
 
     const DEFAULT_GAME_TYPES=[
       {id:"sauspiel", label:"Sauspiel",  desc:"Rufspiel – Spieler + Sau-Partner",cat:"2vs2",   isBuiltin:true, hasFarbe:false,hasTout:false,hasSchneiderSchwarz:true, hasLaufende:true, laufendeFrom:3,useDefaultTariff:true,customBetrag:null},
@@ -531,7 +536,7 @@
     const PLAYERS=SESSION.players;const ROUNDS=SESSION.rounds||[];const START=SESSION.startkapital||1100;const TARIFF=SESSION.tariff||{sl:25,sauspiel:25,solo:50};
     const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a"];
     const ALL_TYPES=[...ALL_TYPES_RAW,{id:"farbwenz",label:"Farbwenz",cat:"solo2"},{id:"farbgeier",label:"Farbgeier",cat:"solo1"}];
-    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo2",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
+    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
     function et(r){if(r.typeId==="wenz"&&r.mitFarbe)return{id:"farbwenz",label:"Farbwenz",cat:"solo2"};if(r.typeId==="geier"&&r.mitFarbe)return{id:"farbgeier",label:"Farbgeier",cat:"solo1"};return{id:r.typeId,label:r.typeLabel,cat:r.typeCat};}
     const C={bg1:"#0c180c",bg2:"#111f11",border:"#1a321a",text:"#c8e0c8",dim:"#4a7a4a",mute:"#2a4a2a"};
     const ss={card:(bc,bg)=>({background:bg||"#0c180c",border:\`1px solid \${bc||"#1a321a"}\`,borderRadius:10,padding:"12px 14px",marginBottom:10}),sec:{fontSize:9,color:"#4a7a4a",letterSpacing:2,textTransform:"uppercase",marginBottom:8},subTab:(on)=>({background:on?"#1e3a1e":"transparent",border:\`1px solid \${on?"#3a6a3a":"#1a321a"}\`,color:on?"#a0d0a0":"#4a7a4a",borderRadius:7,padding:"7px 16px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}),pChip:(on,col)=>({background:on?col+"22":"transparent",border:\`1px solid \${on?col:"#1a321a"}\`,color:on?col:"#2a4a2a",borderRadius:20,padding:"5px 14px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"})};
@@ -803,15 +808,15 @@
               <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Aktuelle Führung</div><div style={{fontSize:14,fontWeight:"bold"}}>{Object.entries(konten).sort((a,b)=>b[1]-a[1])[0][0]}</div></div>
               <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Gesamtvolumen</div><div style={{fontSize:14,fontWeight:"bold"}}>{roundSummary?roundSummary.volume.toLocaleString("de-DE"):"0"} Chips</div></div>
             </div>}
-            {Object.entries(TYPE_CATS).map(([cat,catInfo])=><div key={cat} style={{marginBottom:16}}>
+            {PLAY_TYPE_SECTIONS.map(catInfo=><div key={catInfo.id} style={{marginBottom:16}}>
               <div style={{...s.sec,color:catInfo.color+"99"}}>{catInfo.label}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {gameTypes.filter(t=>t.cat===cat).map(t=><div key={t.id}
+                {gameTypes.filter(t=>catInfo.cats.includes(t.cat)).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||catInfo.color;return <div key={t.id}
                   onClick={()=>{setSelType(t.id);setForm(emptyForm());setEditRound(null);setAussetzer(null);setNav("entry");}}
-                  style={{background:catInfo.color+"0e",border:`1px solid ${catInfo.color}33`,borderRadius:10,padding:"12px",cursor:"pointer"}}>
-                  <div style={{fontSize:15,fontWeight:"bold",color:catInfo.color,marginBottom:2}}>{t.label}</div>
+                  style={{background:typeColor+"0e",border:`1px solid ${typeColor}33`,borderRadius:10,padding:"12px",cursor:"pointer"}}>
+                  <div style={{fontSize:15,fontWeight:"bold",color:typeColor,marginBottom:2}}>{t.label}</div>
                   <div style={{fontSize:10,color:C.dim}}>{t.desc}</div>
-                </div>)}
+                </div>;})}
               </div>
             </div>)}
             {/* Aussetzen */}
@@ -847,15 +852,15 @@
             <div style={{...s.card("#a080e044","#1a0a1a"),marginBottom:12}}>
               <div style={{fontSize:12,color:"#a080e0"}}>⚬ {aussetzer} sitzt aus · {players.filter(p=>p!==aussetzer).join(", ")} spielen</div>
             </div>
-            {Object.entries(TYPE_CATS).map(([cat,catInfo])=><div key={cat} style={{marginBottom:14}}>
+            {PLAY_TYPE_SECTIONS.map(catInfo=><div key={catInfo.id} style={{marginBottom:14}}>
               <div style={{...s.sec,color:catInfo.color+"99"}}>{catInfo.label}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {gameTypes.filter(t=>t.cat===cat).map(t=><div key={t.id}
+                {gameTypes.filter(t=>catInfo.cats.includes(t.cat)).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||catInfo.color;return <div key={t.id}
                   onClick={()=>{setSelType(t.id);setForm(emptyForm());setEditRound(null);setNav("entry");}}
-                  style={{background:catInfo.color+"0e",border:`1px solid ${catInfo.color}33`,borderRadius:10,padding:"12px",cursor:"pointer"}}>
-                  <div style={{fontSize:15,fontWeight:"bold",color:catInfo.color,marginBottom:2}}>{t.label}</div>
+                  style={{background:typeColor+"0e",border:`1px solid ${typeColor}33`,borderRadius:10,padding:"12px",cursor:"pointer"}}>
+                  <div style={{fontSize:15,fontWeight:"bold",color:typeColor,marginBottom:2}}>{t.label}</div>
                   <div style={{fontSize:10,color:C.dim}}>{t.desc}</div>
-                </div>)}
+                </div>;})}
               </div>
             </div>)}
             <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(false,"#5a5a8a"),width:"100%",padding:10}}>← Zurück</button>
