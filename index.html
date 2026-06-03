@@ -647,6 +647,7 @@
       const [editRound,setEditRound]= useState(null);
       const [aussetzer,setAussetzer]= useState(null); // Aussetzen-Modus
       const [aussetzenStep,setAussetzenStep]=useState(0);
+      const [playTab,setPlayTab]=useState("2vs2");
       const [settingsTab,setSettingsTab]=useState("allg"); // 0=wer, 1=spieltyp
 
       useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes}));}catch{}},[players,tariff,startkapital,rounds,gameTypes]);
@@ -768,6 +769,8 @@
       }
 
       const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital})).sort((a,b)=>b.value-a.value);
+      const playTabs=[...PLAY_TYPE_SECTIONS,{id:"aussetzen",label:"Aussetzen",color:"#a080e0",cats:[]}];
+      const activePlayTab=playTabs.find(t=>t.id===playTab)||playTabs[0];
 
       return <div style={s.page}>
         <div style={s.topbar}>
@@ -808,23 +811,26 @@
               <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Aktuelle Führung</div><div style={{fontSize:14,fontWeight:"bold"}}>{Object.entries(konten).sort((a,b)=>b[1]-a[1])[0][0]}</div></div>
               <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Gesamtvolumen</div><div style={{fontSize:14,fontWeight:"bold"}}>{roundSummary?roundSummary.volume.toLocaleString("de-DE"):"0"} Chips</div></div>
             </div>}
-            {PLAY_TYPE_SECTIONS.map(catInfo=><div key={catInfo.id} style={{marginBottom:16}}>
-              <div style={{...s.sec,color:catInfo.color+"99"}}>{catInfo.label}</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {gameTypes.filter(t=>catInfo.cats.includes(t.cat)).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||catInfo.color;return <div key={t.id}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
+              {playTabs.map(tab=><button key={tab.id} onClick={()=>setPlayTab(tab.id)}
+                style={{...s.subTab(playTab===tab.id),padding:"9px 4px",fontSize:10,color:playTab===tab.id?tab.color:C.dim,borderColor:playTab===tab.id?tab.color:C.border}}>
+                {tab.label}
+              </button>)}
+            </div>
+            {playTab!=="aussetzen"
+              ?<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                {gameTypes.filter(t=>activePlayTab.cats.includes(t.cat)).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||activePlayTab.color;return <div key={t.id}
                   onClick={()=>{setSelType(t.id);setForm(emptyForm());setEditRound(null);setAussetzer(null);setNav("entry");}}
-                  style={{background:typeColor+"0e",border:`1px solid ${typeColor}33`,borderRadius:10,padding:"12px",cursor:"pointer"}}>
-                  <div style={{fontSize:15,fontWeight:"bold",color:typeColor,marginBottom:2}}>{t.label}</div>
-                  <div style={{fontSize:10,color:C.dim}}>{t.desc}</div>
+                  style={{background:typeColor+"0e",border:`1px solid ${typeColor}33`,borderRadius:8,padding:"10px",cursor:"pointer",minHeight:72}}>
+                  <div style={{fontSize:15,fontWeight:"bold",color:typeColor,marginBottom:3}}>{t.label}</div>
+                  <div style={{fontSize:10,lineHeight:1.25,color:C.dim}}>{t.desc}</div>
                 </div>;})}
               </div>
-            </div>)}
-            {/* Aussetzen */}
-            <div style={{...s.card("#a080e044","#1a0a1a"),marginBottom:10}}>
-              <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>⚬ AUSSETZEN</div>
-              <div style={{fontSize:11,color:C.dim,marginBottom:10}}>Ein Spieler hat 6 Spatz – die anderen 3 spielen.</div>
-              <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:10}}>Aussetzen starten</button>
-            </div>
+              :<div style={{...s.card("#a080e044","#1a0a1a"),marginBottom:10}}>
+                <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>⚬ AUSSETZEN</div>
+                <div style={{fontSize:11,color:C.dim,marginBottom:10}}>Ein Spieler hat 6 Spatz – die anderen 3 spielen.</div>
+                <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:11}}>Aussetzen starten</button>
+              </div>}
             {rounds.length>0&&<button onClick={()=>setRounds(r=>r.slice(0,-1))} style={{...s.btn(false,"#9a5a5a"),width:"100%",padding:10,marginTop:4}}>↩ Letzte Runde rückgängig</button>}
           </>}
 
@@ -877,12 +883,12 @@
             :[...rounds].reverse().map(r=>{
               const sm=Math.pow(2,r.sticht||0);const jm=r.jungfrauen>0?Math.pow(2,r.jungfrauen):1;
               const catColor=TYPE_CATS[r.typeCat]?.color||"#fff";const et=effectiveType(r);
-              return <div key={r.id} style={s.card()}>
+              return <div key={r.id||r.runde} onClick={()=>openEdit(r)} style={{...s.card(),cursor:"pointer"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,flexWrap:"wrap",gap:4}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:11,color:C.dim}}>Runde {r.runde}</span>
                     {r.aussetzer&&<span style={{fontSize:9,color:"#a080e0",background:"#a080e022",border:"1px solid #a080e044",borderRadius:8,padding:"1px 6px"}}>⚬ {r.aussetzer}</span>}
-                    <button onClick={()=>openEdit(r)} style={{background:"#1a2a1a",border:`1px solid ${C.border}`,color:C.dim,borderRadius:5,padding:"2px 8px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}}>✏</button>
+                    <button onClick={(e)=>{e.stopPropagation();openEdit(r);}} style={{background:"#1a2a1a",border:`1px solid ${C.border}`,color:C.dim,borderRadius:5,padding:"4px 9px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}}>Bearbeiten</button>
                   </div>
                   <span style={{fontSize:11,color:catColor}}>
                     {et.label}{r.tout&&<span style={{color:"#ff8c42"}}> Tout</span>}
