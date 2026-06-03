@@ -19,16 +19,6 @@
     button:disabled{opacity:.5;cursor:not-allowed}
     input:focus,button:focus{outline:none;box-shadow:0 0 0 2px rgba(122,218,138,.18)}
     ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0b160b}::-webkit-scrollbar-thumb{background:#2a4a2a;border-radius:2px}
-    @media (max-width:768px){
-      .grid-4col{grid-template-columns:repeat(2,1fr) !important}
-      .grid-2col{grid-template-columns:1fr !important}
-      body{font-size:14px}
-    }
-    @media (max-width:480px){
-      .grid-4col{grid-template-columns:1fr !important}
-      .grid-2col{grid-template-columns:1fr !important}
-      .nav-tabs{gap:6px !important}
-    }
   </style>
 </head>
 <body>
@@ -108,13 +98,12 @@
 
     const C={bg1:"#0c180c",bg2:"#111f11",border:"#1a321a",text:"#c8e0c8",dim:"#4a7a4a",mute:"#2a4a2a"};
     const s={
-      page:{background:"linear-gradient(160deg,#0b160b,#101e10)",minHeight:"100vh",fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:160,paddingTop:10},
+      page:{background:"linear-gradient(160deg,#0b160b,#101e10)",minHeight:"100vh",fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:92,paddingTop:10},
       topbar:{background:"#080f08",borderBottom:`1px solid ${C.border}`,padding:"10px 16px",position:"sticky",top:0,zIndex:10,boxShadow:"0 10px 40px rgba(0,0,0,0.25)"},
       card:(bc=C.border,bg=C.bg1)=>({background:bg,border:`1px solid ${bc}`,borderRadius:14,padding:"14px 16px",marginBottom:14,boxShadow:"0 18px 48px rgba(0,0,0,0.22)"}),
       sec:{fontSize:9,color:"#4a7a4a",letterSpacing:2,textTransform:"uppercase",marginBottom:8},
       btn:(on,ac="#5a9a5a")=>({background:on?ac+"28":C.bg1,border:`1px solid ${on?ac:C.border}`,color:on?ac:C.dim,borderRadius:10,padding:"10px 14px",cursor:"pointer",fontSize:12,fontFamily:"'Courier New',monospace",transition:"all 0.18s",boxShadow:"inset 0 0 0 1px rgba(255,255,255,0.05)",userSelect:"none"}),
       pBtn:(on,col)=>({flex:1,minWidth:72,padding:"10px 6px",textAlign:"center",background:on?col+"22":C.bg1,border:`2px solid ${on?col:C.border}`,color:on?col:C.mute,borderRadius:10,cursor:"pointer",fontSize:12,fontFamily:"'Courier New',monospace",transition:"all 0.18s",boxShadow:"inset 0 0 0 1px rgba(255,255,255,0.05)",userSelect:"none"}),
-      chip:(col)=>({display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"4px 10px",borderRadius:999,background:col+"22",border:`1px solid ${col}44`,color:col,fontSize:10,fontWeight:700,letterSpacing:"0.02em",textTransform:"uppercase",whiteSpace:"nowrap"}),
       navBtn:(on)=>({display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,flex:1,padding:"12px 4px",background:"transparent",border:"none",borderTop:`2px solid ${on?"#5a9a5a":"transparent"}`,color:on?"#8ad08a":C.mute,cursor:"pointer",fontSize:10,fontFamily:"'Courier New',monospace",transition:"color 0.2s,background 0.2s",minHeight:68}),
       subTab:(on)=>({background:on?"#1e3a1e":"transparent",border:`1px solid ${on?"#3a6a3a":C.border}`,color:on?"#a0d0a0":C.dim,borderRadius:10,padding:"8px 18px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace",transition:"all 0.18s"}),
       input:{background:"#080f08",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:"'Courier New',monospace",width:"100%",boxShadow:"inset 0 0 0 1px rgba(255,255,255,0.04)"},
@@ -296,7 +285,7 @@
               </span>
             </div>
             <div style={{fontSize:10,color:C.mute,marginBottom:6}}>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong></div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}} className="grid-4col">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
               {players.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}>
                 <div style={{fontSize:9,color:r.aussetzer===p?"#a080e0":PCOLORS[i]}}>{p}</div>
                 <div style={{fontSize:16,fontWeight:"bold",color:r.aussetzer===p?"#a080e0":d>0?"#7de87a":d<0?"#e85d4a":"#2a4a2a"}}>{r.aussetzer===p?"–":d>0?`+${d}`:d}</div>
@@ -307,7 +296,7 @@
 
         <div style={{marginTop:20}}>
           <div style={{...s.sec,fontSize:10,letterSpacing:3,marginBottom:12}}>STATISTIK</div>
-          {roundSummary&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}} className="grid-4col">
+          {roundSummary&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
             <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Runden</div><div style={{fontSize:18,fontWeight:"bold"}}>{roundSummary.count}</div></div>
             <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Bewegte Chips</div><div style={{fontSize:18,fontWeight:"bold"}}>{roundSummary.volume.toLocaleString("de-DE")}</div></div>
             <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Ø pro Runde</div><div style={{fontSize:18,fontWeight:"bold"}}>{roundSummary.avg.toLocaleString("de-DE")}</div></div>
@@ -315,7 +304,7 @@
           </div>}
           <div style={s.card()}>
             <div style={{fontSize:11,color:C.dim,marginBottom:8}}>Serien & Highscores</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}} className="grid-4col">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
               {players.map((p,i)=>{
                 const st=stats[p]||{};
                 return <div key={p} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:8,padding:8,textAlign:"center"}}>
@@ -329,46 +318,8 @@
           </div>
           <div style={s.card()}><div style={s.sec}>Meistgespielte Spielarten</div>{sessionTypes.map(([tid,cnt])=>{const t=allTypes.find(g=>g.id===tid);const col=TYPE_CATS[t?.cat||"2vs2"]?.color||"#888";const pct=Math.round(cnt/rounds.length*100);return <div key={tid} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}><span style={{color:col}}>{t?.label||tid}</span><span style={{color:C.dim}}>{cnt}× · {pct}%</span></div><div style={{height:5,background:C.border,borderRadius:3}}><div style={{height:"100%",width:`${pct}%`,background:col+"99",borderRadius:3}}/></div></div>;})}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}} className="grid-2col">
-            {standings.map((p,i)=>{
-              const st = stats[p.name];
-              const total = st.gewonnen + st.verloren;
-              const rate = total > 0 ? Math.round(st.gewonnen / total * 100) : 0;
-              const top = Object.entries(st.byType || {});
-              top.sort((a,b)=>b[1]-a[1]);
-              return <div key={p.name} style={s.card(p.color+"44",p.color+"0d")}> 
-                <div style={{fontSize:13,fontWeight:"bold",color:p.color,marginBottom:6}}>{p.name}</div>
-                <div style={{fontSize:17,fontWeight:"bold",color:"#e8ead0",marginBottom:4}}>
-                  {p.value.toLocaleString("de-DE")}
-                  <span style={{fontSize:11,marginLeft:6,color:p.diff>=0?"#7de87a":"#e85d4a"}}>{p.diff>=0?"+":""}{p.diff}</span>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,marginBottom:10}} className="grid-2col">
-                  {[["Gespielt",st.angesagt,p.color],["Partner",st.partner,"#6a9a6a"],["Siege",st.gewonnen,"#7de87a"],["Siegrate",rate+"%",rate>=50?"#7de87a":"#e85d4a"]].map(([l,v,c])=>
-                    <div key={l} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 4px",textAlign:"center"}}>
-                      <div style={{fontSize:8,color:C.dim,marginBottom:1}}>{l}</div>
-                      <div style={{fontSize:14,fontWeight:"bold",color:c}}>{v}</div>
-                    </div>
-                  )}
-                </div>
-                {top.length>0&&<>
-                  <div style={{...s.sec,marginBottom:5}}>Meist angesagt</div>
-                  {top.slice(0,4).map((entry,rank)=>{
-                    const [tid,cnt] = entry;
-                    const t = allTypes.find(g=>g.id===tid);
-                    const col = TYPE_CATS[t?.cat||"2vs2"]?.color||"#888";
-                    const pct = st.angesagt>0?Math.round(cnt/st.angesagt*100):0;
-                    return <div key={tid} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
-                      <div style={{fontSize:9,color:C.mute,width:12}}>#{rank+1}</div>
-                      <div style={{fontSize:10,color:col,width:62}}>{t?.label||tid}</div>
-                      <div style={{flex:1,height:4,background:C.border,borderRadius:2}}>
-                        <div style={{height:"100%",width:`${pct}%`,background:col+"88",borderRadius:2}}/>
-                      </div>
-                      <div style={{fontSize:9,color:C.dim,width:20,textAlign:"right"}}>{cnt}×</div>
-                    </div>;
-                  })}
-                </>}
-              </div>;
-            })}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {standings.map((p,i)=>{const st=stats[p.name];const total=st.gewonnen+st.verloren;const rate=total>0?Math.round(st.gewonnen/total*100):0;const top=Object.entries(st.byType).sort((a,b)=>b[1]-a[1]);return <div key={p.name} style={s.card(p.color+"44",p.color+"0d")}><div style={{fontSize:13,fontWeight:"bold",color:p.color,marginBottom:6}}>{p.name}</div><div style={{fontSize:17,fontWeight:"bold",color:"#e8ead0",marginBottom:4}}>{p.value.toLocaleString("de-DE")}<span style={{fontSize:11,marginLeft:6,color:p.diff>=0?"#7de87a":"#e85d4a"}}>{p.diff>=0?"+":""}{p.diff}</span></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,marginBottom:10}}>{[["Gespielt",st.angesagt,p.color],["Partner",st.partner,"#6a9a6a"],["Siege",st.gewonnen,"#7de87a"],["Siegrate",rate+"%",rate>=50?"#7de87a":"#e85d4a"]].map(([l,v,c])=><div key={l} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 4px",textAlign:"center"}}><div style={{fontSize:8,color:C.dim,marginBottom:1}}>{l}</div><div style={{fontSize:14,fontWeight:"bold",color:c}}>{v}</div></div>)}</div>{top.length>0&&<><div style={{...s.sec,marginBottom:5}}>Meist angesagt</div>{top.slice(0,4).map(([tid,cnt],rank)=>{const t=allTypes.find(g=>g.id===tid);const col=TYPE_CATS[t?.cat||"2vs2"]?.color||"#888";const pct=st.angesagt>0?Math.round(cnt/st.angesagt*100):0;return <div key={tid} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}><div style={{fontSize:9,color:C.mute,width:12}}>#{rank+1}</div><div style={{fontSize:10,color:col,width:62}}>{t?.label||tid}</div><div style={{flex:1,height:4,background:C.border,borderRadius:2}}><div style={{height:"100%",width:`${pct}%`,background:col+"88",borderRadius:2}}/></div><div style={{fontSize:9,color:C.dim,width:20,textAlign:"right"}}>{cnt}×</div></div>;})}}</>}</div>;})}
           </div>
         </div>
       </>;
@@ -379,7 +330,7 @@
       const upd=(k,v)=>onChange(t=>({...t,[k]:v}));
       const base=type.useDefaultTariff?(type.cat==="2vs2"?tariff.sauspiel:tariff.solo):(type.customBetrag||25);
       return <div style={{...s.card("#2a5a2a","#0a1a0a"),margin:"8px 0"}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}} className="grid-2col">
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
           <div><div style={{fontSize:9,color:C.dim,marginBottom:4}}>Name</div><input style={s.input} value={type.label} onChange={e=>upd("label",e.target.value)}/></div>
           <div><div style={{fontSize:9,color:C.dim,marginBottom:4}}>Beschreibung</div><input style={s.input} value={type.desc||""} onChange={e=>upd("desc",e.target.value)}/></div>
         </div>
@@ -528,7 +479,7 @@
           <div style={{...s.sec,color:"#3a8a3a"}}>
             Vorschau · {b}{sm>1?` × ${sm}`:""}{jm>1?` × ${jm}`:""} = <strong style={{color:"#7de87a"}}>{b*sm*jm} Chips</strong>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}} className="grid-4col">
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
             {players.map((p,i)=>{const delta=preview[p];return <div key={p} style={{textAlign:"center"}}>
               <div style={{fontSize:9,color:PCOLORS[i]}}>{p}</div>
               <div style={{fontSize:20,fontWeight:"bold",color:delta>0?"#7de87a":delta<0?"#e85d4a":aussetzer===p?"#a080e0":"#2a4a2a"}}>{aussetzer===p?"out":delta>0?`+${delta}`:delta}</div>
@@ -580,7 +531,7 @@
           {standings.map((p,i)=>{const st=stats[p.name];const total=st.gewonnen+st.verloren;const rate=total>0?Math.round(st.gewonnen/total*100):0;const top=Object.entries(st.byType).sort((a,b)=>b[1]-a[1]);return <div key={p.name} style={ss.card(p.color+"44",p.color+"0d")}>
             <div style={{fontSize:13,fontWeight:"bold",color:p.color,marginBottom:6}}>{p.name}</div>
             <div style={{fontSize:17,fontWeight:"bold",color:"#e8ead0",marginBottom:4}}>{p.value.toLocaleString("de-DE")}<span style={{fontSize:11,marginLeft:6,color:p.diff>=0?"#7de87a":"#e85d4a"}}>{p.diff>=0?"+":""}{p.diff}</span></div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,marginBottom:10}} className="grid-2col">{[["Gespielt",st.angesagt,p.color],["Partner",st.partner,"#6a9a6a"],["Siege",st.gewonnen,"#7de87a"],["Siegrate",rate+"%",rate>=50?"#7de87a":"#e85d4a"]].map(([l,v,c])=><div key={l} style={{background:C.bg2,border:\`1px solid \${C.border}\`,borderRadius:6,padding:"5px 4px",textAlign:"center"}}><div style={{fontSize:8,color:C.dim,marginBottom:1}}>{l}</div><div style={{fontSize:14,fontWeight:"bold",color:c}}>{v}</div></div>)}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,marginBottom:10}}>{[["Gespielt",st.angesagt,p.color],["Partner",st.partner,"#6a9a6a"],["Siege",st.gewonnen,"#7de87a"],["Siegrate",rate+"%",rate>=50?"#7de87a":"#e85d4a"]].map(([l,v,c])=><div key={l} style={{background:C.bg2,border:\`1px solid \${C.border}\`,borderRadius:6,padding:"5px 4px",textAlign:"center"}}><div style={{fontSize:8,color:C.dim,marginBottom:1}}>{l}</div><div style={{fontSize:14,fontWeight:"bold",color:c}}>{v}</div></div>)}</div>
             {top.length>0&&<><div style={{...ss.sec,marginBottom:5}}>Meist angesagt</div>{top.slice(0,4).map(([tid,cnt],rank)=>{const t=ALL_TYPES.find(g=>g.id===tid);const col=TYPE_CATS[t?.cat||"2vs2"]?.color||"#888";const pct=st.angesagt>0?Math.round(cnt/st.angesagt*100):0;return <div key={tid} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}><div style={{fontSize:9,color:C.mute,width:12}}>#{rank+1}</div><div style={{fontSize:10,color:col,width:62}}>{t?.label||tid}</div><div style={{flex:1,height:4,background:C.border,borderRadius:2}}><div style={{height:"100%",width:\`\${pct}%\`,background:col+"88",borderRadius:2}}/></div><div style={{fontSize:9,color:C.dim,width:20,textAlign:"right"}}>{cnt}×</div></div>;})}</>}
           </div>;})}
         </div>
@@ -595,7 +546,7 @@
           <div style={{fontSize:20,fontWeight:"bold",color:"#ffffff",marginBottom:6}}>Schafkopf · {SESSION.exportDate||""}</div>
           <div style={{fontSize:12,color:"#ffffff",marginTop:2}}>S&L {TARIFF.sl} · Sauspiel {TARIFF.sauspiel} · Solo {TARIFF.solo} Chips · {ROUNDS.length} Runden</div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,padding:"12px 16px 0"}} className="grid-4col">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,padding:"12px 16px 0"}}>
           {standings.map((p,i)=><div key={p.name} style={{background:\`\${p.color}12\`,border:\`1px solid \${p.color}44\`,borderRadius:8,padding:"8px 4px",textAlign:"center"}}>
             <div style={{fontSize:9,color:p.color}}>#{i+1} {p.name}</div>
             <div style={{fontSize:16,fontWeight:"bold",color:"#eeeedd"}}>{p.value.toLocaleString("de-DE")}</div>
@@ -616,7 +567,7 @@
             <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>{PLAYERS.map((p,i)=><div key={p} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:PCOLORS[i]}}><div style={{width:10,height:10,background:PCOLORS[i],borderRadius:2}}/>{p}</div>)}</div>
             <ResponsiveContainer width="100%" height={260}><BarChart data={deltaData} margin={{top:10,right:10,left:0,bottom:14}} barSize={8} barGap={2} barCategoryGap="20%"><CartesianGrid strokeDasharray="3 3" stroke="#1e3a1e"/><XAxis dataKey="round" stroke="#3a6a3a" tick={({x,y,payload})=>!String(payload.value).includes(".")?<text x={x} y={y+10} textAnchor="middle" fill="#5a8a5a" fontSize={10}>{payload.value}</text>:null} label={{value:"Runde",position:"insideBottom",offset:-8,fill:C.dim,fontSize:10}}/><YAxis stroke="#3a6a3a" tick={{fill:"#5a8a5a",fontSize:10}} width={40}/><Tooltip content={<TD/>}/><ReferenceLine y={0} stroke="#3a6a3a" strokeWidth={1}/>{PLAYERS.map((p,i)=><Bar key={p} dataKey={p} fill={PCOLORS[i]} opacity={0.85} radius={[2,2,0,0]} animationDuration={400}/>)}</BarChart></ResponsiveContainer>
           </>}
-          {sub==="verlauf"&&<div>{[...ROUNDS].reverse().map(r=>{const sm=Math.pow(2,r.sticht||0);const jm=r.jungfrauen>0?Math.pow(2,r.jungfrauen):1;const e=et(r);const cc=TYPE_CATS[r.typeCat]?.color||"#fff";return <div key={r.runde} style={ss.card()}><div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}><div style={{fontSize:11,color:C.dim}}>Runde {r.runde}{r.name ? " · "+r.name : ""}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}><span style={ss.chip(cc)}>{TYPE_CATS[r.typeCat]?.label||r.typeCat}</span><span style={ss.chip(r.typeCat!=="ramsch"?(r.gewonnen?"#7de87a":"#e85d4a"):"#e85d4a")}>{r.typeCat!=="ramsch"?(r.gewonnen?"Gewonnen":"Verloren"):(r.durchmarsch?"Durchmarsch":"Ramsch")}</span>{r.aussetzer&&<span style={ss.chip("#a080e0")}>{r.aussetzer} out</span>}{r.schneider&&<span style={ss.chip("#f5c842")}>Schneider</span>}{r.schwarz&&<span style={ss.chip("#f5c842")}>Schwarz</span>}{r.laufende>=2&&<span style={ss.chip("#f5c842")}>{r.laufende} Lfd.</span>}{r.sticht>0&&<span style={ss.chip("#d080e0")}>St×{sm}</span>}</div></div><div style={{fontSize:10,color:C.mute,marginBottom:6}}>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong>{r.solist&&<span style={{color:C.dim}}> · {r.solist}</span>}{r.spieler&&<span style={{color:C.dim}}> · {r.spieler}{r.partner && "+"+r.partner}</span>}</div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}} className="grid-4col">{PLAYERS.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}><div style={{fontSize:9,color:PCOLORS[i]}}>{p}</div><div style={{fontSize:16,fontWeight:"bold",color:d>0?"#7de87a":d<0?"#e85d4a":"#2a4a2a"}}>{d>0?"+":""}{d}</div></div>;})}</div></div>;})}
+          {sub==="verlauf"&&<div>{[...ROUNDS].reverse().map(r=>{const sm=Math.pow(2,r.sticht||0);const jm=r.jungfrauen>0?Math.pow(2,r.jungfrauen):1;const e=et(r);const cc=TYPE_CATS[r.typeCat]?.color||"#fff";return <div key={r.runde} style={ss.card()}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:4}}><span style={{fontSize:11,color:C.dim}}>Runde {r.runde}{r.name&&<span> · {r.name}</span>}{r.aussetzer&&<span style={{color:"#a080e0"}}> · {r.aussetzer} out</span>}{r.schneider&&<span> · Schndr.</span>{r.schwarz?" · Schwz.":""}{r.laufende>=2&&<span> · {r.laufende} Lfd.</span>}{r.sticht>0&&<span style={{color:"#d080e0"}}> · St×{sm}</span>}</span></div><div style={{fontSize:10,color:C.mute,marginBottom:6}}>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong>{r.solist&&<span style={{color:C.dim}}> · {r.solist}</span>}{r.spieler&&<span style={{color:C.dim}}> · {r.spieler}{r.partner&&<>+{r.partner}</>}</span>}</div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>{PLAYERS.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}><div style={{fontSize:9,color:PCOLORS[i]}}>{p}</div><div style={{fontSize:16,fontWeight:"bold",color:d>0?"#7de87a":d<0?"#e85d4a":"#2a4a2a"}}>{d>0?"+":""}{d}</div></div>;})}</div></div>;})}
           </div>}
           <Stat/>
         </div>
@@ -792,7 +743,7 @@
             <span style={{fontSize:9,color:C.dim,letterSpacing:2,marginRight:8}}>RUNDE</span>
             <span style={{fontSize:22,fontWeight:"bold",color:"#a0d0a0"}}>{rounds.length}</span>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}} className="grid-4col">
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
             {standings.map((p,i)=><div key={p.name} style={{textAlign:"center"}}>
               <div style={{fontSize:9,color:p.color}}>{p.name}</div>
               <div style={{fontSize:14,fontWeight:"bold",color:"#e8ead0"}}>{p.value.toLocaleString("de-DE")}</div>
@@ -896,7 +847,7 @@
                   </span>
                 </div>
                 <div style={{fontSize:10,color:C.mute,marginBottom:6}}>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong></div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}} className="grid-4col">
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
                   {players.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}>
                     <div style={{fontSize:9,color:r.aussetzer===p?"#a080e0":PCOLORS[i]}}>{p}{r.aussetzer===p?" ⚬":""}</div>
                     <div style={{fontSize:16,fontWeight:"bold",color:r.aussetzer===p?"#a080e0":d>0?"#7de87a":d<0?"#e85d4a":"#2a4a2a"}}>{r.aussetzer===p?"–":d>0?`+${d}`:d}</div>
@@ -925,7 +876,7 @@
               </div>
               <div style={s.card()}>
                 <div style={s.sec}>Tarif</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}} className="grid-2col">
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
                   {[["Schneider & Lfd.","sl"],["Sauspiel","sauspiel"],["Solo1","solo"]].map(([label,key])=><div key={key}>
                     <div style={{fontSize:9,color:C.dim,marginBottom:4}}>{label}</div>
                     <input style={s.input} type="number" value={tariff[key]} onChange={e=>updT(key,Number(e.target.value))}/>
@@ -1024,7 +975,7 @@
           <div style={{fontSize:20,fontWeight:"bold",color:"#ffffff",marginBottom:6}}>Schafkopf · {exportDate||""}</div>
           <div style={{fontSize:12,color:"#ffffff"}}>S&L {tariff.sl} · Sauspiel {tariff.sauspiel} · Solo {tariff.solo} Chips · {rounds.length} Runden</div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,padding:"12px 16px 0"}} className="grid-4col">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,padding:"12px 16px 0"}}>
           {standings.map((p,i)=><div key={p.name} style={{background:`${p.color}12`,border:`1px solid ${p.color}44`,borderRadius:8,padding:"8px 4px",textAlign:"center"}}>
             <div style={{fontSize:9,color:p.color}}>#{i+1} {p.name}</div>
             <div style={{fontSize:16,fontWeight:"bold",color:"#eeeedd"}}>{p.value.toLocaleString("de-DE")}</div>
