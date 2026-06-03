@@ -659,20 +659,32 @@
       function cancelEntry(){setEditRound(null);setSelType(null);setForm(emptyForm());setAussetzer(null);setAussetzenStep(0);setNav(editRound?"verlauf":"home");}
 
       // Export
+      function makeShareUrl(data){
+        const base=window.location.href.split('#')[0];
+        const json=JSON.stringify(data);
+        if(window.LZString?.compressToEncodedURIComponent){
+          return base+'#v1='+LZString.compressToEncodedURIComponent(json);
+        }
+        return base+'#json='+encodeURIComponent(json);
+      }
+
       function exportData(){
-        const data={
-          players,rounds,startkapital,tariff,
-          gameTypes,
-          exportDate:new Date().toLocaleDateString("de-DE")
-        };
-        const compressed=LZString.compressToEncodedURIComponent(JSON.stringify(data));
-        const url=window.location.href.split('#')[0]+'#v1='+compressed;
-        if(navigator.clipboard){
-          navigator.clipboard.writeText(url)
-            .then(()=>alert('Link kopiert! ✓\nEinfach per WhatsApp oder iMessage teilen.'))
-            .catch(()=>prompt('Link zum Kopieren:',url));
-        } else {
-          prompt('Link zum Kopieren:',url);
+        try{
+          const data={
+            players,rounds,startkapital,tariff,
+            gameTypes,
+            exportDate:new Date().toLocaleDateString("de-DE")
+          };
+          const url=makeShareUrl(data);
+          if(navigator.clipboard&&window.isSecureContext){
+            navigator.clipboard.writeText(url)
+              .then(()=>alert('Link kopiert! ✓\nEinfach per WhatsApp oder iMessage teilen.'))
+              .catch(()=>prompt('Link zum Kopieren:',url));
+          } else {
+            prompt('Link zum Kopieren:',url);
+          }
+        }catch(err){
+          alert("Link konnte nicht erstellt werden: "+err.message);
         }
       }
 
@@ -950,11 +962,17 @@
     // ── Viewer-Modus (URL-Hash) ──────────────────────────────────
     function getSharedData() {
       const hash = window.location.hash;
-      if (!hash.startsWith('#v1=')) return null;
       try {
-        const compressed = hash.slice(4);
-        const json = LZString.decompressFromEncodedURIComponent(compressed);
-        return JSON.parse(json);
+        if (hash.startsWith('#v1=')) {
+          if (!window.LZString?.decompressFromEncodedURIComponent) return null;
+          const compressed = hash.slice(4);
+          const json = LZString.decompressFromEncodedURIComponent(compressed);
+          return JSON.parse(json);
+        }
+        if (hash.startsWith('#json=')) {
+          return JSON.parse(decodeURIComponent(hash.slice(6)));
+        }
+        return null;
       } catch { return null; }
     }
 
