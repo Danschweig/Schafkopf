@@ -36,7 +36,7 @@
     const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a"];
     const BUILTIN_IDS=["sauspiel","hochzeit","wenz","geier","farbsolo","ramsch"];
 
-    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
+    const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"},"strafe":{label:"Strafe",color:"#ff8c42"}};
     const PLAY_TYPE_SECTIONS=[
       {id:"2vs2",label:"2 vs 2",color:TYPE_CATS["2vs2"].color,cats:["2vs2"]},
       {id:"solo",label:"Solo",color:TYPE_CATS.solo1.color,cats:["solo1","solo2"]},
@@ -55,6 +55,7 @@
     const ALL_DISPLAY_TYPES=[...DEFAULT_GAME_TYPES,{id:"farbwenz",label:"Farbwenz",cat:"solo2"},{id:"farbgeier",label:"Farbgeier",cat:"solo1"}];
 
     function effectiveType(r){
+      if(r.typeCat==="strafe")return{id:r.typeId||"kartenstrafe",label:r.typeLabel||"Kartenstrafe",cat:"strafe"};
       if(r.typeId==="wenz"&&r.mitFarbe)return{id:"farbwenz",label:"Farbwenz",cat:"solo2"};
       if(r.typeId==="geier"&&r.mitFarbe)return{id:"farbgeier",label:"Farbgeier",cat:"solo1"};
       return{id:r.typeId,label:r.typeLabel,cat:r.typeCat};
@@ -222,7 +223,7 @@
       return <div style={{background:C.tooltipBg,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:12,fontFamily:"'Courier New',monospace",boxShadow:C.mode==="light"?"0 4px 16px rgba(35,70,35,0.14)":"none"}}>
         <div style={{color:"#7aaa7a",fontWeight:"bold",marginBottom:4}}>Runde {label}</div>
         {r&&<div style={{fontSize:10,color:TYPE_CATS[r.typeCat]?.color||"#888",marginBottom:6}}>
-          {effectiveType(r).label}{r.aussetzer?` (${r.aussetzer} out)`:""}{r.solist?` · ${r.solist}`:r.spieler?` · ${r.spieler}`:""}{r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}
+          {effectiveType(r).label}{r.cardPenalty?` · ${r.cardPlayer}`:""}{r.aussetzer?` (${r.aussetzer} out)`:""}{!r.cardPenalty&&(r.solist?` · ${r.solist}`:r.spieler?` · ${r.spieler}`:"")}{!r.cardPenalty&&r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}
         </div>}
         {sorted.map(p=>{const diff=p.value-startkapital;return <div key={p.name} style={{color:p.color,marginBottom:2}}>{p.name}: <strong>{p.value.toLocaleString("de-DE")}</strong><span style={{fontSize:10,marginLeft:6,color:diff>=0?"#7de87a":"#e85d4a"}}>{diff>=0?"+":""}{diff}</span></div>;})}
       </div>;
@@ -234,7 +235,7 @@
       const sorted=[...payload].filter(p=>p.value!==null).sort((a,b)=>b.value-a.value);
       return <div style={{background:C.tooltipBg,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:12,fontFamily:"'Courier New',monospace",boxShadow:C.mode==="light"?"0 4px 16px rgba(35,70,35,0.14)":"none"}}>
         <div style={{color:"#7aaa7a",fontWeight:"bold",marginBottom:4}}>Runde {label}</div>
-        <div style={{fontSize:10,color:TYPE_CATS[r.typeCat]?.color||"#888",marginBottom:6}}>{effectiveType(r).label}{r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}</div>
+        <div style={{fontSize:10,color:TYPE_CATS[r.typeCat]?.color||"#888",marginBottom:6}}>{effectiveType(r).label}{r.cardPenalty?` · ${r.cardPlayer}`:""}{!r.cardPenalty&&r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}</div>
         {sorted.map(p=><div key={p.name} style={{color:p.fill,marginBottom:2}}>{p.name}: <span style={{color:p.value>0?"#7de87a":p.value<0?"#e85d4a":C.zero,fontWeight:"bold"}}>{p.value>0?"+":""}{p.value}</span></div>)}
       </div>;
     }
@@ -702,6 +703,7 @@
       const migrateGameTypes=(gt)=>{if(!gt)return[];return gt.map(t=>({...t,cat:t.cat==="solo"?"solo1":t.cat,laufendeFrom:t.id==="geier"?2:t.laufendeFrom}));};
       const [rounds,setRounds]      = useState(migrateRounds(sv?.rounds)||[]);
       const [gameTypes,setGameTypes]= useState(()=>{const saved=sv?.gameTypes;if(saved&&saved.length>0)return migrateGameTypes(saved);return DEFAULT_GAME_TYPES;});
+      const [yellowCards,setYellowCards]=useState(()=>Object.fromEntries((sv?.players||["Spieler 1","Spieler 2","Spieler 3","Spieler 4"]).map(p=>[p,sv?.yellowCards?.[p]||0])));
       const [selType,setSelType]    = useState(null);
       const [form,setForm]          = useState(emptyForm());
       const [editRound,setEditRound]= useState(null);
@@ -714,7 +716,8 @@
       const [runeMode,setRuneMode]=useState(!!sv?.runeMode);
       applyThemeMode(themeMode);
 
-      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes,themeMode,runeMode}));}catch{}},[players,tariff,startkapital,rounds,gameTypes,themeMode,runeMode]);
+      useEffect(()=>{setYellowCards(cards=>Object.fromEntries(players.map(p=>[p,Math.min(1,cards[p]||0)])));},[players]);
+      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode}));}catch{}},[players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);
@@ -754,7 +757,7 @@
       const typeCfg=selType?gameTypes.find(t=>t.id===selType):null;
       const preview=useMemo(()=>{if(!typeCfg)return null;const b=calcBetrag(form,typeCfg,tariff);return calcDeltas(form,players,b,typeCfg,aussetzer);},[form,players,tariff,typeCfg,aussetzer]);
 
-      function openEdit(round){setEditRound(round);setSelType(round.typeId);setAussetzer(round.aussetzer||null);setForm({spieler:round.spieler||null,partner:round.partner||null,solist:round.solist||null,verlierer:round.verlierer||null,name:round.name||"",gewonnen:round.gewonnen??true,schneider:round.schneider||false,schwarz:round.schwarz||false,laufende:round.laufende||0,jungfrauen:round.jungfrauen||0,sticht:round.sticht||0,pflichtramsch:round.pflichtramsch||false,durchmarsch:round.durchmarsch||false,mitFarbe:round.mitFarbe||false,tout:round.tout||false});setNav("entry");}
+      function openEdit(round){if(round.cardPenalty)return;setEditRound(round);setSelType(round.typeId);setAussetzer(round.aussetzer||null);setForm({spieler:round.spieler||null,partner:round.partner||null,solist:round.solist||null,verlierer:round.verlierer||null,name:round.name||"",gewonnen:round.gewonnen??true,schneider:round.schneider||false,schwarz:round.schwarz||false,laufende:round.laufende||0,jungfrauen:round.jungfrauen||0,sticht:round.sticht||0,pflichtramsch:round.pflichtramsch||false,durchmarsch:round.durchmarsch||false,mitFarbe:round.mitFarbe||false,tout:round.tout||false});setNav("entry");}
 
       function saveRound(){
         if(!preview)return;
@@ -771,6 +774,48 @@
 
       function cancelEntry(){setEditRound(null);setSelType(null);setForm(emptyForm());setAussetzer(null);setAussetzenStep(0);setNav(editRound?"verlauf":"home");}
 
+      function addCardPenalty(player,kind){
+        const base=tariff.sauspiel;
+        const prevYellow=yellowCards[player]||0;
+        const deltas=Object.fromEntries(players.map(p=>[p,p===player?-(players.length-1)*base:base]));
+        const label=kind==="gelbrot"?"Gelb-Rot":"Rot";
+        setRounds(r=>[...r,{
+          id:Date.now(),
+          runde:r.length+1,
+          typeId:"kartenstrafe",
+          typeLabel:`${label}e Karte`,
+          typeCat:"strafe",
+          name:`${label}e Karte: ${player}`,
+          cardPenalty:true,
+          cardKind:kind,
+          cardPlayer:player,
+          prevYellow,
+          spieler:player,
+          betrag:base,
+          deltas
+        }]);
+        setYellowCards(cards=>({...cards,[player]:0}));
+      }
+
+      function addYellowCard(player){
+        if((yellowCards[player]||0)>=1)addCardPenalty(player,"gelbrot");
+        else setYellowCards(cards=>({...cards,[player]:1}));
+      }
+
+      function addRedCard(player){addCardPenalty(player,"rot");}
+
+      function clearPlayerCards(player){
+        setYellowCards(cards=>({...cards,[player]:0}));
+      }
+
+      function undoLastRound(){
+        setRounds(r=>{
+          const last=r[r.length-1];
+          if(last?.cardPenalty&&last.cardPlayer)setYellowCards(cards=>({...cards,[last.cardPlayer]:last.prevYellow||0}));
+          return r.slice(0,-1);
+        });
+      }
+
       // Export
       function makeShareUrl(data){
         const base=window.location.href.split('#')[0];
@@ -784,7 +829,7 @@
       function exportData(){
         try{
           const data={
-            players,rounds,startkapital,tariff,
+            players,rounds,startkapital,tariff,yellowCards,
             gameTypes,
             exportDate:new Date().toLocaleDateString("de-DE")
           };
@@ -802,14 +847,14 @@
       }
 
       function exportConfig(){
-        const cfg={type:"schafkopf-config",players,tariff,startkapital,gameTypes};
+        const cfg={type:"schafkopf-config",players,tariff,startkapital,gameTypes,yellowCards};
         const blob=new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-config-${new Date().toISOString().slice(0,10)}.json`;a.click();
       }
 
       function exportSession(){
-        const data={type:"schafkopf-session",players,rounds,startkapital,tariff,gameTypes,exportDate:new Date().toLocaleDateString("de-DE")};
+        const data={type:"schafkopf-session",players,rounds,startkapital,tariff,gameTypes,yellowCards,exportDate:new Date().toLocaleDateString("de-DE")};
         const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-sicherung-${new Date().toISOString().slice(0,10)}.json`;a.click();
@@ -843,6 +888,7 @@
               if(data.startkapital!=null){setStart(data.startkapital);imported=true;}
               if(Array.isArray(data.rounds)){setRounds(migrateRounds(data.rounds));imported=true;}
               if(Array.isArray(data.gameTypes)){setGameTypes(migrateGameTypes(data.gameTypes));imported=true;}
+              if(data.yellowCards){setYellowCards(data.yellowCards);imported=true;}
               if(!imported)throw new Error("Unbekanntes Importformat.");
             }
           }catch(err){alert("Import fehlgeschlagen: "+err.message);}
@@ -902,6 +948,25 @@
               <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Aktuelle Führung</div><div style={{fontSize:14,fontWeight:"bold"}}>{Object.entries(konten).sort((a,b)=>b[1]-a[1])[0][0]}</div></div>
               <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Gesamtvolumen</div><div style={{fontSize:14,fontWeight:"bold"}}>{roundSummary?roundSummary.volume.toLocaleString("de-DE"):"0"} Chips</div></div>
             </div>}
+            <div style={{...s.card("#d8a92855",C.mode==="light"?"#fff8df":"#1f1a0f"),padding:"9px 10px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center",marginBottom:7}}>
+                <div style={s.sec}>Kartenstrafen</div>
+                <div style={{fontSize:9,color:C.dim}}>Rot: {tariff.sauspiel} an jeden</div>
+              </div>
+              <div style={{display:"grid",gap:5}}>
+                {players.map((p,i)=>{const y=yellowCards[p]||0;return <div key={p} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:8,alignItems:"center",background:C.bg1,border:`1px solid ${y?"#d8a928":C.border}`,borderRadius:7,padding:"6px 7px"}}>
+                  <div style={{minWidth:0,display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{fontSize:11,fontWeight:"bold",color:PCOLORS[i],overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p}</div>
+                    <div style={{fontSize:9,color:y?"#1f1f12":C.mute,background:y?"#d8a928":"transparent",border:`1px solid ${y?"#d8a928":C.border}`,borderRadius:10,padding:"1px 6px",fontWeight:"bold",flexShrink:0}}>{y?"G":"0"}</div>
+                  </div>
+                  <div style={{display:"flex",gap:4}}>
+                    <button aria-label={`${p} gelbe Karte`} title={y?"Gelb-Rot":"Gelb"} onClick={()=>addYellowCard(p)} style={{...s.btn(false,"#d8a928"),padding:"4px 7px",fontSize:10,minWidth:34}}>{y?"G/R":"G"}</button>
+                    <button aria-label={`${p} rote Karte`} title="Rot" onClick={()=>addRedCard(p)} style={{...s.btn(false,"#e85d4a"),padding:"4px 7px",fontSize:10,minWidth:28}}>R</button>
+                    {y>0&&<button aria-label={`${p} gelbe Karte zurücksetzen`} title="Zuruecksetzen" onClick={()=>clearPlayerCards(p)} style={{...s.btn(false,"#8a8a8a"),padding:"4px 7px",fontSize:10,minWidth:28}}>×</button>}
+                  </div>
+                </div>;})}
+              </div>
+            </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
               {playTabs.map(tab=><button key={tab.id} onClick={()=>setPlayTab(tab.id)}
                 style={{...s.subTab(playTab===tab.id),padding:"9px 4px",fontSize:10,color:playTab===tab.id?tab.color:C.dim,borderColor:playTab===tab.id?tab.color:C.border}}>
@@ -922,7 +987,7 @@
                 <div style={{fontSize:11,color:C.dim,marginBottom:10}}>Ein Spieler hat 6 Spatz – die anderen 3 spielen.</div>
                 <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:11}}>Aussetzen starten</button>
               </div>}
-            {rounds.length>0&&<button onClick={()=>setRounds(r=>r.slice(0,-1))} style={{...s.btn(false,"#9a5a5a"),width:"100%",padding:10,marginTop:4}}>↩ Letzte Runde rückgängig</button>}
+            {rounds.length>0&&<button onClick={undoLastRound} style={{...s.btn(false,"#9a5a5a"),width:"100%",padding:10,marginTop:4}}>↩ Letzte Runde rückgängig</button>}
           </>}
 
           {/* AUSSETZEN – Schritt 1: Wer sitzt aus? */}
@@ -974,23 +1039,25 @@
             :[...rounds].reverse().map(r=>{
               const sm=Math.pow(2,r.sticht||0);const jm=r.jungfrauen>0?Math.pow(2,r.jungfrauen):1;
               const catColor=TYPE_CATS[r.typeCat]?.color||"#fff";const et=effectiveType(r);
-              return <div key={r.id||r.runde} onClick={()=>openEdit(r)} style={{...s.card(),cursor:"pointer"}}>
+              return <div key={r.id||r.runde} onClick={()=>openEdit(r)} style={{...s.card(),cursor:r.cardPenalty?"default":"pointer"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,flexWrap:"wrap",gap:4}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:11,color:C.dim}}>Runde {r.runde}</span>
                     {r.aussetzer&&<span style={{fontSize:9,color:"#a080e0",background:"#a080e022",border:"1px solid #a080e044",borderRadius:8,padding:"1px 6px"}}>⚬ {r.aussetzer}</span>}
-                    <button onClick={(e)=>{e.stopPropagation();openEdit(r);}} style={{background:C.bg2,border:`1px solid ${C.border}`,color:C.dim,borderRadius:5,padding:"4px 9px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}}>Bearbeiten</button>
+                    {!r.cardPenalty&&<button onClick={(e)=>{e.stopPropagation();openEdit(r);}} style={{background:C.bg2,border:`1px solid ${C.border}`,color:C.dim,borderRadius:5,padding:"4px 9px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}}>Bearbeiten</button>}
                   </div>
                   <span style={{fontSize:11,color:catColor}}>
-                    {et.label}{r.tout&&<span style={{color:"#ff8c42"}}> Tout</span>}
-                    {r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}
+                    {et.label}{r.cardPenalty&&<span> · {r.cardPlayer}</span>}{r.tout&&<span style={{color:"#ff8c42"}}> Tout</span>}
+                    {!r.cardPenalty&&r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}
                     {r.schneider?" · Schndr.":""}{r.schwarz?" · Schwz.":""}{r.laufende>=2&&<span> · {r.laufende} Lfd.</span>}
                     {r.sticht>0&&<span style={{color:"#d080e0"}}> · Sticht ×{sm}</span>}
                     {r.typeCat==="ramsch"&&r.jungfrauen>0?` · ${r.jungfrauen} Jungfr.`:""}
                     {r.pflichtramsch?" · Pflicht":""}{r.durchmarsch?" · Durchm.":""}
                   </span>
                 </div>
-                <div style={{fontSize:10,color:C.mute,marginBottom:6}}>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong></div>
+                <div style={{fontSize:10,color:C.mute,marginBottom:6}}>
+                  {r.cardPenalty?<span><strong style={{color:"#ff8c42"}}>{r.cardPlayer}</strong> zahlt <strong style={{color:"#f5c842"}}>{r.betrag} Chips</strong> an jeden anderen Spieler.</span>:<span>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong></span>}
+                </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
                   {players.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}>
                     <div style={{fontSize:9,color:r.aussetzer===p?"#a080e0":PCOLORS[i]}}>{p}{r.aussetzer===p?" ⚬":""}</div>
@@ -1077,6 +1144,7 @@
                   setTariff({sl:25,sauspiel:25,solo:50});
                   setStart(1500);
                   setGameTypes(DEFAULT_GAME_TYPES);
+                  setYellowCards(Object.fromEntries(["Spieler 1","Spieler 2","Spieler 3","Spieler 4"].map(p=>[p,0])));
                   setRounds([]);
                 }}} style={{...s.btn(false,"#e85d4a"),flex:1,padding:8}}>🔄 Alles zurücksetzen</button>
               </div>
