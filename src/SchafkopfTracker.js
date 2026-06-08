@@ -215,7 +215,7 @@
           const url=makeShareUrl(data);
           if(navigator.clipboard&&window.isSecureContext){
             navigator.clipboard.writeText(url)
-              .then(()=>alert('Link kopiert! ✓\nEinfach per WhatsApp oder iMessage teilen.'))
+              .then(()=>alert('Link kopiert! OK\nEinfach per WhatsApp oder iMessage teilen.'))
               .catch(()=>prompt('Link zum Kopieren:',url));
           } else {
             prompt('Link zum Kopieren:',url);
@@ -295,339 +295,57 @@
       const activePlayTab=visiblePlayTabs.find(t=>t.id===uiPlayTab)||visiblePlayTabs[0];
 
       return <div style={s.page}>
-        <div style={s.topbar}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={{fontSize:9,color:C.mute,letterSpacing:3}}>SCHAFKOPF</div>
-              <div style={{fontSize:15,fontWeight:"bold",color:C.title}}>
-                {nav==="home"&&(aussetzenStep>0?`Aussetzen · ${aussetzenStep===1?"Wer?":"Spieltyp"}`:"Spieltyp wählen")}
-                {nav==="entry"&&(editRound?`✏ ${typeCfg?.label||""}`:aussetzer?`⚬ ${typeCfg?.label||""} (${aussetzer} out)`:typeCfg?.label||"")}
-                {nav==="verlauf"&&`Verlauf (${rounds.length})`}
-                {nav==="chart"&&"Chart & Statistik"}
-                {nav==="settings"&&"Einstellungen"}
-              </div>
-            </div>
-            <div style={{textAlign:"right",fontSize:10,color:C.title}}>
-              <div>S&L {tariff.sl} · Ssp {tariff.sauspiel} · Solo {tariff.solo}</div>
-            </div>
-          </div>
-          <div style={{background:C.roundBg,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 12px",margin:"8px 0",textAlign:"center"}}>
-            <span style={{fontSize:9,color:C.dim,letterSpacing:2,marginRight:8}}>RUNDE</span>
-            <span style={{fontSize:22,fontWeight:"bold",color:C.subText}}>{rounds.length}</span>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
-            {standings.map((p,i)=><div key={p.name} style={{textAlign:"center"}}>
-              <div style={{fontSize:9,color:p.color}}>{p.name}</div>
-              <div style={{fontSize:14,fontWeight:"bold",color:C.title}}>{p.value.toLocaleString("de-DE")}</div>
-              <div style={{fontSize:10,color:p.diff>=0?"#7de87a":"#e85d4a"}}>{p.diff>=0?"+":""}{p.diff}</div>
-            </div>)}
-          </div>
-        </div>
-
-        {showInstallHint&&<div style={{margin:"10px 16px 0",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 10px",display:"flex",alignItems:"center",gap:10}}>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:11,fontWeight:"bold",color:C.subText,marginBottom:2}}>Zum Home-Bildschirm hinzufügen</div>
-            <div style={{fontSize:10,lineHeight:1.3,color:C.dim}}>Im Browser-Menü teilen und als App speichern.</div>
-          </div>
-          <button onClick={dismissInstallHint} aria-label="Hinweis schließen" style={{background:"transparent",border:`1px solid ${C.border}`,color:C.dim,borderRadius:6,width:30,height:30,cursor:"pointer",fontSize:16,lineHeight:1}}>×</button>
-        </div>}
+        <TopBar
+          nav={nav} aussetzenStep={aussetzenStep} editRound={editRound} typeCfg={typeCfg}
+          aussetzer={aussetzer} rounds={rounds} tariff={tariff} standings={standings}/>
+        <InstallHint show={showInstallHint} onDismiss={dismissInstallHint}/>
 
         <div style={{padding:"14px 16px"}}>
+          {nav==="home"&&<HomeView
+            rounds={rounds} roundSummary={roundSummary} konten={konten} players={players} tariff={tariff}
+            showCardPenalties={showCardPenalties} setShowCardPenalties={setShowCardPenalties}
+            yellowCards={yellowCards} addYellowCard={addYellowCard} addRedCard={addRedCard} clearPlayerCards={clearPlayerCards}
+            forcedRamschActive={forcedRamschActive} bockActive={bockActive}
+            visiblePlayTabs={visiblePlayTabs} uiPlayTab={uiPlayTab} setPlayTab={setPlayTab}
+            activePlayTab={activePlayTab} gameTypes={gameTypes} isBockAllowedType={isBockAllowedType}
+            startRound={startRound} undoLastRound={undoLastRound}
+            aussetzenStep={aussetzenStep} setAussetzenStep={setAussetzenStep}
+            aussetzer={aussetzer} setAussetzer={setAussetzer}/>} 
 
-          {/* HOME */}
-          {nav==="home"&&aussetzenStep===0&&<>
-            {rounds.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
-              <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Letzte Runde</div><div style={{fontSize:14,fontWeight:"bold"}}>{rounds[rounds.length-1].name||`Runde ${rounds[rounds.length-1].runde}`}</div></div>
-              <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Aktuelle Führung</div><div style={{fontSize:14,fontWeight:"bold"}}>{Object.entries(konten).sort((a,b)=>b[1]-a[1])[0][0]}</div></div>
-              <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Gesamtvolumen</div><div style={{fontSize:14,fontWeight:"bold"}}>{roundSummary?roundSummary.volume.toLocaleString("de-DE"):"0"} Chips</div></div>
-            </div>}
-            <div style={{...s.card("#d8a92855",C.mode==="light"?"#fff8df":"#1f1a0f"),padding:"9px 10px"}}>
-              <button
-                onClick={()=>setShowCardPenalties(v=>!v)}
-                style={{width:"100%",background:"transparent",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}
-                aria-expanded={showCardPenalties}
-                aria-label="Kartenstrafen ein- oder ausklappen"
-              >
-                <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
-                    <div style={s.sec}>Kartenstrafen</div>
-                    <div style={{fontSize:11,color:C.dim}}>{showCardPenalties?"▾":"▸"}</div>
-                  </div>
-                  <div style={{fontSize:9,color:C.dim}}>Rot: {tariff.sauspiel} an jeden</div>
-                </div>
-              </button>
-              {showCardPenalties&&<div style={{marginTop:7,display:"grid",gap:5}}>
-                {players.map((p,i)=>{const y=yellowCards[p]||0;return <div key={p} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:8,alignItems:"center",background:C.bg1,border:`1px solid ${y?"#d8a928":C.border}`,borderRadius:7,padding:"6px 7px"}}>
-                  <div style={{minWidth:0,display:"flex",alignItems:"center",gap:6}}>
-                    <div style={{fontSize:11,fontWeight:"bold",color:PCOLORS[i],overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p}</div>
-                    <div style={{fontSize:9,color:y?"#1f1f12":C.mute,background:y?"#d8a928":"transparent",border:`1px solid ${y?"#d8a928":C.border}`,borderRadius:10,padding:"1px 6px",fontWeight:"bold",flexShrink:0}}>{y?"G":"0"}</div>
-                  </div>
-                  <div style={{display:"flex",gap:4}}>
-                    <button aria-label={`${p} gelbe Karte`} title={y?"Gelb-Rot":"Gelb"} onClick={()=>addYellowCard(p)} style={{...s.btn(false,"#d8a928"),padding:"4px 7px",fontSize:10,minWidth:34}}>{y?"G/R":"G"}</button>
-                    <button aria-label={`${p} rote Karte`} title="Rot" onClick={()=>addRedCard(p)} style={{...s.btn(false,"#e85d4a"),padding:"4px 7px",fontSize:10,minWidth:28}}>R</button>
-                    {y>0&&<button aria-label={`${p} gelbe Karte zurücksetzen`} title="Zuruecksetzen" onClick={()=>clearPlayerCards(p)} style={{...s.btn(false,"#8a8a8a"),padding:"4px 7px",fontSize:10,minWidth:28}}>×</button>}
-                  </div>
-                </div>;})}
-              </div>}
-            </div>
-            {(forcedRamschActive||bockActive)&&<div style={{...s.card(forcedRamschActive?"#a080e044":"#6aa86a44",forcedRamschActive?C.purpleBg:"#edf5e7"),marginBottom:10,padding:"10px 12px"}}>
-              <div style={{fontSize:10,color:forcedRamschActive?"#a080e0":"#2e5b36",fontWeight:"bold",marginBottom:4}}>{forcedRamschActive?"Pflichtramsch !!!":"Bock !!!"}</div>
-              <div style={{fontSize:11,color:C.dim}}>
-                {forcedRamschActive
-                  ?"Diese Runde ist fest auf Ramsch gesetzt. Andere Spiele sind in dieser Runde nicht verfuegbar."
-                  :"Die naechste Runde ist eine Bock-Runde. Erlaubt sind nur die aktivierten Bock-Spielarten."}
-              </div>
-            </div>}
-            <div style={{display:"grid",gridTemplateColumns:`repeat(${visiblePlayTabs.length},1fr)`,gap:6,marginBottom:12}}>
-              {visiblePlayTabs.map(tab=><button key={tab.id} onClick={()=>setPlayTab(tab.id)}
-                style={{...s.subTab(uiPlayTab===tab.id),padding:"9px 4px",fontSize:10,color:uiPlayTab===tab.id?tab.color:C.dim,borderColor:uiPlayTab===tab.id?tab.color:C.border}}>
-                {tab.label}
-              </button>)}
-            </div>
-            {uiPlayTab!=="aussetzen"
-              ?<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-                {gameTypes.filter(t=>activePlayTab.cats.includes(t.cat)&&isBockAllowedType(t)).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||activePlayTab.color;return <div key={t.id}
-                  onClick={()=>startRound(t.id)}
-                  style={{background:typeColor+"0e",border:`1px solid ${typeColor}33`,borderRadius:8,padding:"10px",cursor:"pointer",minHeight:72}}>
-                  <div style={{fontSize:15,fontWeight:"bold",color:typeColor,marginBottom:3}}>{t.label}</div>
-                  <div style={{fontSize:10,lineHeight:1.25,color:C.dim}}>{t.desc}</div>
-                </div>;})}
-              </div>
-              :<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
-                <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>⚬ AUSSETZEN</div>
-                <div style={{fontSize:11,color:C.dim,marginBottom:10}}>Ein Spieler hat 6 Spatz – die anderen 3 spielen.</div>
-                <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:11}}>Aussetzen starten</button>
-              </div>}
-            {rounds.length>0&&<button onClick={undoLastRound} style={{...s.btn(false,"#9a5a5a"),width:"100%",padding:10,marginTop:4}}>↩ Letzte Runde rückgängig</button>}
-          </>}
-
-          {/* AUSSETZEN – Schritt 1: Wer sitzt aus? */}
-          {nav==="home"&&aussetzenStep===1&&<>
-            <div style={s.card("#a080e044",C.purpleBg)}>
-              <div style={s.sec}>Wer sitzt aus? (6 Spatz, kein Trumpf)</div>
-              <div style={{display:"flex",gap:6,marginBottom:16}}>
-                {players.map((p,i)=><button key={p}
-                  style={s.pBtn(aussetzer===p,"#a080e0")}
-                  onClick={()=>setAussetzer(aussetzer===p?null:p)}>{p}</button>)}
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>{setAussetzer(null);setAussetzenStep(0);}} style={{...s.btn(false,"#5a5a8a"),padding:"10px 14px"}}>← Zurück</button>
-                <button onClick={()=>aussetzer&&setAussetzenStep(2)} disabled={!aussetzer}
-                  style={{...s.btn(!!aussetzer,"#a080e0"),flex:1,padding:10}}>
-                  Weiter → Spieltyp wählen
-                </button>
-              </div>
-            </div>
-          </>}
-
-          {/* AUSSETZEN – Schritt 2: Spieltyp */}
-          {nav==="home"&&aussetzenStep===2&&<>
-            <div style={{...s.card("#a080e044",C.purpleBg),marginBottom:12}}>
-              <div style={{fontSize:12,color:"#a080e0"}}>⚬ {aussetzer} sitzt aus · {players.filter(p=>p!==aussetzer).join(", ")} spielen</div>
-            </div>
-            {forcedRamschActive&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10,padding:"10px 12px"}}>
-              <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:4}}>Pflichtramsch !!!</div>
-              <div style={{fontSize:11,color:C.dim}}>Diese Runde ist fest auf Ramsch gesetzt. Andere Spiele sind in dieser Runde nicht verfuegbar.</div>
-            </div>}
-            {(forcedRamschActive
-              ?PLAY_TYPE_SECTIONS.filter(catInfo=>catInfo.id==="ramsch")
-              :bockActive
-                ?PLAY_TYPE_SECTIONS.filter(catInfo=>catInfo.id==="solo"||catInfo.id==="ramsch")
-                :PLAY_TYPE_SECTIONS
-            ).map(catInfo=><div key={catInfo.id} style={{marginBottom:14}}>
-              <div style={{...s.sec,color:catInfo.color+"99"}}>{catInfo.label}</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {gameTypes.filter(t=>catInfo.cats.includes(t.cat)&&(forcedRamschActive? t.cat==="ramsch":isBockAllowedType(t))).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||catInfo.color;return <div key={t.id}
-                  onClick={()=>startRound(t.id)}
-                  style={{background:typeColor+"0e",border:`1px solid ${typeColor}33`,borderRadius:10,padding:"12px",cursor:"pointer"}}>
-                  <div style={{fontSize:15,fontWeight:"bold",color:typeColor,marginBottom:2}}>{t.label}</div>
-                  <div style={{fontSize:10,color:C.dim}}>{t.desc}</div>
-                </div>;})}
-              </div>
-            </div>)}
-            <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(false,"#5a5a8a"),width:"100%",padding:10}}>← Zurück</button>
-          </>}
-
-          {/* EINTRAGEN */}
           {nav==="entry"&&typeCfg&&<EntryForm form={form} upd={upd} players={players} tariff={tariff}
             konten={editRound?kontenForEdit:konten} typeCfg={typeCfg} preview={preview}
             onSave={saveRound} onBack={cancelEntry} isEdit={!!editRound} roundNr={rounds.length+1} aussetzer={aussetzer}
-            forcedPflichtramsch={currentPflichtramsch} forcedBockRound={currentBockRound}/>}
+            forcedPflichtramsch={currentPflichtramsch} forcedBockRound={currentBockRound}/>} 
 
-          {/* VERLAUF */}
-          {nav==="verlauf"&&(rounds.length===0
-            ?<div style={{textAlign:"center",color:C.mute,padding:40}}>Noch keine Runden.</div>
-            :[...rounds].reverse().map(r=>{
-              const sm=Math.pow(2,r.sticht||0);const jm=r.jungfrauen>0?Math.pow(2,r.jungfrauen):1;
-              const catColor=TYPE_CATS[r.typeCat]?.color||"#fff";const et=effectiveType(r);
-              return <div key={r.id||r.runde} onClick={()=>openEdit(r)} style={{...s.card(),cursor:r.cardPenalty?"default":"pointer"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,flexWrap:"wrap",gap:4}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:11,color:C.dim}}>Runde {r.runde}</span>
-                    {r.aussetzer&&<span style={{fontSize:9,color:"#a080e0",background:"#a080e022",border:"1px solid #a080e044",borderRadius:8,padding:"1px 6px"}}>⚬ {r.aussetzer}</span>}
-                    {!r.cardPenalty&&<button onClick={(e)=>{e.stopPropagation();openEdit(r);}} style={{background:C.bg2,border:`1px solid ${C.border}`,color:C.dim,borderRadius:5,padding:"4px 9px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace"}}>Bearbeiten</button>}
-                  </div>
-                  <span style={{fontSize:11,color:catColor}}>
-                    {et.label}{r.cardPenalty&&<span> · {r.cardPlayer}</span>}{r.tout&&<span style={{color:"#ff8c42"}}> Tout</span>}
-                    {!r.cardPenalty&&r.typeCat!=="ramsch"&&(r.gewonnen?" · ✓":" · ✗")}
-                    {r.schneider?" · Schndr.":""}{r.schwarz?" · Schwz.":""}{r.laufende>=2&&<span> · {r.laufende} Lfd.</span>}
-                    {r.sticht>0&&<span style={{color:"#d080e0"}}> · Sticht ×{sm}</span>}
-                    {r.typeCat==="ramsch"&&r.jungfrauen>0?` · ${r.jungfrauen} Jungfr.`:""}
-                    {r.pflichtramsch?" · Pflichtramsch":""}{r.bock?" · Bock":""}{r.durchmarsch?" · Durchm.":""}
-                  </span>
-                </div>
-                <div style={{fontSize:10,color:C.mute,marginBottom:6}}>
-                  {r.cardPenalty?<span><strong style={{color:"#ff8c42"}}>{r.cardPlayer}</strong> zahlt <strong style={{color:"#f5c842"}}>{r.betrag} Chips</strong> an jeden anderen Spieler.</span>:<span>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong></span>}
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
-                  {players.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}>
-                    <div style={{fontSize:9,color:r.aussetzer===p?"#a080e0":PCOLORS[i]}}>{p}{r.aussetzer===p?" ⚬":""}</div>
-                    <div style={{fontSize:16,fontWeight:"bold",color:r.aussetzer===p?"#a080e0":d>0?"#7de87a":d<0?"#e85d4a":C.zero}}>{r.aussetzer===p?"–":d>0?`+${d}`:d}</div>
-                  </div>;})}</div>
-              </div>;
-            })
-          )}
+          {nav==="verlauf"&&<HistoryView rounds={rounds} players={players} openEdit={openEdit}/>} 
 
-          {nav==="chart"&&<ChartTab rounds={rounds} players={players} startkapital={startkapital} gameTypes={gameTypes}/>}
+          {nav==="chart"&&<ChartTab rounds={rounds} players={players} startkapital={startkapital} gameTypes={gameTypes}/>} 
 
-          {/* EINSTELLUNGEN */}
-          {nav==="settings"&&<>
-            <div style={{display:"flex",gap:8,marginBottom:14}}>
-              <button style={s.subTab(settingsTab==="allg")} onClick={()=>setSettingsTab("allg")}>Allgemein</button>
-              <button style={s.subTab(settingsTab==="spiele")} onClick={()=>setSettingsTab("spiele")}>Spielarten</button>
-            </div>
-            {settingsTab==="allg"&&<>
-              <div style={s.card()}>
-                <div style={s.sec}>Darstellung</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-                  <button style={{...s.btn(themeMode==="dark"),padding:10}} onClick={()=>setThemeMode("dark")}>Dunkel</button>
-                  <button style={{...s.btn(themeMode==="light"),padding:10}} onClick={()=>setThemeMode("light")}>Hell</button>
-                </div>
-                <Toggle label="Nordische Runen" value={runeMode} onChange={setRuneMode}/>
-                <div style={{fontSize:10,color:C.dim,lineHeight:1.35}}>
-                  {runeMode?"Sichtbare Texte werden als Runen dargestellt; gespeicherte Daten bleiben normal.":themeMode==="light"?"Heller Modus mit klaren Kontrasten fuer Tageslicht.":"Dunkler Modus fuer ruhige Runden am Tisch."}
-                </div>
-              </div>
-              <div style={s.card()}>
-                <div style={s.sec}>Rundenregel</div>
-                <Toggle label="Pflichtramsch aktiv" value={forcePflichtramsch} onChange={setForcePflichtramsch}/>
-                <div style={{marginTop:8}}>
-                  <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Wahrscheinlichkeit</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center"}}>
-                    <input
-                      style={s.input}
-                      type="number"
-                      min="1"
-                      max="1000"
-                      value={forcePflichtramschChance}
-                      onChange={e=>setForcePflichtramschChance(Math.max(1,Number(e.target.value)||20))}
-                    />
-                    <div style={{fontSize:11,color:C.text,whiteSpace:"nowrap"}}>1/{forcePflichtramschChance}</div>
-                  </div>
-                </div>
-                <div style={{fontSize:10,color:C.dim,lineHeight:1.35}}>
-                  Wenn aktiv, kann jede neue Runde zufaellig als Pflichtramsch starten. Dann sind andere Spiele fuer diese Runde gesperrt.
-                </div>
-              </div>
-              <div style={s.card()}>
-                <div style={s.sec}>Bock</div>
-                <Toggle label="Bock aktiv" value={bockMode} onChange={setBockMode}/>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:8}}>
-                  <Toggle label="Solo" value={bockAllowSolo} onChange={v=>updateBockAllowed("solo",v)} small/>
-                  <Toggle label="Wenz" value={bockAllowWenz} onChange={v=>updateBockAllowed("wenz",v)} small/>
-                  <Toggle label="Geier" value={bockAllowGeier} onChange={v=>updateBockAllowed("geier",v)} small/>
-                  <Toggle label="Ramsch" value={bockAllowRamsch} onChange={v=>updateBockAllowed("ramsch",v)} small/>
-                </div>
-                <div style={{fontSize:10,color:C.dim,lineHeight:1.35,marginTop:8}}>
-                  Nach einem verlorenen eigenen Solo, Wenz oder Geier wird die naechste Runde als Bock markiert. Hier legst du fest, welche Spielarten dann sichtbar bleiben.
-                </div>
-              </div>
-              <div style={s.card()}>
-                <div style={s.sec}>Spielernamen</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {players.map((p,i)=><div key={i}>
-                    <div style={{fontSize:9,color:PCOLORS[i],marginBottom:4}}>Spieler {i+1}</div>
-                    <input style={{...s.input,borderColor:PCOLORS[i]+"55"}} value={p} onChange={e=>setPlayers(pl=>pl.map((n,j)=>j===i?e.target.value:n))}/>
-                  </div>)}
-                </div>
-              </div>
-              <div style={s.card()}>
-                <div style={s.sec}>Tarif</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-                  {[["Schneider & Lfd.","sl"],["Sauspiel","sauspiel"],["Solo1","solo"]].map(([label,key])=><div key={key}>
-                    <div style={{fontSize:9,color:C.dim,marginBottom:4}}>{label}</div>
-                    <input style={s.input} type="number" value={tariff[key]} onChange={e=>updT(key,Number(e.target.value))}/>
-                  </div>)}
-                </div>
-                <div style={{fontSize:9,color:C.mute,marginTop:10,display:"flex",alignItems:"center",gap:8}}>
-                  Standard: S&L 25 · Sauspiel 25 · Solo 50
-                  <button onClick={()=>setTariff({sl:25,sauspiel:25,solo:50})} style={{...s.btn(false),padding:"3px 8px",fontSize:9}}>Reset</button>
-                </div>
-              </div>
-              <div style={s.card()}>
-                <div style={s.sec}>Startkapital</div>
-                <input style={s.input} type="number" value={startkapital} onChange={e=>setStart(Number(e.target.value))}/>
-              </div>
-            </>}
-            {settingsTab==="spiele"&&<>
-              <div style={s.card()}>
-                <div style={s.sec}>Spielarten</div>
-                <GameTypeEditor gameTypes={gameTypes} setGameTypes={setGameTypes} tariff={tariff}/>
-              </div>
-            </>}
-
-            <div style={s.card()}>
-              <div style={s.sec}>Daten</div>
-              <div style={{fontSize:10,color:C.dim,marginBottom:6}}>Export</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                <button onClick={exportData} style={{...s.btn(false,"#7de87a"),padding:10}}>📤 Link teilen</button>
-                <button onClick={exportSession} style={{...s.btn(false,"#7de87a"),padding:10}}>💾 Sicherung exportieren</button>
-              </div>
-              <button onClick={exportConfig} style={{...s.btn(false,"#5a9a5a"),width:"100%",padding:10,marginBottom:12}}>⚙ Einstellungen exportieren</button>
-              <div style={{fontSize:10,color:C.dim,marginBottom:6}}>Import</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8,marginBottom:12}}>
-                <label style={{...s.btn(false,"#4ab8e8"),padding:10,textAlign:"center",cursor:"pointer"}}>
-                  ↑ Datei importieren<input type="file" accept=".json,.html" style={{display:"none"}} onChange={importFile}/>
-                </label>
-              </div>
-              <div style={{fontSize:10,color:C.dim,marginBottom:6}}>Löschen</div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>{if(window.confirm("Alle Runden löschen?"))setRounds([]);}}
-                  style={{...s.btn(false,"#e85d4a"),flex:1,padding:8}}>🗑 Alle Runden löschen</button>
-                <button onClick={()=>{if(window.confirm("Alles zurücksetzen? Runden UND Einstellungen werden auf Standard zurückgesetzt.")){
-                  setPlayers(["Spieler 1","Spieler 2","Spieler 3","Spieler 4"]);
-                  setTariff({sl:25,sauspiel:25,solo:50});
-                  setStart(1500);
-                  setGameTypes(DEFAULT_GAME_TYPES);
-                  setYellowCards(Object.fromEntries(["Spieler 1","Spieler 2","Spieler 3","Spieler 4"].map(p=>[p,0])));
-                  setForcePflichtramsch(false);
-                  setForcePflichtramschChance(20);
-                  setBockMode(false);
-                  setBockAllowSolo(true);
-                  setBockAllowWenz(true);
-                  setBockAllowGeier(true);
-                  setBockAllowRamsch(true);
-                  setNextRoundBock(false);
-                  setNextRoundRamsch({rolled:false,forced:false});
-                  setCurrentPflichtramsch(false);
-                  setCurrentBockRound(false);
-                  setRounds([]);
-                }}} style={{...s.btn(false,"#e85d4a"),flex:1,padding:8}}>🔄 Alles zurücksetzen</button>
-              </div>
-            </div>
-          </>}
-
+          {nav==="settings"&&<SettingsView
+            settingsTab={settingsTab} setSettingsTab={setSettingsTab}
+            themeMode={themeMode} setThemeMode={setThemeMode} runeMode={runeMode} setRuneMode={setRuneMode}
+            forcePflichtramsch={forcePflichtramsch} setForcePflichtramsch={setForcePflichtramsch}
+            forcePflichtramschChance={forcePflichtramschChance} setForcePflichtramschChance={setForcePflichtramschChance}
+            bockMode={bockMode} setBockMode={setBockMode}
+            bockAllowSolo={bockAllowSolo} bockAllowWenz={bockAllowWenz} bockAllowGeier={bockAllowGeier} bockAllowRamsch={bockAllowRamsch}
+            updateBockAllowed={updateBockAllowed}
+            setBockAllowSolo={setBockAllowSolo} setBockAllowWenz={setBockAllowWenz}
+            setBockAllowGeier={setBockAllowGeier} setBockAllowRamsch={setBockAllowRamsch}
+            players={players} setPlayers={setPlayers}
+            tariff={tariff} setTariff={setTariff} updT={updT}
+            startkapital={startkapital} setStart={setStart}
+            gameTypes={gameTypes} setGameTypes={setGameTypes}
+            yellowCards={yellowCards} setYellowCards={setYellowCards}
+            setRounds={setRounds} setNextRoundBock={setNextRoundBock} setNextRoundRamsch={setNextRoundRamsch}
+            setCurrentPflichtramsch={setCurrentPflichtramsch} setCurrentBockRound={setCurrentBockRound}
+            exportData={exportData} exportSession={exportSession} exportConfig={exportConfig} importFile={importFile}/>} 
         </div>
 
-        <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.navBg,borderTop:`1px solid ${C.border}`,display:"flex",boxShadow:C.mode==="light"?"0 -2px 12px rgba(35,70,35,0.08)":"none"}}>
-          {[["home","🂡","Spiel"],["verlauf",`📋 ${rounds.length}`,"Verlauf"],["chart","📊","Chart"],["settings","⚙","Einst."]].map(([key,icon,label])=><button key={key}
-            style={s.navBtn(nav===key||(nav==="entry"&&key==="home")||(aussetzenStep>0&&key==="home"))}
-            onClick={()=>{if(nav==="entry")cancelEntry();else{setAussetzer(null);setAussetzenStep(0);}setNav(key);if(key!=="entry")setSelType(null);}}>
-            <div style={{fontSize:16}}>{icon}</div><div>{label}</div>
-          </button>)}
-        </div>
+        <BottomNav
+          nav={nav} roundsCount={rounds.length} aussetzenStep={aussetzenStep}
+          setNav={setNav} setSelType={setSelType} setAussetzer={setAussetzer}
+          setAussetzenStep={setAussetzenStep} cancelEntry={cancelEntry}/>
       </div>;
     }
 
-
-    // ── Viewer-Modus (URL-Hash) ──────────────────────────────────
+    // â”€â”€ Viewer-Modus (URL-Hash) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
