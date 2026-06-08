@@ -1,5 +1,34 @@
     function emptyForm(){return{spieler:null,partner:null,solist:null,verlierer:null,name:"",gewonnen:true,schneider:false,schwarz:false,laufende:0,jungfrauen:0,sticht:0,pflichtramsch:false,durchmarsch:false,mitFarbe:false,tout:false};}
 
+    function renamePlayerRefs(value,renameMap){
+      if(typeof value!=="string"||!renameMap.has(value))return value;
+      return renameMap.get(value);
+    }
+
+    function migrateRoundPlayerRefs(round,renameMap){
+      if(!round||renameMap.size===0)return round;
+      const deltas=round.deltas?Object.entries(round.deltas).reduce((acc,[name,delta])=>{
+        const key=renameMap.get(name)||name;
+        acc[key]=(acc[key]||0)+delta;
+        return acc;
+      },{}):round.deltas;
+      const migrated={
+        ...round,
+        spieler:renamePlayerRefs(round.spieler,renameMap),
+        partner:renamePlayerRefs(round.partner,renameMap),
+        solist:renamePlayerRefs(round.solist,renameMap),
+        verlierer:renamePlayerRefs(round.verlierer,renameMap),
+        cardPlayer:renamePlayerRefs(round.cardPlayer,renameMap),
+        aussetzer:renamePlayerRefs(round.aussetzer,renameMap),
+        deltas
+      };
+      if(round.cardPenalty&&migrated.cardPlayer){
+        const label=round.cardKind==="gelbrot"?"Gelb-Rot":"Rot";
+        migrated.name=`${label}e Karte: ${migrated.cardPlayer}`;
+      }
+      return migrated;
+    }
+
     function SchafkopfTracker(){
       const getSaved=()=>{try{const s=localStorage.getItem(LS_KEY);if(s)return JSON.parse(s);}catch{}return null;};
       const sv=getSaved();
@@ -34,9 +63,32 @@
       const [nextRoundBock,setNextRoundBock]=useState(!!sv?.nextRoundBock);
       const [currentPflichtramsch,setCurrentPflichtramsch]=useState(false);
       const [currentBockRound,setCurrentBockRound]=useState(false);
+      const prevPlayersRef=useRef(players);
       applyThemeMode(themeMode);
 
-      useEffect(()=>{setYellowCards(cards=>Object.fromEntries(players.map(p=>[p,Math.min(1,cards[p]||0)])));},[players]);
+      useEffect(()=>{
+        const prevPlayers=prevPlayersRef.current;
+        if(prevPlayers===players)return;
+        const renameMap=new Map();
+        prevPlayers.forEach((oldName,i)=>{
+          const newName=players[i];
+          if(oldName&&newName&&oldName!==newName)renameMap.set(oldName,newName);
+        });
+        if(renameMap.size>0){
+          setRounds(rs=>rs.map(r=>migrateRoundPlayerRefs(r,renameMap)));
+          setYellowCards(cards=>Object.fromEntries(players.map((p,i)=>[p,Math.min(1,cards[prevPlayers[i]]||cards[p]||0)])));
+          setForm(f=>({
+            ...f,
+            spieler:renamePlayerRefs(f.spieler,renameMap),
+            partner:renamePlayerRefs(f.partner,renameMap),
+            solist:renamePlayerRefs(f.solist,renameMap),
+            verlierer:renamePlayerRefs(f.verlierer,renameMap)
+          }));
+          setAussetzer(a=>renamePlayerRefs(a,renameMap));
+          setEditRound(er=>er?migrateRoundPlayerRefs(er,renameMap):er);
+        }
+        prevPlayersRef.current=players;
+      },[players]);
       useEffect(()=>{setNextRoundRamsch({rolled:false,forced:false});},[forcePflichtramsch,forcePflichtramschChance]);
       useEffect(()=>{if(!bockMode){setNextRoundBock(false);setCurrentBockRound(false);}},[bockMode]);
       useEffect(()=>{
@@ -284,7 +336,7 @@
         reader.readAsText(file);
       }
 
-      const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital})).sort((a,b)=>b.value-a.value);
+      const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital}));
       const playTabs=[...PLAY_TYPE_SECTIONS,{id:"aussetzen",label:"Aussetzen",color:"#a080e0",cats:[]}];
       const visiblePlayTabs=forcedRamschActive
         ?playTabs.filter(t=>t.id==="ramsch")
