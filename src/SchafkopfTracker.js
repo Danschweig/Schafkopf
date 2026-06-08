@@ -25,19 +25,27 @@
       const [runeMode,setRuneMode]=useState(!!sv?.runeMode);
       const [forcePflichtramsch,setForcePflichtramsch]=useState(!!sv?.forcePflichtramsch);
       const [forcePflichtramschChance,setForcePflichtramschChance]=useState(()=>Math.max(1,Number(sv?.forcePflichtramschChance)||20));
+      const [bockMode,setBockMode]=useState(!!sv?.bockMode);
+      const [bockAllowSolo,setBockAllowSolo]=useState(sv?.bockAllowSolo!==false);
+      const [bockAllowWenz,setBockAllowWenz]=useState(sv?.bockAllowWenz!==false);
+      const [bockAllowGeier,setBockAllowGeier]=useState(sv?.bockAllowGeier!==false);
+      const [bockAllowRamsch,setBockAllowRamsch]=useState(sv?.bockAllowRamsch!==false);
       const [nextRoundRamsch,setNextRoundRamsch]=useState({rolled:false,forced:false});
+      const [nextRoundBock,setNextRoundBock]=useState(!!sv?.nextRoundBock);
       const [currentPflichtramsch,setCurrentPflichtramsch]=useState(false);
+      const [currentBockRound,setCurrentBockRound]=useState(false);
       applyThemeMode(themeMode);
 
       useEffect(()=>{setYellowCards(cards=>Object.fromEntries(players.map(p=>[p,Math.min(1,cards[p]||0)])));},[players]);
       useEffect(()=>{setNextRoundRamsch({rolled:false,forced:false});},[forcePflichtramsch,forcePflichtramschChance]);
+      useEffect(()=>{if(!bockMode){setNextRoundBock(false);setCurrentBockRound(false);}},[bockMode]);
       useEffect(()=>{
         if(!forcePflichtramsch)return;
         if(nav!=="home"||editRound||selType!==null||nextRoundRamsch.rolled)return;
         const chance=Math.max(1,Number(forcePflichtramschChance)||20);
         setNextRoundRamsch({rolled:true,forced:Math.random()<(1/chance)});
       },[forcePflichtramsch,forcePflichtramschChance,nav,editRound,selType,aussetzenStep,nextRoundRamsch.rolled]);
-      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance}));}catch{}},[players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance]);
+      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);
@@ -61,17 +69,44 @@
       const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
       const updT=(k,v)=>setTariff(t=>({...t,[k]:v}));
       const forcedRamschActive=forcePflichtramsch&&nextRoundRamsch.rolled&&nextRoundRamsch.forced;
+      const bockActive=bockMode&&nextRoundBock;
+      const isBockAllowedType=(t)=>{
+        if(!bockActive)return true;
+        if(t.id==="wenz")return bockAllowWenz;
+        if(t.id==="geier")return bockAllowGeier;
+        if(t.cat==="ramsch")return bockAllowRamsch;
+        if(t.cat==="solo1"||t.cat==="solo2")return bockAllowSolo;
+        return false;
+      };
+      const updateBockAllowed=(key,val)=>{
+        const next={solo:bockAllowSolo,wenz:bockAllowWenz,geier:bockAllowGeier,ramsch:bockAllowRamsch,[key]:val};
+        if(!next.solo&&!next.wenz&&!next.geier&&!next.ramsch)return;
+        setBockAllowSolo(next.solo);setBockAllowWenz(next.wenz);setBockAllowGeier(next.geier);setBockAllowRamsch(next.ramsch);
+      };
       const startRound=(typeId)=>{
         const forced=forcedRamschActive&&typeId!=="ramsch";
         const actualType=forced?"ramsch":typeId;
         setSelType(actualType);
         setCurrentPflichtramsch(forcedRamschActive);
+        setCurrentBockRound(bockActive&&!forcedRamschActive);
         setForm({...emptyForm(),pflichtramsch:forcedRamschActive});
         setEditRound(null);
         setAussetzer(null);
         setNav("entry");
       };
       useEffect(()=>{if(forcedRamschActive&&playTab!=="ramsch")setPlayTab("ramsch");},[forcedRamschActive,playTab]);
+      useEffect(()=>{
+        if(!bockActive)return;
+        const hasSoloTypes=gameTypes.some(t=>(t.cat==="solo1"||t.cat==="solo2")&&isBockAllowedType(t));
+        const hasRamschTypes=bockAllowRamsch&&gameTypes.some(t=>t.cat==="ramsch");
+        const currentAllowed=(playTab==="solo"&&hasSoloTypes)||(playTab==="ramsch"&&hasRamschTypes);
+        if(currentAllowed||playTab==="entry")return;
+        const target=hasSoloTypes?"solo":hasRamschTypes?"ramsch":"solo";
+        if(playTab!==target)setPlayTab(target);
+      },[bockActive,bockAllowRamsch,gameTypes,playTab,bockAllowSolo,bockAllowWenz,bockAllowGeier]);
+      useEffect(()=>{
+        if(bockMode&&!bockAllowSolo&&!bockAllowWenz&&!bockAllowGeier&&!bockAllowRamsch)setBockAllowRamsch(true);
+      },[bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch]);
 
       const konten=useMemo(()=>{const k=Object.fromEntries(players.map(p=>[p,startkapital]));rounds.forEach(r=>players.forEach(p=>k[p]+=(r.deltas[p]||0)));return k;},[rounds,players,startkapital]);
       const kontenForEdit=useMemo(()=>{if(!editRound)return konten;const k=Object.fromEntries(players.map(p=>[p,startkapital]));rounds.filter(r=>r.id!==editRound.id).forEach(r=>players.forEach(p=>k[p]+=(r.deltas[p]||0)));return k;},[rounds,players,startkapital,editRound,konten]);
@@ -89,12 +124,13 @@
       const typeCfg=selType?gameTypes.find(t=>t.id===selType):null;
       const preview=useMemo(()=>{if(!typeCfg)return null;const b=calcBetrag(form,typeCfg,tariff);return calcDeltas(form,players,b,typeCfg,aussetzer);},[form,players,tariff,typeCfg,aussetzer]);
 
-      function openEdit(round){if(round.cardPenalty)return;setEditRound(round);setSelType(round.typeId);setAussetzer(round.aussetzer||null);setCurrentPflichtramsch(!!round.pflichtramsch);setForm({spieler:round.spieler||null,partner:round.partner||null,solist:round.solist||null,verlierer:round.verlierer||null,name:round.name||"",gewonnen:round.gewonnen??true,schneider:round.schneider||false,schwarz:round.schwarz||false,laufende:round.laufende||0,jungfrauen:round.jungfrauen||0,sticht:round.sticht||0,pflichtramsch:round.pflichtramsch||false,durchmarsch:round.durchmarsch||false,mitFarbe:round.mitFarbe||false,tout:round.tout||false});setNav("entry");}
+      function openEdit(round){if(round.cardPenalty)return;setEditRound(round);setSelType(round.typeId);setAussetzer(round.aussetzer||null);setCurrentPflichtramsch(!!round.pflichtramsch);setCurrentBockRound(!!round.bock);setForm({spieler:round.spieler||null,partner:round.partner||null,solist:round.solist||null,verlierer:round.verlierer||null,name:round.name||"",gewonnen:round.gewonnen??true,schneider:round.schneider||false,schwarz:round.schwarz||false,laufende:round.laufende||0,jungfrauen:round.jungfrauen||0,sticht:round.sticht||0,pflichtramsch:round.pflichtramsch||false,durchmarsch:round.durchmarsch||false,mitFarbe:round.mitFarbe||false,tout:round.tout||false});setNav("entry");}
 
       function saveRound(){
         if(!preview)return;
         const b=calcBetrag(form,typeCfg,tariff);
-        const savedForm={...form,pflichtramsch:form.pflichtramsch||currentPflichtramsch};
+        const qualifiesBock=!editRound&&bockMode&&form.solist&&form.gewonnen===false&&typeCfg&&(typeCfg.cat==="solo1"||typeCfg.cat==="solo2");
+        const savedForm={...form,pflichtramsch:form.pflichtramsch||currentPflichtramsch,bock:currentBockRound||qualifiesBock};
         if(editRound){
           setRounds(r=>r.map(round=>round.id===editRound.id?{...round,...savedForm,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,aussetzer:aussetzer||null,betrag:b,deltas:preview}:round));
           setEditRound(null);setNav("verlauf");
@@ -102,11 +138,12 @@
           setRounds(r=>[...r,{id:Date.now(),runde:r.length+1,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,...savedForm,aussetzer:aussetzer||null,betrag:b,deltas:preview}]);
           setNav("home");
           setNextRoundRamsch({rolled:false,forced:false});
+          setNextRoundBock(qualifiesBock);
         }
-        setForm(emptyForm());setSelType(null);setAussetzer(null);setAussetzenStep(0);setCurrentPflichtramsch(false);
+        setForm(emptyForm());setSelType(null);setAussetzer(null);setAussetzenStep(0);setCurrentPflichtramsch(false);setCurrentBockRound(false);
       }
 
-      function cancelEntry(){setEditRound(null);setSelType(null);setForm(emptyForm());setAussetzer(null);setAussetzenStep(0);setCurrentPflichtramsch(false);setNav(editRound?"verlauf":"home");}
+      function cancelEntry(){setEditRound(null);setSelType(null);setForm(emptyForm());setAussetzer(null);setAussetzenStep(0);setCurrentPflichtramsch(false);setCurrentBockRound(false);setNav(editRound?"verlauf":"home");}
 
       function addCardPenalty(player,kind){
         const base=tariff.sauspiel;
@@ -166,6 +203,12 @@
             players,rounds,startkapital,tariff,yellowCards,
             forcePflichtramsch,
             forcePflichtramschChance,
+            bockMode,
+            bockAllowSolo,
+            bockAllowWenz,
+            bockAllowGeier,
+            bockAllowRamsch,
+            nextRoundBock,
             gameTypes,
             exportDate:new Date().toLocaleDateString("de-DE")
           };
@@ -183,14 +226,14 @@
       }
 
       function exportConfig(){
-        const cfg={type:"schafkopf-config",players,tariff,startkapital,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance};
+        const cfg={type:"schafkopf-config",players,tariff,startkapital,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock};
         const blob=new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-config-${new Date().toISOString().slice(0,10)}.json`;a.click();
       }
 
       function exportSession(){
-        const data={type:"schafkopf-session",players,rounds,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,exportDate:new Date().toLocaleDateString("de-DE")};
+        const data={type:"schafkopf-session",players,rounds,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock,exportDate:new Date().toLocaleDateString("de-DE")};
         const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-sicherung-${new Date().toISOString().slice(0,10)}.json`;a.click();
@@ -226,6 +269,12 @@
               if(Array.isArray(data.gameTypes)){setGameTypes(migrateGameTypes(data.gameTypes));imported=true;}
               if(data.forcePflichtramsch!=null){setForcePflichtramsch(!!data.forcePflichtramsch);imported=true;}
               if(data.forcePflichtramschChance!=null){setForcePflichtramschChance(Math.max(1,Number(data.forcePflichtramschChance)||20));imported=true;}
+              if(data.bockMode!=null){setBockMode(!!data.bockMode);imported=true;}
+              if(data.bockAllowSolo!=null){setBockAllowSolo(!!data.bockAllowSolo);imported=true;}
+              if(data.bockAllowWenz!=null){setBockAllowWenz(!!data.bockAllowWenz);imported=true;}
+              if(data.bockAllowGeier!=null){setBockAllowGeier(!!data.bockAllowGeier);imported=true;}
+              if(data.bockAllowRamsch!=null){setBockAllowRamsch(!!data.bockAllowRamsch);imported=true;}
+              if(data.nextRoundBock!=null){setNextRoundBock(!!data.nextRoundBock);imported=true;}
               if(data.yellowCards){setYellowCards(data.yellowCards);imported=true;}
               if(!imported)throw new Error("Unbekanntes Importformat.");
             }
@@ -237,8 +286,12 @@
 
       const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital})).sort((a,b)=>b.value-a.value);
       const playTabs=[...PLAY_TYPE_SECTIONS,{id:"aussetzen",label:"Aussetzen",color:"#a080e0",cats:[]}];
-      const visiblePlayTabs=forcedRamschActive?playTabs.filter(t=>t.id==="ramsch"):playTabs;
-      const uiPlayTab=forcedRamschActive?"ramsch":playTab;
+      const visiblePlayTabs=forcedRamschActive
+        ?playTabs.filter(t=>t.id==="ramsch")
+        :bockActive
+          ?playTabs.filter(t=>(t.id==="solo"&&gameTypes.some(g=>(g.cat==="solo1"||g.cat==="solo2")&&isBockAllowedType(g)))||(t.id==="ramsch"&&bockAllowRamsch&&gameTypes.some(g=>g.cat==="ramsch")))
+          :playTabs;
+      const uiPlayTab=forcedRamschActive?"ramsch":visiblePlayTabs.some(t=>t.id===playTab)?playTab:visiblePlayTabs[0]?.id;
       const activePlayTab=visiblePlayTabs.find(t=>t.id===uiPlayTab)||visiblePlayTabs[0];
 
       return <div style={s.page}>
@@ -317,9 +370,13 @@
                 </div>;})}
               </div>}
             </div>
-            {forcedRamschActive&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10,padding:"10px 12px"}}>
-              <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:4}}>Pflichtramsch !!!</div>
-              <div style={{fontSize:11,color:C.dim}}>Diese Runde ist fest auf Ramsch gesetzt. Andere Spiele sind in dieser Runde nicht verfuegbar.</div>
+            {(forcedRamschActive||bockActive)&&<div style={{...s.card(forcedRamschActive?"#a080e044":"#6aa86a44",forcedRamschActive?C.purpleBg:"#edf5e7"),marginBottom:10,padding:"10px 12px"}}>
+              <div style={{fontSize:10,color:forcedRamschActive?"#a080e0":"#2e5b36",fontWeight:"bold",marginBottom:4}}>{forcedRamschActive?"Pflichtramsch !!!":"Bock !!!"}</div>
+              <div style={{fontSize:11,color:C.dim}}>
+                {forcedRamschActive
+                  ?"Diese Runde ist fest auf Ramsch gesetzt. Andere Spiele sind in dieser Runde nicht verfuegbar."
+                  :"Die naechste Runde ist eine Bock-Runde. Erlaubt sind nur die aktivierten Bock-Spielarten."}
+              </div>
             </div>}
             <div style={{display:"grid",gridTemplateColumns:`repeat(${visiblePlayTabs.length},1fr)`,gap:6,marginBottom:12}}>
               {visiblePlayTabs.map(tab=><button key={tab.id} onClick={()=>setPlayTab(tab.id)}
@@ -329,7 +386,7 @@
             </div>
             {uiPlayTab!=="aussetzen"
               ?<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-                {gameTypes.filter(t=>activePlayTab.cats.includes(t.cat)).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||activePlayTab.color;return <div key={t.id}
+                {gameTypes.filter(t=>activePlayTab.cats.includes(t.cat)&&isBockAllowedType(t)).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||activePlayTab.color;return <div key={t.id}
                   onClick={()=>startRound(t.id)}
                   style={{background:typeColor+"0e",border:`1px solid ${typeColor}33`,borderRadius:8,padding:"10px",cursor:"pointer",minHeight:72}}>
                   <div style={{fontSize:15,fontWeight:"bold",color:typeColor,marginBottom:3}}>{t.label}</div>
@@ -372,10 +429,15 @@
               <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:4}}>Pflichtramsch !!!</div>
               <div style={{fontSize:11,color:C.dim}}>Diese Runde ist fest auf Ramsch gesetzt. Andere Spiele sind in dieser Runde nicht verfuegbar.</div>
             </div>}
-            {(forcedRamschActive?PLAY_TYPE_SECTIONS.filter(catInfo=>catInfo.id==="ramsch"):PLAY_TYPE_SECTIONS).map(catInfo=><div key={catInfo.id} style={{marginBottom:14}}>
+            {(forcedRamschActive
+              ?PLAY_TYPE_SECTIONS.filter(catInfo=>catInfo.id==="ramsch")
+              :bockActive
+                ?PLAY_TYPE_SECTIONS.filter(catInfo=>catInfo.id==="solo"||catInfo.id==="ramsch")
+                :PLAY_TYPE_SECTIONS
+            ).map(catInfo=><div key={catInfo.id} style={{marginBottom:14}}>
               <div style={{...s.sec,color:catInfo.color+"99"}}>{catInfo.label}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {gameTypes.filter(t=>catInfo.cats.includes(t.cat)).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||catInfo.color;return <div key={t.id}
+                {gameTypes.filter(t=>catInfo.cats.includes(t.cat)&&(forcedRamschActive? t.cat==="ramsch":isBockAllowedType(t))).map(t=>{const typeColor=TYPE_CATS[t.cat]?.color||catInfo.color;return <div key={t.id}
                   onClick={()=>startRound(t.id)}
                   style={{background:typeColor+"0e",border:`1px solid ${typeColor}33`,borderRadius:10,padding:"12px",cursor:"pointer"}}>
                   <div style={{fontSize:15,fontWeight:"bold",color:typeColor,marginBottom:2}}>{t.label}</div>
@@ -390,7 +452,7 @@
           {nav==="entry"&&typeCfg&&<EntryForm form={form} upd={upd} players={players} tariff={tariff}
             konten={editRound?kontenForEdit:konten} typeCfg={typeCfg} preview={preview}
             onSave={saveRound} onBack={cancelEntry} isEdit={!!editRound} roundNr={rounds.length+1} aussetzer={aussetzer}
-            forcedPflichtramsch={currentPflichtramsch}/>}
+            forcedPflichtramsch={currentPflichtramsch} forcedBockRound={currentBockRound}/>}
 
           {/* VERLAUF */}
           {nav==="verlauf"&&(rounds.length===0
@@ -411,7 +473,7 @@
                     {r.schneider?" · Schndr.":""}{r.schwarz?" · Schwz.":""}{r.laufende>=2&&<span> · {r.laufende} Lfd.</span>}
                     {r.sticht>0&&<span style={{color:"#d080e0"}}> · Sticht ×{sm}</span>}
                     {r.typeCat==="ramsch"&&r.jungfrauen>0?` · ${r.jungfrauen} Jungfr.`:""}
-                    {r.pflichtramsch?" · Pflichtramsch":""}{r.durchmarsch?" · Durchm.":""}
+                    {r.pflichtramsch?" · Pflichtramsch":""}{r.bock?" · Bock":""}{r.durchmarsch?" · Durchm.":""}
                   </span>
                 </div>
                 <div style={{fontSize:10,color:C.mute,marginBottom:6}}>
@@ -465,6 +527,19 @@
                 </div>
                 <div style={{fontSize:10,color:C.dim,lineHeight:1.35}}>
                   Wenn aktiv, kann jede neue Runde zufaellig als Pflichtramsch starten. Dann sind andere Spiele fuer diese Runde gesperrt.
+                </div>
+              </div>
+              <div style={s.card()}>
+                <div style={s.sec}>Bock</div>
+                <Toggle label="Bock aktiv" value={bockMode} onChange={setBockMode}/>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:8}}>
+                  <Toggle label="Solo" value={bockAllowSolo} onChange={v=>updateBockAllowed("solo",v)} small/>
+                  <Toggle label="Wenz" value={bockAllowWenz} onChange={v=>updateBockAllowed("wenz",v)} small/>
+                  <Toggle label="Geier" value={bockAllowGeier} onChange={v=>updateBockAllowed("geier",v)} small/>
+                  <Toggle label="Ramsch" value={bockAllowRamsch} onChange={v=>updateBockAllowed("ramsch",v)} small/>
+                </div>
+                <div style={{fontSize:10,color:C.dim,lineHeight:1.35,marginTop:8}}>
+                  Nach einem verlorenen eigenen Solo, Wenz oder Geier wird die naechste Runde als Bock markiert. Hier legst du fest, welche Spielarten dann sichtbar bleiben.
                 </div>
               </div>
               <div style={s.card()}>
@@ -527,8 +602,15 @@
                   setYellowCards(Object.fromEntries(["Spieler 1","Spieler 2","Spieler 3","Spieler 4"].map(p=>[p,0])));
                   setForcePflichtramsch(false);
                   setForcePflichtramschChance(20);
+                  setBockMode(false);
+                  setBockAllowSolo(true);
+                  setBockAllowWenz(true);
+                  setBockAllowGeier(true);
+                  setBockAllowRamsch(true);
+                  setNextRoundBock(false);
                   setNextRoundRamsch({rolled:false,forced:false});
                   setCurrentPflichtramsch(false);
+                  setCurrentBockRound(false);
                   setRounds([]);
                 }}} style={{...s.btn(false,"#e85d4a"),flex:1,padding:8}}>🔄 Alles zurücksetzen</button>
               </div>

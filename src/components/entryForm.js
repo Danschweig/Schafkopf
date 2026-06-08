@@ -1,5 +1,5 @@
     // ── Entry Form ───────────────────────────────────────────────
-    function EntryForm({form,upd,players,tariff,konten,typeCfg,preview,onSave,onBack,isEdit,roundNr,aussetzer,forcedPflichtramsch}){
+    function EntryForm({form,upd,players,tariff,konten,typeCfg,preview,onSave,onBack,isEdit,roundNr,aussetzer,forcedPflichtramsch,forcedBockRound}){
       const catColor=TYPE_CATS[typeCfg.cat]?.color||"#fff";
       const activePlayers=aussetzer?players.filter(p=>p!==aussetzer):players;
       const b=preview?calcBetrag(form,typeCfg,tariff):0;
@@ -11,6 +11,7 @@
           <div style={{fontSize:11,color:catColor}}>{typeCfg.desc}</div>
           {aussetzer&&<div style={{fontSize:11,color:"#a080e0",marginTop:4}}>⚬ {aussetzer} sitzt aus</div>}
           {forcedPflichtramsch&&<div style={{fontSize:11,color:"#a080e0",marginTop:4,fontWeight:"bold"}}>Pflichtramsch !!!</div>}
+          {forcedBockRound&&<div style={{fontSize:11,color:"#2e5b36",marginTop:4,fontWeight:"bold"}}>Bock !!!</div>}
           <div style={{fontSize:11,color:"#8ab0aa",marginTop:4}}>
             {typeCfg.cat==="2vs2"?`Basis: ${typeCfg.useDefaultTariff?tariff.sauspiel:typeCfg.customBetrag} + Modif. à ${tariff.sl} Chips`:
              typeCfg.cat==="ramsch"?`Basis: ${typeCfg.useDefaultTariff?tariff.sauspiel:typeCfg.customBetrag} + Jungfrauen-Verdoppelung`:
