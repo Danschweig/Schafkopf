@@ -120,6 +120,58 @@
     let s=createStyles(C);
     function applyThemeMode(mode){C=THEMES[mode]||THEMES.dark;s=createStyles(C);return C;}
 
+    const RUNE_MAP={
+      a:"ᚨ",b:"ᛒ",c:"ᚲ",d:"ᛞ",e:"ᛖ",f:"ᚠ",g:"ᚷ",h:"ᚺ",i:"ᛁ",j:"ᛃ",k:"ᚲ",l:"ᛚ",m:"ᛗ",n:"ᚾ",o:"ᛟ",p:"ᛈ",q:"ᚲ",r:"ᚱ",s:"ᛋ",t:"ᛏ",u:"ᚢ",v:"ᚹ",w:"ᚹ",x:"ᛉ",y:"ᛇ",z:"ᛉ",
+      0:"ᛟ",1:"ᛁ",2:"ᛁᛁ",3:"ᛁᛁᛁ",4:"ᚲᚹ",5:"ᚹ",6:"ᚹᛁ",7:"ᚹᛁᛁ",8:"ᚹᛁᛁᛁ",9:"ᛁᛉ"
+    };
+    const runeOriginals=new WeakMap();
+    const runeNodes=new Set();
+    let runeObserver=null;
+    function toRunes(text){return String(text).replace(/[A-Za-z0-9]/g,ch=>RUNE_MAP[ch.toLowerCase()]||ch);}
+    function runeSkipParent(node){
+      const el=node?.parentElement;
+      return !el||el.closest("script,style,textarea,input,select,option");
+    }
+    function restoreRuneText(){
+      if(runeObserver){runeObserver.disconnect();runeObserver=null;}
+      runeNodes.forEach(node=>{const original=runeOriginals.get(node);if(original!=null&&node.isConnected)node.nodeValue=original;});
+      runeNodes.clear();
+    }
+    function transformRuneTextNode(node){
+      if(!node||node.nodeType!==Node.TEXT_NODE||runeSkipParent(node))return;
+      const current=node.nodeValue;
+      if(!/[A-Za-z0-9]/.test(current))return;
+      const saved=runeOriginals.get(node);
+      const original=saved&&current===toRunes(saved)?saved:current;
+      const runes=toRunes(original);
+      if(runes===current)return;
+      runeOriginals.set(node,original);
+      runeNodes.add(node);
+      node.nodeValue=runes;
+    }
+    function transformRuneTree(root){
+      if(!root)return;
+      const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+      let node;
+      while((node=walker.nextNode()))transformRuneTextNode(node);
+    }
+    function setRuneTextMode(enabled){
+      restoreRuneText();
+      if(!enabled)return;
+      const root=document.getElementById("root");
+      transformRuneTree(root);
+      runeObserver=new MutationObserver(mutations=>{
+        mutations.forEach(m=>{
+          if(m.type==="characterData")transformRuneTextNode(m.target);
+          m.addedNodes&&m.addedNodes.forEach(node=>{
+            if(node.nodeType===Node.TEXT_NODE)transformRuneTextNode(node);
+            else transformRuneTree(node);
+          });
+        });
+      });
+      if(root)runeObserver.observe(root,{childList:true,subtree:true,characterData:true});
+    }
+
     // ── Toggle-Switch ────────────────────────────────────────────
     function Toggle({label,value,onChange,small}){
       return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:small?6:10}}>
@@ -659,13 +711,18 @@
       const [showInstallHint,setShowInstallHint]=useState(false);
       const [settingsTab,setSettingsTab]=useState("allg"); // 0=wer, 1=spieltyp
       const [themeMode,setThemeMode]=useState(sv?.themeMode||"dark");
+      const [runeMode,setRuneMode]=useState(!!sv?.runeMode);
       applyThemeMode(themeMode);
 
-      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes,themeMode}));}catch{}},[players,tariff,startkapital,rounds,gameTypes,themeMode]);
+      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes,themeMode,runeMode}));}catch{}},[players,tariff,startkapital,rounds,gameTypes,themeMode,runeMode]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);
       },[themeMode]);
+      useEffect(()=>{
+        setRuneTextMode(runeMode);
+        return ()=>setRuneTextMode(false);
+      },[runeMode]);
       useEffect(()=>{
         const dismissed=localStorage.getItem("schafkopf-install-hint-dismissed")==="1";
         const standalone=window.matchMedia?.("(display-mode: standalone)")?.matches||window.navigator.standalone;
@@ -958,8 +1015,9 @@
                   <button style={{...s.btn(themeMode==="dark"),padding:10}} onClick={()=>setThemeMode("dark")}>Dunkel</button>
                   <button style={{...s.btn(themeMode==="light"),padding:10}} onClick={()=>setThemeMode("light")}>Hell</button>
                 </div>
+                <Toggle label="Nordische Runen" value={runeMode} onChange={setRuneMode}/>
                 <div style={{fontSize:10,color:C.dim,lineHeight:1.35}}>
-                  {themeMode==="light"?"Heller Modus mit klaren Kontrasten fuer Tageslicht.":"Dunkler Modus fuer ruhige Runden am Tisch."}
+                  {runeMode?"Sichtbare Texte werden als Runen dargestellt; gespeicherte Daten bleiben normal.":themeMode==="light"?"Heller Modus mit klaren Kontrasten fuer Tageslicht.":"Dunkler Modus fuer ruhige Runden am Tisch."}
                 </div>
               </div>
               <div style={s.card()}>
