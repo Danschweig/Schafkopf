@@ -24,7 +24,7 @@
       const standings = players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital})).sort((a,b)=>b.value-a.value);
 
       function importAndOpen() {
-        try { localStorage.setItem(LS_KEY, JSON.stringify({players,rounds,startkapital,tariff,gameTypes:gt,forcePflichtramsch:data.forcePflichtramsch||false})); } catch{}
+        try { localStorage.setItem(LS_KEY, JSON.stringify({players,rounds,startkapital,tariff,gameTypes:gt,forcePflichtramsch:data.forcePflichtramsch||false,forcePflichtramschChance:Math.max(1,Number(data.forcePflichtramschChance)||20)})); } catch{}
         window.location.href = window.location.href.split('#')[0];
       }
 

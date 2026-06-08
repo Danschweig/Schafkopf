@@ -23,18 +23,20 @@
       const [themeMode,setThemeMode]=useState(sv?.themeMode||"dark");
       const [runeMode,setRuneMode]=useState(!!sv?.runeMode);
       const [forcePflichtramsch,setForcePflichtramsch]=useState(!!sv?.forcePflichtramsch);
+      const [forcePflichtramschChance,setForcePflichtramschChance]=useState(()=>Math.max(1,Number(sv?.forcePflichtramschChance)||20));
       const [nextRoundRamsch,setNextRoundRamsch]=useState({rolled:false,forced:false});
       const [currentPflichtramsch,setCurrentPflichtramsch]=useState(false);
       applyThemeMode(themeMode);
 
       useEffect(()=>{setYellowCards(cards=>Object.fromEntries(players.map(p=>[p,Math.min(1,cards[p]||0)])));},[players]);
-      useEffect(()=>{setNextRoundRamsch({rolled:false,forced:false});},[forcePflichtramsch]);
+      useEffect(()=>{setNextRoundRamsch({rolled:false,forced:false});},[forcePflichtramsch,forcePflichtramschChance]);
       useEffect(()=>{
         if(!forcePflichtramsch)return;
         if(nav!=="home"||editRound||selType!==null||nextRoundRamsch.rolled)return;
-        setNextRoundRamsch({rolled:true,forced:Math.random()<0.05});
-      },[forcePflichtramsch,nav,editRound,selType,aussetzenStep,nextRoundRamsch.rolled]);
-      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch}));}catch{}},[players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch]);
+        const chance=Math.max(1,Number(forcePflichtramschChance)||20);
+        setNextRoundRamsch({rolled:true,forced:Math.random()<(1/chance)});
+      },[forcePflichtramsch,forcePflichtramschChance,nav,editRound,selType,aussetzenStep,nextRoundRamsch.rolled]);
+      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance}));}catch{}},[players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);
@@ -162,6 +164,7 @@
           const data={
             players,rounds,startkapital,tariff,yellowCards,
             forcePflichtramsch,
+            forcePflichtramschChance,
             gameTypes,
             exportDate:new Date().toLocaleDateString("de-DE")
           };
@@ -179,14 +182,14 @@
       }
 
       function exportConfig(){
-        const cfg={type:"schafkopf-config",players,tariff,startkapital,gameTypes,yellowCards,forcePflichtramsch};
+        const cfg={type:"schafkopf-config",players,tariff,startkapital,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance};
         const blob=new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-config-${new Date().toISOString().slice(0,10)}.json`;a.click();
       }
 
       function exportSession(){
-        const data={type:"schafkopf-session",players,rounds,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,exportDate:new Date().toLocaleDateString("de-DE")};
+        const data={type:"schafkopf-session",players,rounds,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,exportDate:new Date().toLocaleDateString("de-DE")};
         const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-sicherung-${new Date().toISOString().slice(0,10)}.json`;a.click();
@@ -221,6 +224,7 @@
               if(Array.isArray(data.rounds)){setRounds(migrateRounds(data.rounds));imported=true;}
               if(Array.isArray(data.gameTypes)){setGameTypes(migrateGameTypes(data.gameTypes));imported=true;}
               if(data.forcePflichtramsch!=null){setForcePflichtramsch(!!data.forcePflichtramsch);imported=true;}
+              if(data.forcePflichtramschChance!=null){setForcePflichtramschChance(Math.max(1,Number(data.forcePflichtramschChance)||20));imported=true;}
               if(data.yellowCards){setYellowCards(data.yellowCards);imported=true;}
               if(!imported)throw new Error("Unbekanntes Importformat.");
             }
@@ -433,7 +437,21 @@
               </div>
               <div style={s.card()}>
                 <div style={s.sec}>Rundenregel</div>
-                <Toggle label="Pflichtramsch 1/20 pro Runde" value={forcePflichtramsch} onChange={setForcePflichtramsch}/>
+                <Toggle label="Pflichtramsch aktiv" value={forcePflichtramsch} onChange={setForcePflichtramsch}/>
+                <div style={{marginTop:8}}>
+                  <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Wahrscheinlichkeit</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center"}}>
+                    <input
+                      style={s.input}
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={forcePflichtramschChance}
+                      onChange={e=>setForcePflichtramschChance(Math.max(1,Number(e.target.value)||20))}
+                    />
+                    <div style={{fontSize:11,color:C.text,whiteSpace:"nowrap"}}>1/{forcePflichtramschChance}</div>
+                  </div>
+                </div>
                 <div style={{fontSize:10,color:C.dim,lineHeight:1.35}}>
                   Wenn aktiv, kann jede neue Runde zufaellig als Pflichtramsch starten. Dann sind andere Spiele fuer diese Runde gesperrt.
                 </div>
@@ -497,6 +515,7 @@
                   setGameTypes(DEFAULT_GAME_TYPES);
                   setYellowCards(Object.fromEntries(["Spieler 1","Spieler 2","Spieler 3","Spieler 4"].map(p=>[p,0])));
                   setForcePflichtramsch(false);
+                  setForcePflichtramschChance(20);
                   setNextRoundRamsch({rolled:false,forced:false});
                   setCurrentPflichtramsch(false);
                   setRounds([]);

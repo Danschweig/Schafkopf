@@ -75,7 +75,7 @@
     
 
     function buildExportHTML(players,rounds,startkapital,tariff,gameTypes,settings={}){
-      const dataJson=JSON.stringify({type:"schafkopf-data",players,rounds,startkapital,tariff,gameTypes,forcePflichtramsch:!!settings.forcePflichtramsch,exportDate:new Date().toLocaleDateString("de-DE")});
+      const dataJson=JSON.stringify({type:"schafkopf-data",players,rounds,startkapital,tariff,gameTypes,forcePflichtramsch:!!settings.forcePflichtramsch,forcePflichtramschChance:Math.max(1,Number(settings.forcePflichtramschChance)||20),exportDate:new Date().toLocaleDateString("de-DE")});
       const typesJson=JSON.stringify(gameTypes);
       const date=new Date().toLocaleDateString("de-DE");
       return [
