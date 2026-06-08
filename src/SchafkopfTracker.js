@@ -19,6 +19,7 @@
       const [aussetzenStep,setAussetzenStep]=useState(0);
       const [playTab,setPlayTab]=useState("2vs2");
       const [showInstallHint,setShowInstallHint]=useState(false);
+      const [showCardPenalties,setShowCardPenalties]=useState(false);
       const [settingsTab,setSettingsTab]=useState("allg"); // 0=wer, 1=spieltyp
       const [themeMode,setThemeMode]=useState(sv?.themeMode||"dark");
       const [runeMode,setRuneMode]=useState(!!sv?.runeMode);
@@ -288,11 +289,21 @@
               <div style={s.card()}><div style={{fontSize:9,color:C.dim}}>Gesamtvolumen</div><div style={{fontSize:14,fontWeight:"bold"}}>{roundSummary?roundSummary.volume.toLocaleString("de-DE"):"0"} Chips</div></div>
             </div>}
             <div style={{...s.card("#d8a92855",C.mode==="light"?"#fff8df":"#1f1a0f"),padding:"9px 10px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center",marginBottom:7}}>
-                <div style={s.sec}>Kartenstrafen</div>
-                <div style={{fontSize:9,color:C.dim}}>Rot: {tariff.sauspiel} an jeden</div>
-              </div>
-              <div style={{display:"grid",gap:5}}>
+              <button
+                onClick={()=>setShowCardPenalties(v=>!v)}
+                style={{width:"100%",background:"transparent",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}
+                aria-expanded={showCardPenalties}
+                aria-label="Kartenstrafen ein- oder ausklappen"
+              >
+                <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+                    <div style={s.sec}>Kartenstrafen</div>
+                    <div style={{fontSize:11,color:C.dim}}>{showCardPenalties?"▾":"▸"}</div>
+                  </div>
+                  <div style={{fontSize:9,color:C.dim}}>Rot: {tariff.sauspiel} an jeden</div>
+                </div>
+              </button>
+              {showCardPenalties&&<div style={{marginTop:7,display:"grid",gap:5}}>
                 {players.map((p,i)=>{const y=yellowCards[p]||0;return <div key={p} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:8,alignItems:"center",background:C.bg1,border:`1px solid ${y?"#d8a928":C.border}`,borderRadius:7,padding:"6px 7px"}}>
                   <div style={{minWidth:0,display:"flex",alignItems:"center",gap:6}}>
                     <div style={{fontSize:11,fontWeight:"bold",color:PCOLORS[i],overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p}</div>
@@ -304,7 +315,7 @@
                     {y>0&&<button aria-label={`${p} gelbe Karte zurücksetzen`} title="Zuruecksetzen" onClick={()=>clearPlayerCards(p)} style={{...s.btn(false,"#8a8a8a"),padding:"4px 7px",fontSize:10,minWidth:28}}>×</button>}
                   </div>
                 </div>;})}
-              </div>
+              </div>}
             </div>
             {forcedRamschActive&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:4}}>Pflichtramsch !!!</div>
