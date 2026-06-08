@@ -5,13 +5,25 @@
 // ändere die Versionsnummer in CACHE_NAME (z.B. v2, v3 ...).
 // Das erzwingt dass alle Nutzer die neue Version laden.
 // ─────────────────────────────────────────────────────────────────
-const CACHE_NAME = 'schafkopf-v1';
+const CACHE_NAME = 'schafkopf-v2';
 
 // Lokale Dateien – werden beim ersten Start gecacht
 const LOCAL_FILES = [
-  './schafkopf.html',
+  './',
+  './index.html',
   './manifest.json',
   './icon.svg',
+  './styles/app.css',
+  './src/core.js',
+  './src/components/common.js',
+  './src/components/chart.js',
+  './src/components/gameTypes.js',
+  './src/components/entryForm.js',
+  './src/exportHtml.js',
+  './src/SchafkopfTracker.js',
+  './src/viewer.js',
+  './src/main.js',
+  './src/registerServiceWorker.js',
 ];
 
 // CDN-Bibliotheken – werden beim ersten Abruf gecacht
