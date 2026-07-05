@@ -25,7 +25,7 @@
 
       function importAndOpen() {
         try { localStorage.setItem(LS_KEY, JSON.stringify({
-          players,rounds,startkapital,tariff,gameTypes:gt,
+          players,fivePlayerMode:data.fivePlayerMode||players.length===5,rounds,startkapital,tariff,gameTypes:gt,
           forcePflichtramsch:data.forcePflichtramsch||false,
           forcePflichtramschChance:Math.max(1,Number(data.forcePflichtramschChance)||20),
           bockMode:data.bockMode||false,
@@ -43,7 +43,7 @@
           <div style={{fontSize:20,fontWeight:"bold",color:"#ffffff",marginBottom:6}}>Schafkopf · {exportDate||""}</div>
           <div style={{fontSize:12,color:"#ffffff"}}>S&L {tariff.sl} · Sauspiel {tariff.sauspiel} · Solo {tariff.solo} Chips · {rounds.length} Runden</div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,padding:"12px 16px 0"}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${standings.length},1fr)`,gap:8,padding:"12px 16px 0"}}>
           {standings.map((p,i)=><div key={p.name} style={{background:`${p.color}12`,border:`1px solid ${p.color}44`,borderRadius:8,padding:"8px 4px",textAlign:"center"}}>
             <div style={{fontSize:9,color:p.color}}>#{i+1} {p.name}</div>
             <div style={{fontSize:16,fontWeight:"bold",color:"#eeeedd"}}>{p.value.toLocaleString("de-DE")}</div>

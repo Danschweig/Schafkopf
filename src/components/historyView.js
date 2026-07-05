@@ -25,7 +25,7 @@
           <div style={{fontSize:10,color:C.mute,marginBottom:6}}>
             {r.cardPenalty?<span><strong style={{color:"#ff8c42"}}>{r.cardPlayer}</strong> zahlt <strong style={{color:"#f5c842"}}>{r.betrag} Chips</strong> an jeden anderen Spieler.</span>:<span>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong></span>}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${players.length},1fr)`,gap:6}}>
             {players.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}>
               <div style={{fontSize:9,color:r.aussetzer===p?"#a080e0":PCOLORS[i]}}>{p}{r.aussetzer===p?" out":""}</div>
               <div style={{fontSize:16,fontWeight:"bold",color:r.aussetzer===p?"#a080e0":d>0?"#7de87a":d<0?"#e85d4a":C.zero}}>{r.aussetzer===p?"-":d>0?`+${d}`:d}</div>

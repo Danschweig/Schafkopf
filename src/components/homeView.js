@@ -4,7 +4,7 @@
       addYellowCard,addRedCard,clearPlayerCards,
       forcedRamschActive,bockActive,visiblePlayTabs,uiPlayTab,setPlayTab,
       activePlayTab,gameTypes,isBockAllowedType,startRound,undoLastRound,
-      aussetzenStep,setAussetzenStep,aussetzer,setAussetzer
+      fivePlayerMode,aussetzenStep,setAussetzenStep,aussetzer,setAussetzer
     }){
       if(aussetzenStep===1)return <AussetzenPlayerStep players={players} aussetzer={aussetzer} setAussetzer={setAussetzer} setAussetzenStep={setAussetzenStep}/>;
       if(aussetzenStep===2)return <AussetzenTypeStep
@@ -26,6 +26,16 @@
 
         {(forcedRamschActive||bockActive)&&<ForcedRoundNotice forcedRamschActive={forcedRamschActive}/>}
 
+        {fivePlayerMode&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
+          <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>5-SPIELER-MODUS</div>
+          <div style={{fontSize:11,color:C.dim,marginBottom:10}}>
+            Vor jeder Runde muss ein Spieler aussetzen. Aktuell: <strong style={{color:aussetzer?"#a080e0":C.mute}}>{aussetzer||"noch keiner gewaehlt"}</strong>
+          </div>
+          <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(!!aussetzer,"#a080e0"),width:"100%",padding:10}}>
+            {aussetzer?"Aussetzer aendern":"Aussetzer waehlen"}
+          </button>
+        </div>}
+
         <div style={{display:"grid",gridTemplateColumns:`repeat(${visiblePlayTabs.length},1fr)`,gap:6,marginBottom:12}}>
           {visiblePlayTabs.map(tab=><button key={tab.id} onClick={()=>setPlayTab(tab.id)}
             style={{...s.subTab(uiPlayTab===tab.id),padding:"9px 4px",fontSize:10,color:uiPlayTab===tab.id?tab.color:C.dim,borderColor:uiPlayTab===tab.id?tab.color:C.border}}>
@@ -33,13 +43,7 @@
           </button>)}
         </div>
 
-        {uiPlayTab!=="aussetzen"
-          ?<GameTypeGrid gameTypes={gameTypes} activePlayTab={activePlayTab} isBockAllowedType={isBockAllowedType} startRound={startRound}/>
-          :<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
-            <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>AUSSETZEN</div>
-            <div style={{fontSize:11,color:C.dim,marginBottom:10}}>Ein Spieler hat 6 Spatz - die anderen 3 spielen.</div>
-            <button onClick={()=>setAussetzenStep(1)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:11}}>Aussetzen starten</button>
-          </div>}
+        <GameTypeGrid gameTypes={gameTypes} activePlayTab={activePlayTab} isBockAllowedType={isBockAllowedType} startRound={startRound}/>
 
         {rounds.length>0&&<button onClick={undoLastRound} style={{...s.btn(false,"#9a5a5a"),width:"100%",padding:10,marginTop:4}}>Letzte Runde rueckgaengig</button>}
       </>;
@@ -101,7 +105,7 @@
 
     function AussetzenPlayerStep({players,aussetzer,setAussetzer,setAussetzenStep}){
       return <div style={s.card("#a080e044",C.purpleBg)}>
-        <div style={s.sec}>Wer sitzt aus? (6 Spatz, kein Trumpf)</div>
+        <div style={s.sec}>Wer sitzt diese Runde aus?</div>
         <div style={{display:"flex",gap:6,marginBottom:16}}>
           {players.map((p,i)=><button key={p}
             style={s.pBtn(aussetzer===p,"#a080e0")}

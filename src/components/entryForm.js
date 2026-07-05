@@ -75,7 +75,7 @@
           <div style={{...s.sec,color:preview&&Object.values(preview).some(v=>v>0)?"#3a8a3a":C.subText}}>
             Vorschau · {b}{sm>1?` × ${sm}`:""}{jm>1?` × ${jm}`:""} = <strong style={{color:"#7de87a"}}>{b*sm*jm} Chips</strong>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${players.length},1fr)`,gap:8}}>
             {players.map((p,i)=>{const delta=preview[p];const bg=delta>0?"#1a4a1a22":delta<0?"#4a1a1a22":aussetzer===p?"#2a0f3a22":C.bg2;const border=delta>0?"#2f8a3755":delta<0?"#e85d4a55":aussetzer===p?"#a080e044":C.border;return <div key={p} style={{textAlign:"center",background:bg,border:`1px solid ${border}`,borderRadius:8,padding:"8px 6px"}}>
               <div style={{fontSize:9,color:PCOLORS[i]}}>{p}</div>
               <div style={{fontSize:20,fontWeight:"bold",color:delta>0?"#7de87a":delta<0?"#e85d4a":aussetzer===p?"#a080e0":C.zero}}>{aussetzer===p?"out":delta>0?`+${delta}`:delta}</div>

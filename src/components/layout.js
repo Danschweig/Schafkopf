@@ -19,7 +19,7 @@
           <span style={{fontSize:9,color:C.dim,letterSpacing:2,marginRight:8}}>RUNDE</span>
           <span style={{fontSize:22,fontWeight:"bold",color:C.subText}}>{rounds.length}</span>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${standings.length},1fr)`,gap:6}}>
           {standings.map((p,i)=><div key={p.name} style={{textAlign:"center"}}>
             <div style={{fontSize:9,color:p.color}}>{p.name}</div>
             <div style={{fontSize:14,fontWeight:"bold",color:C.title}}>{p.value.toLocaleString("de-DE")}</div>

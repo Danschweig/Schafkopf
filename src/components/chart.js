@@ -154,7 +154,7 @@
               </span>
             </div>
             <div style={{fontSize:10,color:C.mute,marginBottom:6}}>Betrag: <strong style={{color:"#f5c842"}}>{r.betrag*sm*jm} Chips</strong></div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+            <div style={{display:"grid",gridTemplateColumns:`repeat(${players.length},1fr)`,gap:6}}>
               {players.map((p,i)=>{const d=r.deltas[p]||0;return <div key={p} style={{textAlign:"center"}}>
                 <div style={{fontSize:9,color:r.aussetzer===p?"#a080e0":PCOLORS[i]}}>{p}</div>
                 <div style={{fontSize:16,fontWeight:"bold",color:r.aussetzer===p?"#a080e0":d>0?"#7de87a":d<0?"#e85d4a":C.zero}}>{r.aussetzer===p?"–":d>0?`+${d}`:d}</div>
@@ -173,7 +173,7 @@
           </div>}
           <div style={s.card()}>
             <div style={{fontSize:11,color:C.dim,marginBottom:8}}>Serien & Highscores</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+            <div style={{display:"grid",gridTemplateColumns:`repeat(${players.length},1fr)`,gap:8}}>
               {players.map((p,i)=>{
                 const st=stats[p]||{};
                 return <div key={p} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:8,padding:8,textAlign:"center"}}>

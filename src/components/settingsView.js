@@ -2,7 +2,7 @@
       settingsTab,setSettingsTab,themeMode,setThemeMode,runeMode,setRuneMode,
       forcePflichtramsch,setForcePflichtramsch,forcePflichtramschChance,setForcePflichtramschChance,
       bockMode,setBockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,updateBockAllowed,
-      players,setPlayers,tariff,setTariff,updT,startkapital,setStart,
+      players,setPlayers,fivePlayerMode,setFivePlayerMode,tariff,setTariff,updT,startkapital,setStart,
       gameTypes,setGameTypes,exportData,exportSession,exportConfig,importFile,
       setYellowCards,setRounds,setNextRoundBock,setNextRoundRamsch,setCurrentPflichtramsch,setCurrentBockRound,
       setBockAllowSolo,setBockAllowWenz,setBockAllowGeier,setBockAllowRamsch
@@ -20,7 +20,7 @@
           bockMode={bockMode} setBockMode={setBockMode}
           bockAllowSolo={bockAllowSolo} bockAllowWenz={bockAllowWenz} bockAllowGeier={bockAllowGeier} bockAllowRamsch={bockAllowRamsch}
           updateBockAllowed={updateBockAllowed}
-          players={players} setPlayers={setPlayers}
+          players={players} setPlayers={setPlayers} fivePlayerMode={fivePlayerMode} setFivePlayerMode={setFivePlayerMode}
           tariff={tariff} setTariff={setTariff} updT={updT}
           startkapital={startkapital} setStart={setStart}/>}
 
@@ -32,6 +32,7 @@
         <DataSettings
           players={players} setPlayers={setPlayers} setTariff={setTariff} setStart={setStart}
           setGameTypes={setGameTypes} setYellowCards={setYellowCards} setRounds={setRounds}
+          setFivePlayerMode={setFivePlayerMode}
           setForcePflichtramsch={setForcePflichtramsch} setForcePflichtramschChance={setForcePflichtramschChance}
           setBockMode={setBockMode} setBockAllowSolo={setBockAllowSolo} setBockAllowWenz={setBockAllowWenz}
           setBockAllowGeier={setBockAllowGeier} setBockAllowRamsch={setBockAllowRamsch}
@@ -45,7 +46,7 @@
       themeMode,setThemeMode,runeMode,setRuneMode,
       forcePflichtramsch,setForcePflichtramsch,forcePflichtramschChance,setForcePflichtramschChance,
       bockMode,setBockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,updateBockAllowed,
-      players,setPlayers,tariff,setTariff,updT,startkapital,setStart
+      players,setPlayers,fivePlayerMode,setFivePlayerMode,tariff,setTariff,updT,startkapital,setStart
     }){
       return <>
         <div style={s.card()}>
@@ -62,6 +63,10 @@
 
         <div style={s.card()}>
           <div style={s.sec}>Rundenregel</div>
+          <Toggle label="5-Spieler-Modus" value={fivePlayerMode} onChange={setFivePlayerMode}/>
+          <div style={{fontSize:10,color:C.dim,lineHeight:1.35,marginBottom:10}}>
+            Aktiviert einen fuenften Spieler. Vor jeder Runde wird abgefragt, wer aussetzt; die Abrechnung laeuft dann fuer die vier aktiven Spieler.
+          </div>
           <Toggle label="Pflichtramsch aktiv" value={forcePflichtramsch} onChange={setForcePflichtramsch}/>
           <div style={{marginTop:8}}>
             <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Wahrscheinlichkeit</div>
@@ -128,7 +133,7 @@
     }
 
     function DataSettings({
-      setPlayers,setTariff,setStart,setGameTypes,setYellowCards,setRounds,
+      setPlayers,setTariff,setStart,setGameTypes,setYellowCards,setRounds,setFivePlayerMode,
       setForcePflichtramsch,setForcePflichtramschChance,setBockMode,
       setBockAllowSolo,setBockAllowWenz,setBockAllowGeier,setBockAllowRamsch,
       setNextRoundBock,setNextRoundRamsch,setCurrentPflichtramsch,setCurrentBockRound,
@@ -155,6 +160,7 @@
           <button onClick={()=>{if(window.confirm("Alles zuruecksetzen? Runden UND Einstellungen werden auf Standard zurueckgesetzt.")){
             const defaultPlayers=["Spieler 1","Spieler 2","Spieler 3","Spieler 4"];
             setPlayers(defaultPlayers);
+            setFivePlayerMode(false);
             setTariff({sl:25,sauspiel:25,solo:50});
             setStart(1500);
             setGameTypes(DEFAULT_GAME_TYPES);

@@ -2,7 +2,7 @@
     const {LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,ReferenceLine,ResponsiveContainer,BarChart,Bar}=Recharts;
 
     const LS_KEY="schafkopf-v1";
-    const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a"];
+    const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a","#a080e0"];
     const BUILTIN_IDS=["sauspiel","hochzeit","wenz","geier","farbsolo","ramsch"];
 
     const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"},"strafe":{label:"Strafe",color:"#ff8c42"}};

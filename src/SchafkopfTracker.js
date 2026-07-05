@@ -33,14 +33,22 @@
       const getSaved=()=>{try{const s=localStorage.getItem(LS_KEY);if(s)return JSON.parse(s);}catch{}return null;};
       const sv=getSaved();
       const [nav,setNav]            = useState("home");
-      const [players,setPlayers]    = useState(sv?.players||["Spieler 1","Spieler 2","Spieler 3","Spieler 4"]);
+      const initialFivePlayerMode=!!sv?.fivePlayerMode||(sv?.players?.length===5);
+      const normalizePlayers=(list,enabled)=>{
+        const base=Array.isArray(list)&&list.length?list:["Spieler 1","Spieler 2","Spieler 3","Spieler 4"];
+        const normalized=[...base];
+        while(normalized.length<(enabled?5:4))normalized.push(`Spieler ${normalized.length+1}`);
+        return normalized.slice(0,enabled?5:4);
+      };
+      const [fivePlayerMode,setFivePlayerMode]=useState(initialFivePlayerMode);
+      const [players,setPlayers]    = useState(normalizePlayers(sv?.players,initialFivePlayerMode));
       const [tariff,setTariff]      = useState(sv?.tariff||{sl:25,sauspiel:25,solo:50});
       const [startkapital,setStart] = useState(sv?.startkapital||1500);
       const migrateRounds=(rs)=>{if(!rs)return[];return rs.map(r=>({...r,typeCat:r.typeCat==="solo"? (r.typeId==="wenz"?"solo2":"solo1"):r.typeCat}));};
       const migrateGameTypes=(gt)=>{if(!gt)return[];return gt.map(t=>({...t,cat:t.cat==="solo"?"solo1":t.cat,laufendeFrom:t.id==="geier"?2:t.laufendeFrom}));};
       const [rounds,setRounds]      = useState(migrateRounds(sv?.rounds)||[]);
       const [gameTypes,setGameTypes]= useState(()=>{const saved=sv?.gameTypes;if(saved&&saved.length>0)return migrateGameTypes(saved);return DEFAULT_GAME_TYPES;});
-      const [yellowCards,setYellowCards]=useState(()=>Object.fromEntries((sv?.players||["Spieler 1","Spieler 2","Spieler 3","Spieler 4"]).map(p=>[p,sv?.yellowCards?.[p]||0])));
+      const [yellowCards,setYellowCards]=useState(()=>Object.fromEntries(normalizePlayers(sv?.players,initialFivePlayerMode).map(p=>[p,sv?.yellowCards?.[p]||0])));
       const [selType,setSelType]    = useState(null);
       const [form,setForm]          = useState(emptyForm());
       const [editRound,setEditRound]= useState(null);
@@ -89,6 +97,14 @@
         }
         prevPlayersRef.current=players;
       },[players]);
+      useEffect(()=>{
+        setPlayers(ps=>normalizePlayers(ps,fivePlayerMode));
+        setAussetzer(a=>fivePlayerMode?a:null);
+        setAussetzenStep(0);
+      },[fivePlayerMode]);
+      useEffect(()=>{
+        setYellowCards(cards=>Object.fromEntries(players.map(p=>[p,cards[p]||0])));
+      },[players]);
       useEffect(()=>{setNextRoundRamsch({rolled:false,forced:false});},[forcePflichtramsch,forcePflichtramschChance]);
       useEffect(()=>{if(!bockMode){setNextRoundBock(false);setCurrentBockRound(false);}},[bockMode]);
       useEffect(()=>{
@@ -97,7 +113,7 @@
         const chance=Math.max(1,Number(forcePflichtramschChance)||20);
         setNextRoundRamsch({rolled:true,forced:Math.random()<(1/chance)});
       },[forcePflichtramsch,forcePflichtramschChance,nav,editRound,selType,aussetzenStep,nextRoundRamsch.rolled]);
-      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
+      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,fivePlayerMode,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,fivePlayerMode,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);
@@ -136,6 +152,7 @@
         setBockAllowSolo(next.solo);setBockAllowWenz(next.wenz);setBockAllowGeier(next.geier);setBockAllowRamsch(next.ramsch);
       };
       const startRound=(typeId)=>{
+        if(fivePlayerMode&&!aussetzer){setAussetzenStep(1);return;}
         const forced=forcedRamschActive&&typeId!=="ramsch";
         const actualType=forced?"ramsch":typeId;
         setSelType(actualType);
@@ -143,7 +160,7 @@
         setCurrentBockRound(bockActive&&!forcedRamschActive);
         setForm({...emptyForm(),pflichtramsch:forcedRamschActive});
         setEditRound(null);
-        setAussetzer(null);
+        if(!fivePlayerMode)setAussetzer(null);
         setNav("entry");
       };
       useEffect(()=>{if(forcedRamschActive&&playTab!=="ramsch")setPlayTab("ramsch");},[forcedRamschActive,playTab]);
@@ -252,7 +269,7 @@
       function exportData(){
         try{
           const data={
-            players,rounds,startkapital,tariff,yellowCards,
+            players,fivePlayerMode,rounds,startkapital,tariff,yellowCards,
             forcePflichtramsch,
             forcePflichtramschChance,
             bockMode,
@@ -278,14 +295,14 @@
       }
 
       function exportConfig(){
-        const cfg={type:"schafkopf-config",players,tariff,startkapital,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock};
+        const cfg={type:"schafkopf-config",players,fivePlayerMode,tariff,startkapital,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock};
         const blob=new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-config-${new Date().toISOString().slice(0,10)}.json`;a.click();
       }
 
       function exportSession(){
-        const data={type:"schafkopf-session",players,rounds,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock,exportDate:new Date().toLocaleDateString("de-DE")};
+        const data={type:"schafkopf-session",players,fivePlayerMode,rounds,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock,exportDate:new Date().toLocaleDateString("de-DE")};
         const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-sicherung-${new Date().toISOString().slice(0,10)}.json`;a.click();
@@ -310,11 +327,16 @@
             if(!data)throw new Error("Keine Schafkopf-Daten gefunden.");
             if(Array.isArray(data)){
               const importedPlayers=Array.from(new Set(data.flatMap(r=>Object.keys(r.deltas||{})))).filter(Boolean);
-              if(importedPlayers.length===4)setPlayers(importedPlayers);
+              if(importedPlayers.length===4||importedPlayers.length===5){
+                setFivePlayerMode(importedPlayers.length===5);
+                setPlayers(normalizePlayers(importedPlayers,importedPlayers.length===5));
+              }
               setRounds(migrateRounds(data));
             } else {
               let imported=false;
-              if(Array.isArray(data.players)){setPlayers(data.players);imported=true;}
+              const importedFivePlayerMode=!!data.fivePlayerMode||(Array.isArray(data.players)&&data.players.length===5);
+              if(data.fivePlayerMode!=null||importedFivePlayerMode){setFivePlayerMode(importedFivePlayerMode);imported=true;}
+              if(Array.isArray(data.players)){setPlayers(normalizePlayers(data.players,importedFivePlayerMode));imported=true;}
               if(data.tariff){setTariff(data.tariff);imported=true;}
               if(data.startkapital!=null){setStart(data.startkapital);imported=true;}
               if(Array.isArray(data.rounds)){setRounds(migrateRounds(data.rounds));imported=true;}
@@ -337,7 +359,7 @@
       }
 
       const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital}));
-      const playTabs=[...PLAY_TYPE_SECTIONS,{id:"aussetzen",label:"Aussetzen",color:"#a080e0",cats:[]}];
+      const playTabs=PLAY_TYPE_SECTIONS;
       const visiblePlayTabs=forcedRamschActive
         ?playTabs.filter(t=>t.id==="ramsch")
         :bockActive
@@ -361,6 +383,7 @@
             visiblePlayTabs={visiblePlayTabs} uiPlayTab={uiPlayTab} setPlayTab={setPlayTab}
             activePlayTab={activePlayTab} gameTypes={gameTypes} isBockAllowedType={isBockAllowedType}
             startRound={startRound} undoLastRound={undoLastRound}
+            fivePlayerMode={fivePlayerMode}
             aussetzenStep={aussetzenStep} setAussetzenStep={setAussetzenStep}
             aussetzer={aussetzer} setAussetzer={setAussetzer}/>} 
 
@@ -384,6 +407,7 @@
             setBockAllowSolo={setBockAllowSolo} setBockAllowWenz={setBockAllowWenz}
             setBockAllowGeier={setBockAllowGeier} setBockAllowRamsch={setBockAllowRamsch}
             players={players} setPlayers={setPlayers}
+            fivePlayerMode={fivePlayerMode} setFivePlayerMode={setFivePlayerMode}
             tariff={tariff} setTariff={setTariff} updT={updT}
             startkapital={startkapital} setStart={setStart}
             gameTypes={gameTypes} setGameTypes={setGameTypes}
