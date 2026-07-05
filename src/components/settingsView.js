@@ -48,22 +48,17 @@
       bockMode,setBockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,updateBockAllowed,
       players,setPlayers,fivePlayerMode,setFivePlayerMode,tariff,setTariff,updT,startkapital,setStart
     }){
+      const [removeFivePlayerMode,setRemoveFivePlayerMode]=useState(false);
       function changeFivePlayerMode(enabled){
-        if(enabled){setFivePlayerMode(true);return;}
+        if(enabled){setRemoveFivePlayerMode(false);setFivePlayerMode(true);return;}
         if(!fivePlayerMode){setFivePlayerMode(false);return;}
         if(players.length<=4){setFivePlayerMode(false);return;}
-        const list=players.map((p,i)=>`${i+1}: ${p}`).join("\n");
-        const raw=window.prompt(`Welcher Spieler soll entfernt werden?\n\n${list}\n\nBitte Nummer 1-${players.length} eingeben:`,String(players.length));
-        if(raw==null)return;
-        const idx=Number(raw)-1;
-        if(!Number.isInteger(idx)||idx<0||idx>=players.length){
-          alert("Ungueltige Auswahl. Der 5-Spieler-Modus bleibt aktiv.");
-          return;
-        }
-        const removed=players[idx];
-        if(!window.confirm(`${removed} entfernen und 5-Spieler-Modus ausschalten?`))return;
+        setRemoveFivePlayerMode(true);
+      }
+      function removePlayerAndDisable(idx){
         setPlayers(ps=>ps.filter((_,i)=>i!==idx).slice(0,4));
         setFivePlayerMode(false);
+        setRemoveFivePlayerMode(false);
       }
       return <>
         <div style={s.card()}>
@@ -84,6 +79,18 @@
           <div style={{fontSize:10,color:C.dim,lineHeight:1.35,marginBottom:10}}>
             Aktiviert einen fuenften Spieler. Vor jeder Runde wird abgefragt, wer aussetzt; die Abrechnung laeuft dann fuer die vier aktiven Spieler.
           </div>
+          {removeFivePlayerMode&&fivePlayerMode&&players.length>4&&<div style={{...s.card("#a080e044",C.purpleBg),marginTop:8,marginBottom:10}}>
+            <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>Welcher Spieler soll entfernt werden?</div>
+            <div style={{fontSize:10,color:C.dim,lineHeight:1.35,marginBottom:10}}>
+              Waehle den Spieler, der aus der aktuellen Runde entfernt werden soll. Bestehende alte Runden bleiben unveraendert gespeichert.
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6}}>
+              {players.map((p,i)=><button key={p} onClick={()=>removePlayerAndDisable(i)} style={{...s.btn(false,PCOLORS[i]||"#a080e0"),padding:10,textAlign:"left"}}>
+                Spieler {i+1}: {p} entfernen
+              </button>)}
+            </div>
+            <button onClick={()=>setRemoveFivePlayerMode(false)} style={{...s.btn(false,"#5a5a8a"),width:"100%",padding:9,marginTop:8}}>Abbrechen</button>
+          </div>}
           <Toggle label="Pflichtramsch aktiv" value={forcePflichtramsch} onChange={setForcePflichtramsch}/>
           <div style={{marginTop:8}}>
             <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Wahrscheinlichkeit</div>

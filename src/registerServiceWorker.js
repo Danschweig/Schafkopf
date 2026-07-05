@@ -5,5 +5,3 @@
           .catch(function(err) { console.log('SW Fehler:', err); });
       });
     }
-  </script>
-</body>
