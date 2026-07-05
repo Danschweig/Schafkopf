@@ -78,10 +78,12 @@
         const prevPlayers=prevPlayersRef.current;
         if(prevPlayers===players)return;
         const renameMap=new Map();
-        prevPlayers.forEach((oldName,i)=>{
-          const newName=players[i];
-          if(oldName&&newName&&oldName!==newName)renameMap.set(oldName,newName);
-        });
+        if(prevPlayers.length===players.length){
+          prevPlayers.forEach((oldName,i)=>{
+            const newName=players[i];
+            if(oldName&&newName&&oldName!==newName)renameMap.set(oldName,newName);
+          });
+        }
         if(renameMap.size>0){
           setRounds(rs=>rs.map(r=>migrateRoundPlayerRefs(r,renameMap)));
           setYellowCards(cards=>Object.fromEntries(players.map((p,i)=>[p,Math.min(1,cards[prevPlayers[i]]||cards[p]||0)])));

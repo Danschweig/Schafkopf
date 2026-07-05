@@ -48,6 +48,23 @@
       bockMode,setBockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,updateBockAllowed,
       players,setPlayers,fivePlayerMode,setFivePlayerMode,tariff,setTariff,updT,startkapital,setStart
     }){
+      function changeFivePlayerMode(enabled){
+        if(enabled){setFivePlayerMode(true);return;}
+        if(!fivePlayerMode){setFivePlayerMode(false);return;}
+        if(players.length<=4){setFivePlayerMode(false);return;}
+        const list=players.map((p,i)=>`${i+1}: ${p}`).join("\n");
+        const raw=window.prompt(`Welcher Spieler soll entfernt werden?\n\n${list}\n\nBitte Nummer 1-${players.length} eingeben:`,String(players.length));
+        if(raw==null)return;
+        const idx=Number(raw)-1;
+        if(!Number.isInteger(idx)||idx<0||idx>=players.length){
+          alert("Ungueltige Auswahl. Der 5-Spieler-Modus bleibt aktiv.");
+          return;
+        }
+        const removed=players[idx];
+        if(!window.confirm(`${removed} entfernen und 5-Spieler-Modus ausschalten?`))return;
+        setPlayers(ps=>ps.filter((_,i)=>i!==idx).slice(0,4));
+        setFivePlayerMode(false);
+      }
       return <>
         <div style={s.card()}>
           <div style={s.sec}>Darstellung</div>
@@ -63,7 +80,7 @@
 
         <div style={s.card()}>
           <div style={s.sec}>Rundenregel</div>
-          <Toggle label="5-Spieler-Modus" value={fivePlayerMode} onChange={setFivePlayerMode}/>
+          <Toggle label="5-Spieler-Modus" value={fivePlayerMode} onChange={changeFivePlayerMode}/>
           <div style={{fontSize:10,color:C.dim,lineHeight:1.35,marginBottom:10}}>
             Aktiviert einen fuenften Spieler. Vor jeder Runde wird abgefragt, wer aussetzt; die Abrechnung laeuft dann fuer die vier aktiven Spieler.
           </div>

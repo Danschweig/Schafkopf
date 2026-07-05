@@ -44,8 +44,7 @@
           const chartW=Math.ceil(rect.width||vb?.width||img.width||720);
           const chartH=Math.ceil(rect.height||vb?.height||img.height||260);
           const scale=3;
-          const legendRows=Math.ceil(players.length/2);
-          const legendH=44+legendRows*28;
+          const legendH=58+players.length*32;
           const canvas=document.createElement('canvas');
           canvas.width=chartW*scale;canvas.height=(chartH+legendH)*scale;
           const ctx=canvas.getContext('2d');
@@ -54,19 +53,18 @@
           ctx.drawImage(img,0,0,chartW,chartH);
           ctx.fillStyle='#080f08';ctx.fillRect(0,chartH,chartW,legendH);
           ctx.strokeStyle='#1a321a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,chartH+0.5);ctx.lineTo(chartW,chartH+0.5);ctx.stroke();
-          ctx.font="bold 14px 'Courier New', monospace";ctx.fillStyle='#c8e0c8';ctx.fillText('Spieler',16,chartH+25);
-          const colW=Math.max(220,Math.floor((chartW-32)/2));
+          ctx.font="bold 14px 'Courier New', monospace";ctx.fillStyle='#c8e0c8';ctx.fillText('Spieler',16,chartH+28);
           players.forEach((p,i)=>{
-            const row=Math.floor(i/2);
-            const col=i%2;
-            const x=16+col*colW;
-            const y=chartH+50+row*28;
+            const x=16;
+            const y=chartH+58+i*32;
             const value=last[p]||startkapital;
             const diff=value-startkapital;
             ctx.fillStyle=PCOLORS[i];ctx.fillRect(x,y-11,12,12);
             ctx.font="bold 13px 'Courier New', monospace";ctx.fillStyle=hid.has(p)?'#4a7a4a':'#e8ead0';ctx.fillText(p,x+20,y);
             ctx.font="12px 'Courier New', monospace";ctx.fillStyle=diff>=0?'#7de87a':'#e85d4a';
-            ctx.fillText(`${value.toLocaleString("de-DE")} (${diff>=0?"+":""}${diff})`,x+118,y);
+            ctx.textAlign='right';
+            ctx.fillText(`${value.toLocaleString("de-DE")} (${diff>=0?"+":""}${diff})`,chartW-16,y);
+            ctx.textAlign='left';
           });
           URL.revokeObjectURL(url);
           const jpg=canvas.toDataURL('image/jpeg',0.95);
