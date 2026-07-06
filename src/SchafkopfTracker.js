@@ -368,7 +368,7 @@
       }
 
       const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital}));
-      const playTabs=fivePlayerMode?PLAY_TYPE_SECTIONS:[...PLAY_TYPE_SECTIONS,{id:"aussetzen",label:"6+ Spatz",color:"#a080e0",cats:[]}];
+      const playTabs=PLAY_TYPE_SECTIONS;
       const visiblePlayTabs=forcedRamschActive
         ?playTabs.filter(t=>t.id==="ramsch")
         :bockActive

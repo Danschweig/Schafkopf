@@ -68,6 +68,8 @@
     function ChartTab({rounds,players,startkapital,gameTypes}){
       const [sub,setSub]=useState("konto");
       const [hid,setHid]=useState(new Set());
+      const [rangeFrom,setRangeFrom]=useState(0);
+      const [rangeTo,setRangeTo]=useState(null);
       const chartRef=useRef(null);
       const tog=p=>setHid(prev=>{const s=new Set(prev);s.has(p)?s.delete(p):s.add(p);return s;});
       function exportChartJpg(){
@@ -120,6 +122,15 @@
       const allTypes=[...gameTypes,{id:"farbwenz",label:"Farbwenz",cat:"solo2"},{id:"farbgeier",label:"Farbgeier",cat:"solo1"}];
 
       const kontoData=useMemo(()=>{const rows=[{round:0,...Object.fromEntries(players.map(p=>[p,startkapital]))}];const cur=Object.fromEntries(players.map(p=>[p,startkapital]));rounds.forEach((r,i)=>{players.forEach(p=>cur[p]+=(r.deltas[p]||0));rows.push({round:i+1,...cur});});return rows;},[rounds,players,startkapital]);
+      const maxRound=rounds.length;
+      const clampRound=v=>Math.max(0,Math.min(maxRound,Number(v)||0));
+      const effectiveTo=clampRound(rangeTo==null?maxRound:rangeTo);
+      const effectiveFrom=Math.min(clampRound(rangeFrom),effectiveTo);
+      const kontoRangeData=useMemo(()=>kontoData.filter(row=>row.round>=effectiveFrom&&row.round<=effectiveTo),[kontoData,effectiveFrom,effectiveTo]);
+      const setAllRounds=()=>{setRangeFrom(0);setRangeTo(null);};
+      const setLastRounds=(count)=>{setRangeFrom(Math.max(0,maxRound-count+1));setRangeTo(maxRound);};
+      const updateRangeFrom=v=>{const n=clampRound(v);setRangeFrom(Math.min(n,effectiveTo));};
+      const updateRangeTo=v=>{const n=clampRound(v);setRangeTo(Math.max(n,effectiveFrom));};
       const deltaData=useMemo(()=>{const raw=rounds.map((r,i)=>({round:i+1,...Object.fromEntries(players.map(p=>[p,r.deltas[p]||0]))}));const out=[];raw.forEach((d,i)=>{out.push({...d});if(i<raw.length-1)out.push({round:`${d.round}.`,...Object.fromEntries(players.map(p=>[p,null]))});});return out;},[rounds,players]);
       const stats=useMemo(()=>{
         const st=Object.fromEntries(players.map(p=>[p,{angesagt:0,partner:0,gewonnen:0,verloren:0,total:0,byType:{},currentWinStreak:0,currentLossStreak:0,maxWinStreak:0,maxLossStreak:0,bestWin:0,worstLoss:0,rounds:0,positiveRounds:0,negativeRounds:0,zeroRounds:0,avg:0}]));
@@ -166,9 +177,37 @@
           <button style={s.subTab(sub==="verlauf")} onClick={()=>setSub("verlauf")}>Verlauf</button>
         </div>
         {sub==="konto"&&<div>
+          <div style={{...s.card("#4ab8e844",C.bg1),marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}>
+              <div>
+                <div style={s.sec}>Angezeigter Bereich</div>
+                <div style={{fontSize:12,color:C.title,fontWeight:"bold"}}>Runde {effectiveFrom} bis {effectiveTo}</div>
+              </div>
+              <button onClick={setAllRounds} style={{...s.btn(effectiveFrom===0&&effectiveTo===maxRound,"#4ab8e8"),padding:"8px 12px",whiteSpace:"nowrap"}}>Alle</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+              <div>
+                <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Von Runde</div>
+                <input type="number" min="0" max={maxRound} value={effectiveFrom} onChange={e=>updateRangeFrom(e.target.value)} style={{...s.input,fontSize:16,textAlign:"center",padding:"10px 8px"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Bis Runde</div>
+                <input type="number" min="0" max={maxRound} value={effectiveTo} onChange={e=>updateRangeTo(e.target.value)} style={{...s.input,fontSize:16,textAlign:"center",padding:"10px 8px"}}/>
+              </div>
+            </div>
+            <div style={{display:"grid",gap:8,marginBottom:10}}>
+              <input aria-label="Start-Runde" type="range" min="0" max={maxRound} value={effectiveFrom} onChange={e=>updateRangeFrom(e.target.value)} style={{width:"100%",accentColor:"#4ab8e8"}}/>
+              <input aria-label="End-Runde" type="range" min="0" max={maxRound} value={effectiveTo} onChange={e=>updateRangeTo(e.target.value)} style={{width:"100%",accentColor:"#7de87a"}}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+              <button onClick={()=>setLastRounds(5)} style={{...s.btn(false,"#4ab8e8"),padding:"8px 4px",fontSize:10}}>Letzte 5</button>
+              <button onClick={()=>setLastRounds(10)} style={{...s.btn(false,"#4ab8e8"),padding:"8px 4px",fontSize:10}}>Letzte 10</button>
+              <button onClick={()=>setLastRounds(20)} style={{...s.btn(false,"#4ab8e8"),padding:"8px 4px",fontSize:10}}>Letzte 20</button>
+            </div>
+          </div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>{players.map((p,i)=><button key={p} onClick={()=>tog(p)} style={s.pChip(!hid.has(p),PCOLORS[i])}>— {p}</button>)}</div>
           <div ref={chartRef}>
-            <ResponsiveContainer width="100%" height={260}><LineChart data={kontoData} margin={{top:10,right:12,left:0,bottom:14}}><CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid}/><XAxis dataKey="round" stroke={C.chartAxis} tick={{fill:C.chartAxis,fontSize:10}} label={{value:"Runde",position:"insideBottom",offset:-8,fill:C.dim,fontSize:10}}/><YAxis stroke={C.chartAxis} tick={{fill:C.chartAxis,fontSize:10}} tickFormatter={v=>v.toLocaleString("de-DE")} width={54}/><Tooltip content={<TKonto rounds={rounds} startkapital={startkapital}/>}/><ReferenceLine y={startkapital} stroke={C.zero} strokeDasharray="4 3" label={{value:"Start",position:"right",fill:C.mute,fontSize:9}}/>{players.map((p,i)=>!hid.has(p)&&<Line key={p} type="monotone" dataKey={p} stroke={PCOLORS[i]} strokeWidth={2} dot={{r:3,fill:PCOLORS[i],strokeWidth:0}} activeDot={{r:5}} animationDuration={400}/>)}</LineChart></ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={260}><LineChart data={kontoRangeData} margin={{top:10,right:12,left:0,bottom:14}}><CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid}/><XAxis dataKey="round" stroke={C.chartAxis} tick={{fill:C.chartAxis,fontSize:10}} label={{value:"Runde",position:"insideBottom",offset:-8,fill:C.dim,fontSize:10}}/><YAxis stroke={C.chartAxis} tick={{fill:C.chartAxis,fontSize:10}} tickFormatter={v=>v.toLocaleString("de-DE")} width={54}/><Tooltip content={<TKonto rounds={rounds} startkapital={startkapital}/>}/><ReferenceLine y={startkapital} stroke={C.zero} strokeDasharray="4 3" label={{value:"Start",position:"right",fill:C.mute,fontSize:9}}/>{players.map((p,i)=>!hid.has(p)&&<Line key={p} type="monotone" dataKey={p} stroke={PCOLORS[i]} strokeWidth={2} dot={{r:3,fill:PCOLORS[i],strokeWidth:0}} activeDot={{r:5}} animationDuration={400}/>)}</LineChart></ResponsiveContainer>
           </div>
           <button onClick={exportChartJpg} style={{...s.btn(false,"#7de87a"),width:"100%",padding:10,marginTop:10}}>📷 Kontostand als JPG exportieren</button>
         </div>}

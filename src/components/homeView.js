@@ -58,13 +58,7 @@
           </button>)}
         </div>
 
-        {uiPlayTab!=="aussetzen"
-          ?<GameTypeGrid gameTypes={gameTypes} activePlayTab={activePlayTab} isBockAllowedType={isBockAllowedType} startRound={startRound}/>
-          :<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
-            <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>AUSSETZEN</div>
-            <div style={{fontSize:11,color:C.dim,marginBottom:10}}>Ein Spieler hat 6 oder mehr Spatz - die anderen 3 spielen.</div>
-            <button onClick={()=>setAussetzenStep(3)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:11}}>Aussetzen wegen 6+ Spatz</button>
-          </div>}
+        <GameTypeGrid gameTypes={gameTypes} activePlayTab={activePlayTab} isBockAllowedType={isBockAllowedType} startRound={startRound}/>
 
         {rounds.length>0&&<button onClick={undoLastRound} style={{...s.btn(false,"#9a5a5a"),width:"100%",padding:10,marginTop:4}}>Letzte Runde rueckgaengig</button>}
       </>;
