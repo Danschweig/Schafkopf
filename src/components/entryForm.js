@@ -1,7 +1,8 @@
     // ── Entry Form ───────────────────────────────────────────────
-    function EntryForm({form,upd,players,tariff,konten,typeCfg,preview,onSave,onBack,isEdit,roundNr,aussetzer,forcedPflichtramsch,forcedBockRound}){
+    function EntryForm({form,upd,players,tariff,konten,typeCfg,preview,onSave,onBack,isEdit,roundNr,aussetzer,spatzenAussetzer,forcedPflichtramsch,forcedBockRound}){
       const catColor=TYPE_CATS[typeCfg.cat]?.color||"#fff";
-      const activePlayers=aussetzer?players.filter(p=>p!==aussetzer):players;
+      const aussetzerList=[aussetzer,spatzenAussetzer].filter(Boolean);
+      const activePlayers=aussetzerList.length?players.filter(p=>!aussetzerList.includes(p)):players;
       const b=preview?calcBetrag(form,typeCfg,tariff):0;
       const sm=Math.pow(2,form.sticht||0);
       const jm=typeCfg.cat==="ramsch"?Math.pow(2,form.jungfrauen||0):1;
@@ -9,7 +10,7 @@
       return <>
         <div style={s.card(catColor+"44",catColor+"0e")}>
           <div style={{fontSize:11,color:catColor}}>{typeCfg.desc}</div>
-          {aussetzer&&<div style={{fontSize:11,color:"#a080e0",marginTop:4}}>⚬ {aussetzer} sitzt aus</div>}
+          {aussetzerList.map(p=><div key={p} style={{fontSize:11,color:"#a080e0",marginTop:4}}>⚬ {p} sitzt aus{p===spatzenAussetzer?" (6+ Spatz)":""}</div>)}
           {forcedPflichtramsch&&<div style={{fontSize:11,color:"#a080e0",marginTop:4,fontWeight:"bold"}}>Pflichtramsch !!!</div>}
           {forcedBockRound&&<div style={{fontSize:11,color:"#2e5b36",marginTop:4,fontWeight:"bold"}}>Bock !!!</div>}
           <div style={{fontSize:11,color:"#8ab0aa",marginTop:4}}>
@@ -76,10 +77,10 @@
             Vorschau · {b}{sm>1?` × ${sm}`:""}{jm>1?` × ${jm}`:""} = <strong style={{color:"#7de87a"}}>{b*sm*jm} Chips</strong>
           </div>
           <div style={{display:"grid",gridTemplateColumns:`repeat(${players.length},1fr)`,gap:8}}>
-            {players.map((p,i)=>{const delta=preview[p];const bg=delta>0?"#1a4a1a22":delta<0?"#4a1a1a22":aussetzer===p?"#2a0f3a22":C.bg2;const border=delta>0?"#2f8a3755":delta<0?"#e85d4a55":aussetzer===p?"#a080e044":C.border;return <div key={p} style={{textAlign:"center",background:bg,border:`1px solid ${border}`,borderRadius:8,padding:"8px 6px"}}>
+            {players.map((p,i)=>{const delta=preview[p];const isOut=aussetzerList.includes(p);const bg=delta>0?"#1a4a1a22":delta<0?"#4a1a1a22":isOut?"#2a0f3a22":C.bg2;const border=delta>0?"#2f8a3755":delta<0?"#e85d4a55":isOut?"#a080e044":C.border;return <div key={p} style={{textAlign:"center",background:bg,border:`1px solid ${border}`,borderRadius:8,padding:"8px 6px"}}>
               <div style={{fontSize:9,color:PCOLORS[i]}}>{p}</div>
-              <div style={{fontSize:20,fontWeight:"bold",color:delta>0?"#7de87a":delta<0?"#e85d4a":aussetzer===p?"#a080e0":C.zero}}>{aussetzer===p?"out":delta>0?`+${delta}`:delta}</div>
-              <div style={{fontSize:10,color:delta>0?"#7de87a":delta<0?"#e85d4a":aussetzer===p?"#a080e0":"#2a5a2a"}}>{konten[p]+delta}</div>
+              <div style={{fontSize:20,fontWeight:"bold",color:delta>0?"#7de87a":delta<0?"#e85d4a":isOut?"#a080e0":C.zero}}>{isOut?"out":delta>0?`+${delta}`:delta}</div>
+              <div style={{fontSize:10,color:delta>0?"#7de87a":delta<0?"#e85d4a":isOut?"#a080e0":"#2a5a2a"}}>{konten[p]+delta}</div>
             </div>;})}
           </div>
         </div>}

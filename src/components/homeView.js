@@ -4,13 +4,18 @@
       addYellowCard,addRedCard,clearPlayerCards,
       forcedRamschActive,bockActive,visiblePlayTabs,uiPlayTab,setPlayTab,
       activePlayTab,gameTypes,isBockAllowedType,startRound,undoLastRound,
-      fivePlayerMode,aussetzenStep,setAussetzenStep,aussetzer,setAussetzer
+      fivePlayerMode,aussetzenStep,setAussetzenStep,aussetzer,setAussetzer,
+      spatzenAussetzer,setSpatzenAussetzer
     }){
-      if(aussetzenStep===1)return <AussetzenPlayerStep players={players} aussetzer={aussetzer} setAussetzer={setAussetzer} setAussetzenStep={setAussetzenStep}/>;
+      if(aussetzenStep===1)return <AussetzenPlayerStep players={players} aussetzer={aussetzer} setAussetzer={setAussetzer} setAussetzenStep={setAussetzenStep} setSpatzenAussetzer={setSpatzenAussetzer} fivePlayerMode={fivePlayerMode}/>;
       if(aussetzenStep===2)return <AussetzenTypeStep
-        players={players} aussetzer={aussetzer} forcedRamschActive={forcedRamschActive}
+        players={players} aussetzer={aussetzer} spatzenAussetzer={spatzenAussetzer} forcedRamschActive={forcedRamschActive}
         bockActive={bockActive} gameTypes={gameTypes} isBockAllowedType={isBockAllowedType}
-        startRound={startRound} setAussetzenStep={setAussetzenStep}/>;
+        startRound={startRound} setAussetzenStep={setAussetzenStep} setSpatzenAussetzer={setSpatzenAussetzer} fivePlayerMode={fivePlayerMode}/>;
+      if(aussetzenStep===3)return <SpatzenPlayerStep
+        players={players} aussetzer={aussetzer} spatzenAussetzer={spatzenAussetzer}
+        setSpatzenAussetzer={setSpatzenAussetzer} setAussetzenStep={setAussetzenStep}
+        fivePlayerMode={fivePlayerMode}/>;
 
       return <>
         {rounds.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
@@ -25,6 +30,16 @@
           addYellowCard={addYellowCard} addRedCard={addRedCard} clearPlayerCards={clearPlayerCards}/>
 
         {(forcedRamschActive||bockActive)&&<ForcedRoundNotice forcedRamschActive={forcedRamschActive}/>}
+
+        {!fivePlayerMode&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
+          <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>6+ SPATZ AUF DER HAND</div>
+          <div style={{fontSize:11,color:C.dim,marginBottom:10}}>
+            Der Spieler mit 6 oder mehr Spatz setzt aus; die anderen 3 spielen als 2vs1.
+          </div>
+          <button onClick={()=>setAussetzenStep(3)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:11}}>
+            Aussetzen wegen 6+ Spatz
+          </button>
+        </div>}
 
         {fivePlayerMode&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
           <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>5-SPIELER-MODUS</div>
@@ -43,7 +58,13 @@
           </button>)}
         </div>
 
-        <GameTypeGrid gameTypes={gameTypes} activePlayTab={activePlayTab} isBockAllowedType={isBockAllowedType} startRound={startRound}/>
+        {uiPlayTab!=="aussetzen"
+          ?<GameTypeGrid gameTypes={gameTypes} activePlayTab={activePlayTab} isBockAllowedType={isBockAllowedType} startRound={startRound}/>
+          :<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
+            <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>AUSSETZEN</div>
+            <div style={{fontSize:11,color:C.dim,marginBottom:10}}>Ein Spieler hat 6 oder mehr Spatz - die anderen 3 spielen.</div>
+            <button onClick={()=>setAussetzenStep(3)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:11}}>Aussetzen wegen 6+ Spatz</button>
+          </div>}
 
         {rounds.length>0&&<button onClick={undoLastRound} style={{...s.btn(false,"#9a5a5a"),width:"100%",padding:10,marginTop:4}}>Letzte Runde rueckgaengig</button>}
       </>;
@@ -103,13 +124,13 @@
       </div>;
     }
 
-    function AussetzenPlayerStep({players,aussetzer,setAussetzer,setAussetzenStep}){
+    function AussetzenPlayerStep({players,aussetzer,setAussetzer,setAussetzenStep,setSpatzenAussetzer,fivePlayerMode}){
       return <div style={s.card("#a080e044",C.purpleBg)}>
-        <div style={s.sec}>Wer sitzt diese Runde aus?</div>
+        <div style={s.sec}>{fivePlayerMode?"Wer sitzt diese Runde aus?":"Wer sitzt aus? (6+ Spatz, kein Trumpf)"}</div>
         <div style={{display:"flex",gap:6,marginBottom:16}}>
           {players.map((p,i)=><button key={p}
             style={s.pBtn(aussetzer===p,"#a080e0")}
-            onClick={()=>setAussetzer(aussetzer===p?null:p)}>{p}</button>)}
+            onClick={()=>{setAussetzer(aussetzer===p?null:p);setSpatzenAussetzer(s=>s===p?null:s);}}>{p}</button>)}
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>{setAussetzer(null);setAussetzenStep(0);}} style={{...s.btn(false,"#5a5a8a"),padding:"10px 14px"}}>Zurueck</button>
@@ -121,16 +142,54 @@
       </div>;
     }
 
-    function AussetzenTypeStep({players,aussetzer,forcedRamschActive,bockActive,gameTypes,isBockAllowedType,startRound,setAussetzenStep}){
+    function SpatzenPlayerStep({players,aussetzer,spatzenAussetzer,setSpatzenAussetzer,setAussetzenStep,fivePlayerMode}){
+      const candidates=players.filter(p=>p!==aussetzer);
+      return <div style={s.card("#a080e044",C.purpleBg)}>
+        <div style={s.sec}>Wer hat 6+ Spatz?</div>
+        {fivePlayerMode&&aussetzer&&<div style={{fontSize:11,color:C.dim,marginBottom:10}}>
+          {aussetzer} sitzt bereits regulaer aus. Waehle einen der 4 aktiven Spieler fuer 6+ Spatz.
+        </div>}
+        <div style={{display:"flex",gap:6,marginBottom:16}}>
+          {candidates.map((p)=><button key={p}
+            style={s.pBtn(spatzenAussetzer===p,"#a080e0")}
+            onClick={()=>setSpatzenAussetzer(spatzenAussetzer===p?null:p)}>{p}</button>)}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setSpatzenAussetzer(null);setAussetzenStep(fivePlayerMode?2:0);}} style={{...s.btn(false,"#5a5a8a"),padding:"10px 14px"}}>Zurueck</button>
+          <button onClick={()=>spatzenAussetzer&&setAussetzenStep(2)} disabled={!spatzenAussetzer}
+            style={{...s.btn(!!spatzenAussetzer,"#a080e0"),flex:1,padding:10}}>
+            Weiter: Spieltyp waehlen
+          </button>
+        </div>
+      </div>;
+    }
+
+    function AussetzenTypeStep({players,aussetzer,spatzenAussetzer,forcedRamschActive,bockActive,gameTypes,isBockAllowedType,startRound,setAussetzenStep,setSpatzenAussetzer,fivePlayerMode}){
       const sections=forcedRamschActive
         ?PLAY_TYPE_SECTIONS.filter(catInfo=>catInfo.id==="ramsch")
         :bockActive
           ?PLAY_TYPE_SECTIONS.filter(catInfo=>catInfo.id==="solo"||catInfo.id==="ramsch")
           :PLAY_TYPE_SECTIONS;
+      const outPlayers=[aussetzer,spatzenAussetzer].filter(Boolean);
+      const activePlayers=players.filter(p=>!outPlayers.includes(p));
       return <>
         <div style={{...s.card("#a080e044",C.purpleBg),marginBottom:12}}>
-          <div style={{fontSize:12,color:"#a080e0"}}>{aussetzer} sitzt aus - {players.filter(p=>p!==aussetzer).join(", ")} spielen</div>
+          <div style={{fontSize:12,color:"#a080e0"}}>
+            {outPlayers.join(" und ")} {outPlayers.length>1?"sitzen":"sitzt"} aus - {activePlayers.join(", ")} spielen
+          </div>
         </div>
+        {fivePlayerMode&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
+          <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>6+ SPATZ AUF DER HAND</div>
+          <div style={{fontSize:11,color:C.dim,marginBottom:10}}>
+            Optional: Einer der 4 aktiven Spieler hat 6 oder mehr Spatz und setzt zusaetzlich aus.
+          </div>
+          <button onClick={()=>setAussetzenStep(3)} style={{...s.btn(!!spatzenAussetzer,"#a080e0"),width:"100%",padding:11}}>
+            {spatzenAussetzer?`${spatzenAussetzer} aendern`:"Aussetzen wegen 6+ Spatz"}
+          </button>
+          {spatzenAussetzer&&<button onClick={()=>setSpatzenAussetzer(null)} style={{...s.btn(false,"#5a5a8a"),width:"100%",padding:9,marginTop:8}}>
+            6+ Spatz-Aussetzer entfernen
+          </button>}
+        </div>}
         {forcedRamschActive&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10,padding:"10px 12px"}}>
           <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:4}}>Pflichtramsch !!!</div>
           <div style={{fontSize:11,color:C.dim}}>Diese Runde ist fest auf Ramsch gesetzt. Andere Spiele sind in dieser Runde nicht verfuegbar.</div>

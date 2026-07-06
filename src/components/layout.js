@@ -4,7 +4,7 @@
           <div>
             <div style={{fontSize:9,color:C.mute,letterSpacing:3}}>SCHAFKOPF</div>
             <div style={{fontSize:15,fontWeight:"bold",color:C.title}}>
-              {nav==="home"&&(aussetzenStep>0?`Aussetzen - ${aussetzenStep===1?"Wer?":"Spieltyp"}`:"Spieltyp waehlen")}
+              {nav==="home"&&(aussetzenStep>0?`Aussetzen - ${aussetzenStep===1?"Wer?":aussetzenStep===3?"6+ Spatz":"Spieltyp"}`:"Spieltyp waehlen")}
               {nav==="entry"&&(editRound?`Bearbeiten ${typeCfg?.label||""}`:aussetzer?`${typeCfg?.label||""} (${aussetzer} out)`:typeCfg?.label||"")}
               {nav==="verlauf"&&`Verlauf (${rounds.length})`}
               {nav==="chart"&&"Chart & Statistik"}
@@ -40,7 +40,7 @@
       </div>;
     }
 
-    function BottomNav({nav,roundsCount,aussetzenStep,setNav,setSelType,setAussetzer,setAussetzenStep,cancelEntry}){
+    function BottomNav({nav,roundsCount,aussetzenStep,setNav,setSelType,setAussetzer,setSpatzenAussetzer,setAussetzenStep,cancelEntry}){
       const navItems=[
         ["home",String.fromCodePoint(0x1F0A1),"Spiel"],
         ["verlauf",`${String.fromCodePoint(0x1F4CB)} ${roundsCount}`,"Verlauf"],
@@ -50,7 +50,7 @@
       return <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.navBg,borderTop:`1px solid ${C.border}`,display:"flex",boxShadow:C.mode==="light"?"0 -2px 12px rgba(35,70,35,0.08)":"none"}}>
         {navItems.map(([key,icon,label])=><button key={key}
           style={s.navBtn(nav===key||(nav==="entry"&&key==="home")||(aussetzenStep>0&&key==="home"))}
-          onClick={()=>{if(nav==="entry")cancelEntry();else{setAussetzer(null);setAussetzenStep(0);}setNav(key);if(key!=="entry")setSelType(null);}}>
+          onClick={()=>{if(nav==="entry")cancelEntry();else{setAussetzer(null);setSpatzenAussetzer?.(null);setAussetzenStep(0);}setNav(key);if(key!=="entry")setSelType(null);}}>
           <div style={{fontSize:16,lineHeight:1}}>{icon}</div><div>{label}</div>
         </button>)}
       </div>;

@@ -20,6 +20,7 @@
         verlierer:renamePlayerRefs(round.verlierer,renameMap),
         cardPlayer:renamePlayerRefs(round.cardPlayer,renameMap),
         aussetzer:renamePlayerRefs(round.aussetzer,renameMap),
+        spatzenAussetzer:renamePlayerRefs(round.spatzenAussetzer,renameMap),
         deltas
       };
       if(round.cardPenalty&&migrated.cardPlayer){
@@ -53,6 +54,7 @@
       const [form,setForm]          = useState(emptyForm());
       const [editRound,setEditRound]= useState(null);
       const [aussetzer,setAussetzer]= useState(null); // Aussetzen-Modus
+      const [spatzenAussetzer,setSpatzenAussetzer]=useState(null);
       const [aussetzenStep,setAussetzenStep]=useState(0);
       const [playTab,setPlayTab]=useState("2vs2");
       const [showInstallHint,setShowInstallHint]=useState(false);
@@ -95,6 +97,7 @@
             verlierer:renamePlayerRefs(f.verlierer,renameMap)
           }));
           setAussetzer(a=>renamePlayerRefs(a,renameMap));
+          setSpatzenAussetzer(a=>renamePlayerRefs(a,renameMap));
           setEditRound(er=>er?migrateRoundPlayerRefs(er,renameMap):er);
         }
         prevPlayersRef.current=players;
@@ -102,6 +105,7 @@
       useEffect(()=>{
         setPlayers(ps=>normalizePlayers(ps,fivePlayerMode));
         setAussetzer(a=>fivePlayerMode?a:null);
+        setSpatzenAussetzer(null);
         setAussetzenStep(0);
       },[fivePlayerMode]);
       useEffect(()=>{
@@ -155,6 +159,7 @@
       };
       const startRound=(typeId)=>{
         if(fivePlayerMode&&!aussetzer){setAussetzenStep(1);return;}
+        const keepAussetzer=aussetzenStep===2;
         const forced=forcedRamschActive&&typeId!=="ramsch";
         const actualType=forced?"ramsch":typeId;
         setSelType(actualType);
@@ -162,7 +167,8 @@
         setCurrentBockRound(bockActive&&!forcedRamschActive);
         setForm({...emptyForm(),pflichtramsch:forcedRamschActive});
         setEditRound(null);
-        if(!fivePlayerMode)setAussetzer(null);
+        if(!fivePlayerMode&&!keepAussetzer)setAussetzer(null);
+        if(!keepAussetzer)setSpatzenAussetzer(null);
         setNav("entry");
       };
       useEffect(()=>{if(forcedRamschActive&&playTab!=="ramsch")setPlayTab("ramsch");},[forcedRamschActive,playTab]);
@@ -193,9 +199,10 @@
       },[rounds,players]);
 
       const typeCfg=selType?gameTypes.find(t=>t.id===selType):null;
-      const preview=useMemo(()=>{if(!typeCfg)return null;const b=calcBetrag(form,typeCfg,tariff);return calcDeltas(form,players,b,typeCfg,aussetzer);},[form,players,tariff,typeCfg,aussetzer]);
+      const roundAussetzer=useMemo(()=>[aussetzer,spatzenAussetzer].filter(Boolean),[aussetzer,spatzenAussetzer]);
+      const preview=useMemo(()=>{if(!typeCfg)return null;const b=calcBetrag(form,typeCfg,tariff);return calcDeltas(form,players,b,typeCfg,roundAussetzer);},[form,players,tariff,typeCfg,roundAussetzer]);
 
-      function openEdit(round){if(round.cardPenalty)return;setEditRound(round);setSelType(round.typeId);setAussetzer(round.aussetzer||null);setCurrentPflichtramsch(!!round.pflichtramsch);setCurrentBockRound(!!round.bock);setForm({spieler:round.spieler||null,partner:round.partner||null,solist:round.solist||null,verlierer:round.verlierer||null,name:round.name||"",gewonnen:round.gewonnen??true,schneider:round.schneider||false,schwarz:round.schwarz||false,laufende:round.laufende||0,jungfrauen:round.jungfrauen||0,sticht:round.sticht||0,pflichtramsch:round.pflichtramsch||false,durchmarsch:round.durchmarsch||false,mitFarbe:round.mitFarbe||false,tout:round.tout||false});setNav("entry");}
+      function openEdit(round){if(round.cardPenalty)return;setEditRound(round);setSelType(round.typeId);setAussetzer(round.aussetzer||null);setSpatzenAussetzer(round.spatzenAussetzer||null);setCurrentPflichtramsch(!!round.pflichtramsch);setCurrentBockRound(!!round.bock);setForm({spieler:round.spieler||null,partner:round.partner||null,solist:round.solist||null,verlierer:round.verlierer||null,name:round.name||"",gewonnen:round.gewonnen??true,schneider:round.schneider||false,schwarz:round.schwarz||false,laufende:round.laufende||0,jungfrauen:round.jungfrauen||0,sticht:round.sticht||0,pflichtramsch:round.pflichtramsch||false,durchmarsch:round.durchmarsch||false,mitFarbe:round.mitFarbe||false,tout:round.tout||false});setNav("entry");}
 
       function saveRound(){
         if(!preview)return;
@@ -203,18 +210,18 @@
         const qualifiesBock=!editRound&&bockMode&&form.solist&&form.gewonnen===false&&typeCfg&&(typeCfg.cat==="solo1"||typeCfg.cat==="solo2");
         const savedForm={...form,pflichtramsch:form.pflichtramsch||currentPflichtramsch,bock:currentBockRound||qualifiesBock};
         if(editRound){
-          setRounds(r=>r.map(round=>round.id===editRound.id?{...round,...savedForm,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,aussetzer:aussetzer||null,betrag:b,deltas:preview}:round));
+          setRounds(r=>r.map(round=>round.id===editRound.id?{...round,...savedForm,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,aussetzer:aussetzer||null,spatzenAussetzer:spatzenAussetzer||null,betrag:b,deltas:preview}:round));
           setEditRound(null);setNav("verlauf");
         }else{
-          setRounds(r=>[...r,{id:Date.now(),runde:r.length+1,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,...savedForm,aussetzer:aussetzer||null,betrag:b,deltas:preview}]);
+          setRounds(r=>[...r,{id:Date.now(),runde:r.length+1,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,...savedForm,aussetzer:aussetzer||null,spatzenAussetzer:spatzenAussetzer||null,betrag:b,deltas:preview}]);
           setNav("home");
           setNextRoundRamsch({rolled:false,forced:false});
           setNextRoundBock(qualifiesBock);
         }
-        setForm(emptyForm());setSelType(null);setAussetzer(null);setAussetzenStep(0);setCurrentPflichtramsch(false);setCurrentBockRound(false);
+        setForm(emptyForm());setSelType(null);setAussetzer(null);setSpatzenAussetzer(null);setAussetzenStep(0);setCurrentPflichtramsch(false);setCurrentBockRound(false);
       }
 
-      function cancelEntry(){setEditRound(null);setSelType(null);setForm(emptyForm());setAussetzer(null);setAussetzenStep(0);setCurrentPflichtramsch(false);setCurrentBockRound(false);setNav(editRound?"verlauf":"home");}
+      function cancelEntry(){setEditRound(null);setSelType(null);setForm(emptyForm());setAussetzer(null);setSpatzenAussetzer(null);setAussetzenStep(0);setCurrentPflichtramsch(false);setCurrentBockRound(false);setNav(editRound?"verlauf":"home");}
 
       function addCardPenalty(player,kind){
         const base=tariff.sauspiel;
@@ -361,7 +368,7 @@
       }
 
       const standings=players.map((p,i)=>({name:p,color:PCOLORS[i],value:konten[p],diff:konten[p]-startkapital}));
-      const playTabs=PLAY_TYPE_SECTIONS;
+      const playTabs=fivePlayerMode?PLAY_TYPE_SECTIONS:[...PLAY_TYPE_SECTIONS,{id:"aussetzen",label:"6+ Spatz",color:"#a080e0",cats:[]}];
       const visiblePlayTabs=forcedRamschActive
         ?playTabs.filter(t=>t.id==="ramsch")
         :bockActive
@@ -387,11 +394,12 @@
             startRound={startRound} undoLastRound={undoLastRound}
             fivePlayerMode={fivePlayerMode}
             aussetzenStep={aussetzenStep} setAussetzenStep={setAussetzenStep}
-            aussetzer={aussetzer} setAussetzer={setAussetzer}/>} 
+            aussetzer={aussetzer} setAussetzer={setAussetzer}
+            spatzenAussetzer={spatzenAussetzer} setSpatzenAussetzer={setSpatzenAussetzer}/>} 
 
           {nav==="entry"&&typeCfg&&<EntryForm form={form} upd={upd} players={players} tariff={tariff}
             konten={editRound?kontenForEdit:konten} typeCfg={typeCfg} preview={preview}
-            onSave={saveRound} onBack={cancelEntry} isEdit={!!editRound} roundNr={rounds.length+1} aussetzer={aussetzer}
+            onSave={saveRound} onBack={cancelEntry} isEdit={!!editRound} roundNr={rounds.length+1} aussetzer={aussetzer} spatzenAussetzer={spatzenAussetzer}
             forcedPflichtramsch={currentPflichtramsch} forcedBockRound={currentBockRound}/>} 
 
           {nav==="verlauf"&&<HistoryView rounds={rounds} players={players} openEdit={openEdit}/>} 
@@ -421,7 +429,7 @@
 
         <BottomNav
           nav={nav} roundsCount={rounds.length} aussetzenStep={aussetzenStep}
-          setNav={setNav} setSelType={setSelType} setAussetzer={setAussetzer}
+          setNav={setNav} setSelType={setSelType} setAussetzer={setAussetzer} setSpatzenAussetzer={setSpatzenAussetzer}
           setAussetzenStep={setAussetzenStep} cancelEntry={cancelEntry}/>
       </div>;
     }

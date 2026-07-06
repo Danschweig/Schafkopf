@@ -42,15 +42,24 @@
     }
 
     function calcDeltas(form,players,betrag,typeCfg,aussetzer=null){
-      const active=aussetzer?players.filter(p=>p!==aussetzer):players;
+      const aussetzerList=Array.isArray(aussetzer)?aussetzer.filter(Boolean):(aussetzer?[aussetzer]:[]);
+      const active=aussetzerList.length?players.filter(p=>!aussetzerList.includes(p)):players;
       const d=Object.fromEntries(players.map(p=>[p,0]));
       const sm=Math.pow(2,form.sticht||0);
       const B=betrag*sm;
       if(typeCfg.cat==="2vs2"){
         if(!form.spieler||!form.partner)return null;
-        const w=form.gewonnen?[form.spieler,form.partner]:active.filter(p=>p!==form.spieler&&p!==form.partner);
-        const l=active.filter(p=>!w.includes(p));
-        w.forEach(p=>d[p]=+B);l.forEach(p=>d[p]=-Math.round(B*w.length/l.length));
+        const team=[form.spieler,form.partner];
+        const gegner=active.filter(p=>!team.includes(p));
+        const w=form.gewonnen?team:gegner;
+        const l=form.gewonnen?gegner:team;
+        if(active.length===3){
+          w.forEach(p=>d[p]=B*l.length);
+          l.forEach(p=>d[p]=-B*w.length);
+        }else{
+          w.forEach(p=>d[p]=+B);
+          l.forEach(p=>d[p]=-Math.round(B*w.length/l.length));
+        }
       }else if(typeCfg.cat==="solo1"||typeCfg.cat==="solo2"){
         if(!form.solist)return null;
         const gegner=active.filter(p=>p!==form.solist);
