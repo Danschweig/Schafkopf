@@ -48,6 +48,7 @@
     function OnlineSettings({online}){
       const connecting=online.status==="connecting";
       const connected=online.status==="online";
+      const roomCodeLength=window.SchafkopfFirebase?.roomCodeLength||5;
       return <>
         <div style={s.card(connected?"#7de87a55":C.border,connected?C.successBg:C.bg1)}>
           <div style={s.sec}>Firebase Online-Modus</div>
@@ -88,12 +89,12 @@
               <input
                 style={{...s.input,textTransform:"uppercase",letterSpacing:2}}
                 value={online.roomInput}
-                maxLength={10}
+                maxLength={roomCodeLength}
                 onChange={e=>online.setRoomInput(e.target.value)}
                 placeholder="RAUMCODE"
               />
-              <button disabled={connecting||online.roomInput.length!==10} onClick={online.joinRoom}
-                style={{...s.btn(false,"#4ab8e8"),padding:"8px 12px",opacity:(connecting||online.roomInput.length!==10)?0.45:1}}>
+              <button disabled={connecting||online.roomInput.length!==roomCodeLength} onClick={online.joinRoom}
+                style={{...s.btn(false,"#4ab8e8"),padding:"8px 12px",opacity:(connecting||online.roomInput.length!==roomCodeLength)?0.45:1}}>
                 Beitreten
               </button>
             </div>
@@ -104,16 +105,6 @@
           </div>}
         </div>
 
-        <div style={s.card()}>
-          <div style={s.sec}>Firebase vorbereiten</div>
-          <div style={{fontSize:10,color:C.dim,lineHeight:1.5}}>
-            1. Firebase-Web-App anlegen.<br/>
-            2. Cloud Firestore erstellen.<br/>
-            3. Anonyme Anmeldung aktivieren.<br/>
-            4. Die Regeln aus firebase.rules veroeffentlichen.<br/>
-            5. Webkonfiguration oben einfuegen oder in firebaseConfig.js hinterlegen.
-          </div>
-        </div>
       </>;
     }
 

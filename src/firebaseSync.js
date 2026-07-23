@@ -3,7 +3,7 @@
       const FIREBASE_BASE=`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
       const ROOM_COLLECTION="schafkopfRooms";
       const ROOM_ALPHABET="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-      const ROOM_CODE_LENGTH=10;
+      const ROOM_CODE_LENGTH=5;
       const MAX_STATE_BYTES=900000;
       let sdkPromise=null;
 
@@ -158,7 +158,7 @@
 
         async function joinRoom(rawRoomCode,onState,onError){
           const candidate=normalizeRoomCode(rawRoomCode);
-          if(candidate.length!==ROOM_CODE_LENGTH)throw new Error("Der Raumcode muss aus 10 Zeichen bestehen.");
+          if(candidate.length!==ROOM_CODE_LENGTH)throw new Error(`Der Raumcode muss aus ${ROOM_CODE_LENGTH} Zeichen bestehen.`);
           const candidateRef=firestore.doc(db,ROOM_COLLECTION,candidate);
           const snapshot=await firestore.getDoc(candidateRef);
           if(!snapshot.exists())throw new Error("Online-Raum nicht gefunden.");
@@ -210,6 +210,7 @@
 
       window.SchafkopfFirebase={
         version:FIREBASE_VERSION,
+        roomCodeLength:ROOM_CODE_LENGTH,
         normalizeRoomCode,
         validateConfig,
         mergeSessionState,

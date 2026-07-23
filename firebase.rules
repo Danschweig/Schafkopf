@@ -7,7 +7,7 @@ service cloud.firestore {
     }
 
     function validRoomCode(roomId) {
-      return roomId.matches('^[A-Z2-9]{10}$');
+      return roomId.matches('^[A-Z2-9]{5}$');
     }
 
     function validRoomDocument() {
@@ -36,8 +36,8 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
 
-      // Der nicht erratbare Raumcode ist die Einladung. Listen aller Raeume
-      // bleiben gesperrt, ein bekannter einzelner Raum darf gelesen werden.
+      // Der Raumcode ist die Einladung. Listen aller Raeume bleiben gesperrt,
+      // ein bekannter einzelner Raum darf gelesen werden.
       allow get: if signedIn() && validRoomCode(roomId);
       allow list: if false;
 
