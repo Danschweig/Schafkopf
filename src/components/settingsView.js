@@ -5,12 +5,13 @@
       players,setPlayers,fivePlayerMode,setFivePlayerMode,tariff,setTariff,updT,startkapital,setStart,
       gameTypes,setGameTypes,exportData,exportSession,exportConfig,importFile,
       setYellowCards,setRounds,setNextRoundBock,setNextRoundRamsch,setCurrentPflichtramsch,setCurrentBockRound,
-      setBockAllowSolo,setBockAllowWenz,setBockAllowGeier,setBockAllowRamsch
+      setBockAllowSolo,setBockAllowWenz,setBockAllowGeier,setBockAllowRamsch,online
     }){
       return <>
         <div style={{display:"flex",gap:8,marginBottom:14}}>
           <button style={s.subTab(settingsTab==="allg")} onClick={()=>setSettingsTab("allg")}>Allgemein</button>
           <button style={s.subTab(settingsTab==="spiele")} onClick={()=>setSettingsTab("spiele")}>Spielarten</button>
+          <button style={s.subTab(settingsTab==="online")} onClick={()=>setSettingsTab("online")}>Online</button>
         </div>
 
         {settingsTab==="allg"&&<GeneralSettings
@@ -29,7 +30,9 @@
           <GameTypeEditor gameTypes={gameTypes} setGameTypes={setGameTypes} tariff={tariff}/>
         </div>}
 
-        <DataSettings
+        {settingsTab==="online"&&<OnlineSettings online={online}/>}
+
+        {settingsTab!=="online"&&<DataSettings
           players={players} setPlayers={setPlayers} setTariff={setTariff} setStart={setStart}
           setGameTypes={setGameTypes} setYellowCards={setYellowCards} setRounds={setRounds}
           setFivePlayerMode={setFivePlayerMode}
@@ -38,7 +41,79 @@
           setBockAllowGeier={setBockAllowGeier} setBockAllowRamsch={setBockAllowRamsch}
           setNextRoundBock={setNextRoundBock} setNextRoundRamsch={setNextRoundRamsch}
           setCurrentPflichtramsch={setCurrentPflichtramsch} setCurrentBockRound={setCurrentBockRound}
-          exportData={exportData} exportSession={exportSession} exportConfig={exportConfig} importFile={importFile}/>
+          exportData={exportData} exportSession={exportSession} exportConfig={exportConfig} importFile={importFile}/>}
+      </>;
+    }
+
+    function OnlineSettings({online}){
+      const connecting=online.status==="connecting";
+      const connected=online.status==="online";
+      return <>
+        <div style={s.card(connected?"#7de87a55":C.border,connected?C.successBg:C.bg1)}>
+          <div style={s.sec}>Firebase Online-Modus</div>
+          <div style={{fontSize:11,color:C.dim,lineHeight:1.45,marginBottom:12}}>
+            Optionaler gemeinsamer Spielstand fuer mehrere Geraete. Runden, Spieler, Tarife, Spielarten und Rundenregeln werden in Echtzeit synchronisiert. Darstellung und gerade offene Eingabeformulare bleiben lokal.
+          </div>
+
+          {connected?<div>
+            <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Aktueller Raumcode</div>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
+              <div style={{flex:1,fontSize:22,fontWeight:"bold",letterSpacing:3,color:"#7de87a",background:C.inputBg,border:`1px solid #7de87a55`,borderRadius:7,padding:"9px 10px",textAlign:"center"}}>{online.roomCode}</div>
+              <button onClick={online.copyRoomCode} style={{...s.btn(false,"#4ab8e8"),padding:11}}>Kopieren</button>
+            </div>
+            <div style={{fontSize:10,color:C.dim,marginBottom:12}}>
+              Diesen Code auf den anderen Geraeten unter „Raum beitreten“ eingeben.
+            </div>
+            <button onClick={online.disconnect} style={{...s.btn(false,"#e85d4a"),width:"100%",padding:10}}>Online-Raum verlassen</button>
+          </div>:<div>
+            <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Firebase-Webkonfiguration</div>
+            <textarea
+              style={{...s.input,minHeight:132,resize:"vertical",fontSize:10,lineHeight:1.35}}
+              value={online.configText}
+              onChange={e=>online.setConfigText(e.target.value)}
+              spellCheck={false}
+              placeholder={'{\n  "apiKey": "...",\n  "authDomain": "...",\n  "projectId": "...",\n  "appId": "..."\n}'}
+            />
+            <div style={{fontSize:9,color:C.mute,lineHeight:1.35,margin:"6px 0 12px"}}>
+              Du kannst das Objekt aus der Firebase-Konsole direkt einfuegen. Es wird nur auf diesem Geraet gespeichert. Fuer eine feste Installation kann es in src/firebaseConfig.js hinterlegt werden.
+            </div>
+
+            <button disabled={connecting} onClick={online.createRoom}
+              style={{...s.btn(false,"#7de87a"),width:"100%",padding:11,marginBottom:12,opacity:connecting?0.6:1}}>
+              {connecting?"Firebase wird verbunden ...":"Neuen Raum mit diesem Spielstand erstellen"}
+            </button>
+
+            <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Vorhandenem Raum beitreten</div>
+            <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:8}}>
+              <input
+                style={{...s.input,textTransform:"uppercase",letterSpacing:2}}
+                value={online.roomInput}
+                maxLength={10}
+                onChange={e=>online.setRoomInput(e.target.value)}
+                placeholder="RAUMCODE"
+              />
+              <button disabled={connecting||online.roomInput.length!==10} onClick={online.joinRoom}
+                style={{...s.btn(false,"#4ab8e8"),padding:"8px 12px",opacity:(connecting||online.roomInput.length!==10)?0.45:1}}>
+                Beitreten
+              </button>
+            </div>
+          </div>}
+
+          {online.error&&<div style={{marginTop:10,fontSize:10,lineHeight:1.35,color:"#e85d4a",background:"#e85d4a12",border:"1px solid #e85d4a44",borderRadius:6,padding:8}}>
+            {online.error}
+          </div>}
+        </div>
+
+        <div style={s.card()}>
+          <div style={s.sec}>Firebase vorbereiten</div>
+          <div style={{fontSize:10,color:C.dim,lineHeight:1.5}}>
+            1. Firebase-Web-App anlegen.<br/>
+            2. Cloud Firestore erstellen.<br/>
+            3. Anonyme Anmeldung aktivieren.<br/>
+            4. Die Regeln aus firebase.rules veroeffentlichen.<br/>
+            5. Webkonfiguration oben einfuegen oder in firebaseConfig.js hinterlegen.
+          </div>
+        </div>
       </>;
     }
 

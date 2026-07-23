@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function validRoomCode(roomId) {
+      return roomId.matches('^[A-Z2-9]{10}$');
+    }
+
+    function validRoomDocument() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'ownerId',
+        'state',
+        'revision',
+        'createdAt',
+        'updatedAt',
+        'updatedBy'
+      ])
+      && request.resource.data.schemaVersion == 1
+      && request.resource.data.state is map
+      && request.resource.data.revision is int
+      && request.resource.data.revision > 0
+      && request.resource.data.ownerId is string
+      && request.resource.data.updatedBy == request.auth.uid;
+    }
+
+    match /schafkopfRooms/{roomId} {
+      allow create: if signedIn()
+        && validRoomCode(roomId)
+        && validRoomDocument()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      // Der nicht erratbare Raumcode ist die Einladung. Listen aller Raeume
+      // bleiben gesperrt, ein bekannter einzelner Raum darf gelesen werden.
+      allow get: if signedIn() && validRoomCode(roomId);
+      allow list: if false;
+
+      allow update: if signedIn()
+        && validRoomCode(roomId)
+        && validRoomDocument()
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.revision == resource.data.revision + 1
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+  }
+}

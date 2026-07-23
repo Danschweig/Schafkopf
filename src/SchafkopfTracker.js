@@ -1,5 +1,32 @@
     function emptyForm(){return{spieler:null,partner:null,solist:null,verlierer:null,name:"",gewonnen:true,schneider:false,schwarz:false,laufende:0,jungfrauen:0,sticht:0,pflichtramsch:false,durchmarsch:false,mitFarbe:false,tout:false};}
 
+    const ONLINE_CONFIG_KEY="schafkopf-firebase-config-v1";
+    const ONLINE_ROOM_KEY="schafkopf-firebase-room-v1";
+
+    function initialFirebaseConfigText(){
+      try{
+        const saved=localStorage.getItem(ONLINE_CONFIG_KEY);
+        if(saved)return saved;
+      }catch{}
+      const deployed=window.SCHAFKOPF_FIREBASE_CONFIG;
+      return deployed?JSON.stringify(deployed,null,2):"";
+    }
+
+    function parseFirebaseConfigText(value){
+      const input=String(value||"").trim();
+      if(!input)throw new Error("Bitte zuerst die Firebase-Konfiguration eintragen.");
+      try{return JSON.parse(input);}catch{}
+      const start=input.indexOf("{");
+      const end=input.lastIndexOf("}");
+      if(start<0||end<=start)throw new Error("Die Firebase-Konfiguration ist kein gueltiges JSON-Objekt.");
+      const jsonLike=input.slice(start,end+1)
+        .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g,'$1"$2":')
+        .replace(/'/g,'"')
+        .replace(/,\s*}/g,"}");
+      try{return JSON.parse(jsonLike);}
+      catch{throw new Error("Die Firebase-Konfiguration konnte nicht gelesen werden.");}
+    }
+
     function renamePlayerRefs(value,renameMap){
       if(typeof value!=="string"||!renameMap.has(value))return value;
       return renameMap.get(value);
@@ -73,7 +100,22 @@
       const [nextRoundBock,setNextRoundBock]=useState(!!sv?.nextRoundBock);
       const [currentPflichtramsch,setCurrentPflichtramsch]=useState(false);
       const [currentBockRound,setCurrentBockRound]=useState(false);
+      const [firebaseConfigText,setFirebaseConfigText]=useState(initialFirebaseConfigText);
+      const [onlineRoomInput,setOnlineRoomInput]=useState(()=>{try{return localStorage.getItem(ONLINE_ROOM_KEY)||"";}catch{return"";}});
+      const [onlineRoomCode,setOnlineRoomCode]=useState("");
+      const [onlineStatus,setOnlineStatus]=useState("offline");
+      const [onlineSyncing,setOnlineSyncing]=useState(false);
+      const [onlineError,setOnlineError]=useState("");
       const prevPlayersRef=useRef(players);
+      const onlineClientRef=useRef(null);
+      const onlineBaseRef=useRef(null);
+      const onlineReadyRef=useRef(false);
+      const onlinePendingRef=useRef(null);
+      const onlineTimerRef=useRef(null);
+      const onlineWriteInFlightRef=useRef(false);
+      const onlineAutoConnectRef=useRef(false);
+      const onlineConnectionIdRef=useRef(0);
+      const applyingOnlineRef=useRef(false);
       applyThemeMode(themeMode);
 
       useEffect(()=>{
@@ -111,7 +153,10 @@
       useEffect(()=>{
         setYellowCards(cards=>Object.fromEntries(players.map(p=>[p,cards[p]||0])));
       },[players]);
-      useEffect(()=>{setNextRoundRamsch({rolled:false,forced:false});},[forcePflichtramsch,forcePflichtramschChance]);
+      useEffect(()=>{
+        if(applyingOnlineRef.current)return;
+        setNextRoundRamsch({rolled:false,forced:false});
+      },[forcePflichtramsch,forcePflichtramschChance]);
       useEffect(()=>{if(!bockMode){setNextRoundBock(false);setCurrentBockRound(false);}},[bockMode]);
       useEffect(()=>{
         if(!forcePflichtramsch)return;
@@ -184,6 +229,228 @@
       useEffect(()=>{
         if(bockMode&&!bockAllowSolo&&!bockAllowWenz&&!bockAllowGeier&&!bockAllowRamsch)setBockAllowRamsch(true);
       },[bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch]);
+
+      const sharedSessionState=useMemo(()=>({
+        schemaVersion:1,
+        players,
+        fivePlayerMode,
+        tariff,
+        startkapital,
+        rounds,
+        gameTypes,
+        yellowCards,
+        forcePflichtramsch,
+        forcePflichtramschChance,
+        bockMode,
+        bockAllowSolo,
+        bockAllowWenz,
+        bockAllowGeier,
+        bockAllowRamsch,
+        nextRoundBock,
+        nextRoundRamsch
+      }),[
+        players,fivePlayerMode,tariff,startkapital,rounds,gameTypes,yellowCards,
+        forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,
+        bockAllowGeier,bockAllowRamsch,nextRoundBock,nextRoundRamsch
+      ]);
+
+      function onlineErrorMessage(error){
+        const code=String(error?.code||"");
+        if(code.includes("permission-denied"))return "Firebase-Zugriff verweigert. Bitte Authentication und Firestore-Regeln pruefen.";
+        if(code.includes("unauthenticated"))return "Anonyme Firebase-Anmeldung ist nicht aktiviert.";
+        if(code.includes("unavailable"))return "Firebase ist gerade nicht erreichbar. Die Offline-Daten bleiben erhalten.";
+        return error?.message||"Der Online-Modus konnte nicht gestartet werden.";
+      }
+
+      function normalizeOnlineState(data){
+        const remoteFive=!!data?.fivePlayerMode||(Array.isArray(data?.players)&&data.players.length===5);
+        const remotePlayers=normalizePlayers(data?.players,remoteFive);
+        const remoteRounds=Array.isArray(data?.rounds)?migrateRounds(data.rounds):[];
+        const remoteGameTypes=Array.isArray(data?.gameTypes)&&data.gameTypes.length
+          ?migrateGameTypes(data.gameTypes)
+          :DEFAULT_GAME_TYPES;
+        return {
+          schemaVersion:1,
+          players:remotePlayers,
+          fivePlayerMode:remoteFive,
+          tariff:data?.tariff||{sl:25,sauspiel:25,solo:50},
+          startkapital:Number(data?.startkapital)||1500,
+          rounds:remoteRounds,
+          gameTypes:remoteGameTypes,
+          yellowCards:Object.fromEntries(remotePlayers.map(p=>[p,data?.yellowCards?.[p]||0])),
+          forcePflichtramsch:!!data?.forcePflichtramsch,
+          forcePflichtramschChance:Math.max(1,Number(data?.forcePflichtramschChance)||20),
+          bockMode:!!data?.bockMode,
+          bockAllowSolo:data?.bockAllowSolo!==false,
+          bockAllowWenz:data?.bockAllowWenz!==false,
+          bockAllowGeier:data?.bockAllowGeier!==false,
+          bockAllowRamsch:data?.bockAllowRamsch!==false,
+          nextRoundBock:!!data?.nextRoundBock,
+          nextRoundRamsch:{
+            rolled:!!data?.nextRoundRamsch?.rolled,
+            forced:!!data?.nextRoundRamsch?.forced
+          }
+        };
+      }
+
+      function applyOnlineState(state){
+        applyingOnlineRef.current=true;
+        setPlayers(state.players);
+        setFivePlayerMode(state.fivePlayerMode);
+        setTariff(state.tariff);
+        setStart(state.startkapital);
+        setRounds(state.rounds);
+        setGameTypes(state.gameTypes);
+        setYellowCards(state.yellowCards);
+        setForcePflichtramsch(state.forcePflichtramsch);
+        setForcePflichtramschChance(state.forcePflichtramschChance);
+        setBockMode(state.bockMode);
+        setBockAllowSolo(state.bockAllowSolo);
+        setBockAllowWenz(state.bockAllowWenz);
+        setBockAllowGeier(state.bockAllowGeier);
+        setBockAllowRamsch(state.bockAllowRamsch);
+        setNextRoundBock(state.nextRoundBock);
+        setNextRoundRamsch(state.nextRoundRamsch);
+        setTimeout(()=>{applyingOnlineRef.current=false;},0);
+      }
+
+      function handleOnlineRemote(rawState,meta){
+        const state=normalizeOnlineState(rawState);
+        onlineBaseRef.current={state,revision:meta.revision,hash:JSON.stringify(state)};
+        onlineReadyRef.current=true;
+        setOnlineRoomCode(meta.roomCode);
+        setOnlineRoomInput(meta.roomCode);
+        setOnlineStatus("online");
+        setOnlineError("");
+        applyOnlineState(state);
+      }
+
+      function handleOnlineListenerError(error){
+        setOnlineError(onlineErrorMessage(error));
+      }
+
+      async function connectOnline(mode,rawRoomCode=onlineRoomInput,{silent=false}={}){
+        if(onlineStatus==="connecting")return;
+        if(mode==="join"&&!silent&&rounds.length>0&&!window.confirm("Beim Beitritt wird der lokale Spielstand durch den Online-Raum ersetzt. Fortfahren?"))return;
+        const connectionId=++onlineConnectionIdRef.current;
+        setOnlineStatus("connecting");
+        setOnlineError("");
+        onlineReadyRef.current=false;
+        onlineBaseRef.current=null;
+        onlinePendingRef.current=null;
+        if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
+        onlineClientRef.current?.disconnect();
+
+        try{
+          if(!window.SchafkopfFirebase)throw new Error("Firebase-Modul wurde nicht geladen.");
+          const config=parseFirebaseConfigText(firebaseConfigText);
+          window.SchafkopfFirebase.validateConfig(config);
+          const normalizedConfig=JSON.stringify(config,null,2);
+          setFirebaseConfigText(normalizedConfig);
+          try{localStorage.setItem(ONLINE_CONFIG_KEY,normalizedConfig);}catch{}
+
+          const client=await window.SchafkopfFirebase.createClient(config);
+          if(connectionId!==onlineConnectionIdRef.current){client.disconnect();return;}
+          onlineClientRef.current=client;
+          const onState=(state,meta)=>{if(connectionId===onlineConnectionIdRef.current)handleOnlineRemote(state,meta);};
+          const onError=error=>{if(connectionId===onlineConnectionIdRef.current)handleOnlineListenerError(error);};
+          const code=mode==="create"
+            ?await client.createRoom(sharedSessionState,onState,onError)
+            :await client.joinRoom(rawRoomCode,onState,onError);
+          if(connectionId!==onlineConnectionIdRef.current){client.disconnect();return;}
+          setOnlineRoomCode(code);
+          setOnlineRoomInput(code);
+          try{localStorage.setItem(ONLINE_ROOM_KEY,code);}catch{}
+        }catch(error){
+          if(connectionId!==onlineConnectionIdRef.current)return;
+          onlineClientRef.current?.disconnect();
+          onlineClientRef.current=null;
+          onlineReadyRef.current=false;
+          setOnlineStatus("offline");
+          setOnlineError(onlineErrorMessage(error));
+        }
+      }
+
+      function disconnectOnline(){
+        onlineConnectionIdRef.current+=1;
+        onlineClientRef.current?.disconnect();
+        onlineClientRef.current=null;
+        onlineReadyRef.current=false;
+        onlineBaseRef.current=null;
+        onlinePendingRef.current=null;
+        onlineWriteInFlightRef.current=false;
+        if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
+        onlineTimerRef.current=null;
+        setOnlineRoomCode("");
+        setOnlineStatus("offline");
+        setOnlineSyncing(false);
+        setOnlineError("");
+        try{localStorage.removeItem(ONLINE_ROOM_KEY);}catch{}
+      }
+
+      async function copyOnlineRoomCode(){
+        if(!onlineRoomCode)return;
+        try{
+          if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(onlineRoomCode);
+          else window.prompt("Raumcode kopieren:",onlineRoomCode);
+        }catch{window.prompt("Raumcode kopieren:",onlineRoomCode);}
+      }
+
+      async function flushOnlineState(){
+        if(onlineWriteInFlightRef.current||!onlineReadyRef.current||!onlineClientRef.current)return;
+        const pending=onlinePendingRef.current;
+        if(!pending)return;
+        const connectionId=onlineConnectionIdRef.current;
+        onlinePendingRef.current=null;
+        onlineWriteInFlightRef.current=true;
+        setOnlineSyncing(true);
+        let retryDelay=150;
+        try{
+          await onlineClientRef.current.saveState(pending.state,pending.baseState,pending.baseRevision);
+          if(connectionId===onlineConnectionIdRef.current)setOnlineError("");
+        }catch(error){
+          if(connectionId===onlineConnectionIdRef.current&&onlineReadyRef.current){
+            if(!onlinePendingRef.current)onlinePendingRef.current=pending;
+            retryDelay=2500;
+            setOnlineError(onlineErrorMessage(error));
+          }
+        }finally{
+          onlineWriteInFlightRef.current=false;
+          if(connectionId===onlineConnectionIdRef.current)setOnlineSyncing(false);
+          if(onlineReadyRef.current&&onlinePendingRef.current){
+            if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
+            onlineTimerRef.current=setTimeout(flushOnlineState,retryDelay);
+          }
+        }
+      }
+
+      useEffect(()=>{
+        if(onlineStatus!=="online"||!onlineReadyRef.current||!onlineClientRef.current)return;
+        const base=onlineBaseRef.current;
+        if(!base)return;
+        const hash=JSON.stringify(sharedSessionState);
+        if(hash===base.hash)return;
+        onlinePendingRef.current={
+          state:sharedSessionState,
+          baseState:base.state,
+          baseRevision:base.revision
+        };
+        if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
+        onlineTimerRef.current=setTimeout(flushOnlineState,450);
+      },[sharedSessionState,onlineStatus]);
+
+      useEffect(()=>{
+        if(onlineAutoConnectRef.current)return;
+        onlineAutoConnectRef.current=true;
+        let savedRoom="";
+        try{savedRoom=localStorage.getItem(ONLINE_ROOM_KEY)||"";}catch{}
+        if(savedRoom)connectOnline("join",savedRoom,{silent:true});
+        return ()=>{
+          onlineConnectionIdRef.current+=1;
+          if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
+          onlineClientRef.current?.disconnect();
+        };
+      },[]);
 
       const konten=useMemo(()=>{const k=Object.fromEntries(players.map(p=>[p,startkapital]));rounds.forEach(r=>players.forEach(p=>k[p]+=(r.deltas[p]||0)));return k;},[rounds,players,startkapital]);
       const kontenForEdit=useMemo(()=>{if(!editRound)return konten;const k=Object.fromEntries(players.map(p=>[p,startkapital]));rounds.filter(r=>r.id!==editRound.id).forEach(r=>players.forEach(p=>k[p]+=(r.deltas[p]||0)));return k;},[rounds,players,startkapital,editRound,konten]);
@@ -382,6 +649,9 @@
           nav={nav} aussetzenStep={aussetzenStep} editRound={editRound} typeCfg={typeCfg}
           aussetzer={aussetzer} rounds={rounds} tariff={tariff} standings={standings}/>
         <InstallHint show={showInstallHint} onDismiss={dismissInstallHint}/>
+        <OnlineRoomBar
+          status={onlineStatus} syncing={onlineSyncing} roomCode={onlineRoomCode}
+          error={onlineError} onCopy={copyOnlineRoomCode} onDisconnect={disconnectOnline}/>
 
         <div style={{padding:"14px 16px"}}>
           {nav==="home"&&<HomeView
@@ -424,6 +694,20 @@
             yellowCards={yellowCards} setYellowCards={setYellowCards}
             setRounds={setRounds} setNextRoundBock={setNextRoundBock} setNextRoundRamsch={setNextRoundRamsch}
             setCurrentPflichtramsch={setCurrentPflichtramsch} setCurrentBockRound={setCurrentBockRound}
+            online={{
+              status:onlineStatus,
+              syncing:onlineSyncing,
+              error:onlineError,
+              roomCode:onlineRoomCode,
+              roomInput:onlineRoomInput,
+              setRoomInput:value=>setOnlineRoomInput(window.SchafkopfFirebase?.normalizeRoomCode(value)||String(value||"").toUpperCase()),
+              configText:firebaseConfigText,
+              setConfigText:setFirebaseConfigText,
+              createRoom:()=>connectOnline("create"),
+              joinRoom:()=>connectOnline("join"),
+              copyRoomCode:copyOnlineRoomCode,
+              disconnect:disconnectOnline
+            }}
             exportData={exportData} exportSession={exportSession} exportConfig={exportConfig} importFile={importFile}/>} 
         </div>
 

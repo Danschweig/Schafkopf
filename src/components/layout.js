@@ -40,6 +40,25 @@
       </div>;
     }
 
+    function OnlineRoomBar({status,syncing,roomCode,error,onCopy,onDisconnect}){
+      if(status==="offline"&&!error)return null;
+      const connected=status==="online";
+      const color=error?"#e85d4a":connected?"#7de87a":"#f5c842";
+      return <div style={{margin:"10px 16px 0",background:C.bg2,border:`1px solid ${color}55`,borderRadius:8,padding:"8px 10px",display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:8,height:8,borderRadius:"50%",background:color,boxShadow:`0 0 8px ${color}`,flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:10,fontWeight:"bold",color}}>
+            {connected?`Online-Raum ${roomCode}`:error?"Online-Modus nicht verbunden":"Firebase wird verbunden ..."}
+          </div>
+          <div style={{fontSize:9,color:error?"#e85d4a":C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {error||(syncing?"Synchronisierung laeuft":"Alle Sitzungsdaten sind synchronisiert")}
+          </div>
+        </div>
+        {connected&&<button onClick={onCopy} style={{...s.btn(false,"#4ab8e8"),padding:"5px 7px",fontSize:9}}>Code</button>}
+        <button onClick={onDisconnect} style={{...s.btn(false,"#e85d4a"),padding:"5px 7px",fontSize:9}}>Offline</button>
+      </div>;
+    }
+
     function BottomNav({nav,roundsCount,aussetzenStep,setNav,setSelType,setAussetzer,setSpatzenAussetzer,setAussetzenStep,cancelEntry}){
       const navItems=[
         ["home",String.fromCodePoint(0x1F0A1),"Spiel"],
