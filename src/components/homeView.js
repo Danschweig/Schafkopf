@@ -7,7 +7,10 @@
       fivePlayerMode,aussetzenStep,setAussetzenStep,aussetzer,setAussetzer,
       spatzenAussetzer,setSpatzenAussetzer
     }){
-      if(aussetzenStep===1)return <AussetzenPlayerStep players={players} aussetzer={aussetzer} setAussetzer={setAussetzer} setAussetzenStep={setAussetzenStep} setSpatzenAussetzer={setSpatzenAussetzer} fivePlayerMode={fivePlayerMode}/>;
+      if(aussetzenStep===1||aussetzenStep===4)return <AussetzenPlayerStep
+        players={players} aussetzer={aussetzer} setAussetzer={setAussetzer}
+        setAussetzenStep={setAussetzenStep} setSpatzenAussetzer={setSpatzenAussetzer}
+        fivePlayerMode={fivePlayerMode} nextStep={aussetzenStep===4?3:2}/>;
       if(aussetzenStep===2)return <AussetzenTypeStep
         players={players} aussetzer={aussetzer} spatzenAussetzer={spatzenAussetzer} forcedRamschActive={forcedRamschActive}
         bockActive={bockActive} gameTypes={gameTypes} isBockAllowedType={isBockAllowedType}
@@ -31,16 +34,6 @@
 
         {(forcedRamschActive||bockActive)&&<ForcedRoundNotice forcedRamschActive={forcedRamschActive}/>}
 
-        {!fivePlayerMode&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
-          <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>6+ SPATZ AUF DER HAND</div>
-          <div style={{fontSize:11,color:C.dim,marginBottom:10}}>
-            Der Spieler mit 6 oder mehr Spatz setzt aus; die anderen 3 spielen als 2vs1.
-          </div>
-          <button onClick={()=>setAussetzenStep(3)} style={{...s.btn(false,"#a080e0"),width:"100%",padding:11}}>
-            Aussetzen wegen 6+ Spatz
-          </button>
-        </div>}
-
         {fivePlayerMode&&<div style={{...s.card("#a080e044",C.purpleBg),marginBottom:10}}>
           <div style={{fontSize:10,color:"#a080e0",fontWeight:"bold",marginBottom:6}}>5-SPIELER-MODUS</div>
           <div style={{fontSize:11,color:C.dim,marginBottom:10}}>
@@ -51,11 +44,15 @@
           </button>
         </div>}
 
-        <div style={{display:"grid",gridTemplateColumns:`repeat(${visiblePlayTabs.length},1fr)`,gap:6,marginBottom:12}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${visiblePlayTabs.length+1},1fr)`,gap:6,marginBottom:12}}>
           {visiblePlayTabs.map(tab=><button key={tab.id} onClick={()=>setPlayTab(tab.id)}
             style={{...s.subTab(uiPlayTab===tab.id),padding:"9px 4px",fontSize:10,color:uiPlayTab===tab.id?tab.color:C.dim,borderColor:uiPlayTab===tab.id?tab.color:C.border}}>
             {tab.label}
           </button>)}
+          <button onClick={()=>setAussetzenStep(fivePlayerMode?4:3)}
+            style={{...s.subTab(false),padding:"9px 4px",fontSize:10,color:"#a080e0",borderColor:"#a080e0"}}>
+            6+ Spatzen
+          </button>
         </div>
 
         <GameTypeGrid gameTypes={gameTypes} activePlayTab={activePlayTab} isBockAllowedType={isBockAllowedType} startRound={startRound}/>
@@ -118,7 +115,7 @@
       </div>;
     }
 
-    function AussetzenPlayerStep({players,aussetzer,setAussetzer,setAussetzenStep,setSpatzenAussetzer,fivePlayerMode}){
+    function AussetzenPlayerStep({players,aussetzer,setAussetzer,setAussetzenStep,setSpatzenAussetzer,fivePlayerMode,nextStep=2}){
       return <div style={s.card("#a080e044",C.purpleBg)}>
         <div style={s.sec}>{fivePlayerMode?"Wer sitzt diese Runde aus?":"Wer sitzt aus? (6+ Spatz, kein Trumpf)"}</div>
         <div style={{display:"flex",gap:6,marginBottom:16}}>
@@ -128,9 +125,9 @@
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>{setAussetzer(null);setAussetzenStep(0);}} style={{...s.btn(false,"#5a5a8a"),padding:"10px 14px"}}>Zurueck</button>
-          <button onClick={()=>aussetzer&&setAussetzenStep(2)} disabled={!aussetzer}
+          <button onClick={()=>aussetzer&&setAussetzenStep(nextStep)} disabled={!aussetzer}
             style={{...s.btn(!!aussetzer,"#a080e0"),flex:1,padding:10}}>
-            Weiter: Spieltyp waehlen
+            {nextStep===3?"Weiter: 6+ Spatzen waehlen":"Weiter: Spieltyp waehlen"}
           </button>
         </div>
       </div>;

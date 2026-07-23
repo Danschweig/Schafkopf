@@ -4,7 +4,7 @@
           <div>
             <div style={{fontSize:9,color:C.mute,letterSpacing:3}}>SCHAFKOPF</div>
             <div style={{fontSize:15,fontWeight:"bold",color:C.title}}>
-              {nav==="home"&&(aussetzenStep>0?`Aussetzen - ${aussetzenStep===1?"Wer?":aussetzenStep===3?"6+ Spatz":"Spieltyp"}`:"Spieltyp waehlen")}
+              {nav==="home"&&(aussetzenStep>0?`Aussetzen - ${aussetzenStep===1||aussetzenStep===4?"Wer?":aussetzenStep===3?"6+ Spatz":"Spieltyp"}`:"Spieltyp waehlen")}
               {nav==="entry"&&(editRound?`Bearbeiten ${typeCfg?.label||""}`:aussetzer?`${typeCfg?.label||""} (${aussetzer} out)`:typeCfg?.label||"")}
               {nav==="verlauf"&&`Verlauf (${rounds.length})`}
               {nav==="chart"&&"Chart & Statistik"}
