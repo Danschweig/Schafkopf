@@ -57,6 +57,27 @@
       return migrated;
     }
 
+    function normalizeDealRatings(entries){
+      if(!Array.isArray(entries))return[];
+      return entries.map((entry,index)=>({
+        id:entry?.id||`deal-${entry?.createdAt||index}`,
+        createdAt:Number(entry?.createdAt)||0,
+        dealer:String(entry?.dealer||""),
+        ratings:Object.fromEntries(Object.entries(entry?.ratings||{})
+          .map(([player,score])=>[player,Number(score)])
+          .filter(([,score])=>score>=1&&score<=10))
+      })).filter(entry=>entry.dealer);
+    }
+
+    function migrateDealRatingPlayerRefs(entry,renameMap){
+      if(!entry||renameMap.size===0)return entry;
+      return {
+        ...entry,
+        dealer:renamePlayerRefs(entry.dealer,renameMap),
+        ratings:Object.fromEntries(Object.entries(entry.ratings||{}).map(([player,score])=>[renameMap.get(player)||player,score]))
+      };
+    }
+
     function SchafkopfTracker(){
       const getSaved=()=>{try{const s=localStorage.getItem(LS_KEY);if(s)return JSON.parse(s);}catch{}return null;};
       const sv=getSaved();
@@ -75,6 +96,7 @@
       const migrateRounds=(rs)=>{if(!rs)return[];return rs.map(r=>({...r,typeCat:r.typeCat==="solo"? (r.typeId==="wenz"?"solo2":"solo1"):r.typeCat}));};
       const migrateGameTypes=(gt)=>{if(!gt)return[];return gt.map(t=>({...t,cat:t.cat==="solo"?"solo1":t.cat,laufendeFrom:t.id==="geier"?2:t.laufendeFrom}));};
       const [rounds,setRounds]      = useState(migrateRounds(sv?.rounds)||[]);
+      const [dealRatings,setDealRatings]=useState(()=>normalizeDealRatings(sv?.dealRatings));
       const [gameTypes,setGameTypes]= useState(()=>{const saved=sv?.gameTypes;if(saved&&saved.length>0)return migrateGameTypes(saved);return DEFAULT_GAME_TYPES;});
       const [yellowCards,setYellowCards]=useState(()=>Object.fromEntries(normalizePlayers(sv?.players,initialFivePlayerMode).map(p=>[p,sv?.yellowCards?.[p]||0])));
       const [selType,setSelType]    = useState(null);
@@ -130,6 +152,7 @@
         }
         if(renameMap.size>0){
           setRounds(rs=>rs.map(r=>migrateRoundPlayerRefs(r,renameMap)));
+          setDealRatings(entries=>entries.map(entry=>migrateDealRatingPlayerRefs(entry,renameMap)));
           setYellowCards(cards=>Object.fromEntries(players.map((p,i)=>[p,Math.min(1,cards[prevPlayers[i]]||cards[p]||0)])));
           setForm(f=>({
             ...f,
@@ -164,7 +187,7 @@
         const chance=Math.max(1,Number(forcePflichtramschChance)||20);
         setNextRoundRamsch({rolled:true,forced:Math.random()<(1/chance)});
       },[forcePflichtramsch,forcePflichtramschChance,nav,editRound,selType,aussetzenStep,nextRoundRamsch.rolled]);
-      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,fivePlayerMode,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,fivePlayerMode,tariff,startkapital,rounds,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
+      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);
@@ -231,12 +254,13 @@
       },[bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch]);
 
       const sharedSessionState=useMemo(()=>({
-        schemaVersion:1,
+        schemaVersion:2,
         players,
         fivePlayerMode,
         tariff,
         startkapital,
         rounds,
+        dealRatings,
         gameTypes,
         yellowCards,
         forcePflichtramsch,
@@ -249,7 +273,7 @@
         nextRoundBock,
         nextRoundRamsch
       }),[
-        players,fivePlayerMode,tariff,startkapital,rounds,gameTypes,yellowCards,
+        players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,
         forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,
         bockAllowGeier,bockAllowRamsch,nextRoundBock,nextRoundRamsch
       ]);
@@ -270,12 +294,13 @@
           ?migrateGameTypes(data.gameTypes)
           :DEFAULT_GAME_TYPES;
         return {
-          schemaVersion:1,
+          schemaVersion:2,
           players:remotePlayers,
           fivePlayerMode:remoteFive,
           tariff:data?.tariff||{sl:25,sauspiel:25,solo:50},
           startkapital:Number(data?.startkapital)||1500,
           rounds:remoteRounds,
+          dealRatings:normalizeDealRatings(data?.dealRatings),
           gameTypes:remoteGameTypes,
           yellowCards:Object.fromEntries(remotePlayers.map(p=>[p,data?.yellowCards?.[p]||0])),
           forcePflichtramsch:!!data?.forcePflichtramsch,
@@ -300,6 +325,7 @@
         setTariff(state.tariff);
         setStart(state.startkapital);
         setRounds(state.rounds);
+        setDealRatings(state.dealRatings);
         setGameTypes(state.gameTypes);
         setYellowCards(state.yellowCards);
         setForcePflichtramsch(state.forcePflichtramsch);
@@ -331,7 +357,7 @@
 
       async function connectOnline(mode,rawRoomCode=onlineRoomInput,{silent=false}={}){
         if(onlineStatus==="connecting")return;
-        if(mode==="join"&&!silent&&rounds.length>0&&!window.confirm("Beim Beitritt wird der lokale Spielstand durch den Online-Raum ersetzt. Fortfahren?"))return;
+        if(mode==="join"&&!silent&&(rounds.length>0||dealRatings.length>0)&&!window.confirm("Beim Beitritt wird der lokale Spielstand durch den Online-Raum ersetzt. Fortfahren?"))return;
         const connectionId=++onlineConnectionIdRef.current;
         setOnlineStatus("connecting");
         setOnlineError("");
@@ -532,6 +558,20 @@
         });
       }
 
+      function saveDealRating(dealer,ratings){
+        const createdAt=Date.now();
+        setDealRatings(entries=>[...entries,{
+          id:`deal-${createdAt}-${Math.random().toString(36).slice(2,8)}`,
+          createdAt,
+          dealer,
+          ratings
+        }]);
+      }
+
+      function undoLastDealRating(){
+        setDealRatings(entries=>entries.slice(0,-1));
+      }
+
       // Export
       function makeShareUrl(data){
         const base=window.location.href.split('#')[0];
@@ -545,7 +585,7 @@
       function exportData(){
         try{
           const data={
-            players,fivePlayerMode,rounds,startkapital,tariff,yellowCards,
+            players,fivePlayerMode,rounds,dealRatings,startkapital,tariff,yellowCards,
             forcePflichtramsch,
             forcePflichtramschChance,
             bockMode,
@@ -578,7 +618,7 @@
       }
 
       function exportSession(){
-        const data={type:"schafkopf-session",players,fivePlayerMode,rounds,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock,exportDate:new Date().toLocaleDateString("de-DE")};
+        const data={type:"schafkopf-session",players,fivePlayerMode,rounds,dealRatings,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock,exportDate:new Date().toLocaleDateString("de-DE")};
         const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-sicherung-${new Date().toISOString().slice(0,10)}.json`;a.click();
@@ -616,6 +656,7 @@
               if(data.tariff){setTariff(data.tariff);imported=true;}
               if(data.startkapital!=null){setStart(data.startkapital);imported=true;}
               if(Array.isArray(data.rounds)){setRounds(migrateRounds(data.rounds));imported=true;}
+              if(Array.isArray(data.dealRatings)){setDealRatings(normalizeDealRatings(data.dealRatings));imported=true;}
               if(Array.isArray(data.gameTypes)){setGameTypes(migrateGameTypes(data.gameTypes));imported=true;}
               if(data.forcePflichtramsch!=null){setForcePflichtramsch(!!data.forcePflichtramsch);imported=true;}
               if(data.forcePflichtramschChance!=null){setForcePflichtramschChance(Math.max(1,Number(data.forcePflichtramschChance)||20));imported=true;}
@@ -676,6 +717,10 @@
 
           {nav==="chart"&&<ChartTab rounds={rounds} players={players} startkapital={startkapital} gameTypes={gameTypes}/>} 
 
+          {nav==="austeilen"&&<DealRatingsView
+            players={players} dealRatings={dealRatings}
+            onSave={saveDealRating} onUndo={undoLastDealRating}/>}
+
           {nav==="settings"&&<SettingsView
             settingsTab={settingsTab} setSettingsTab={setSettingsTab}
             themeMode={themeMode} setThemeMode={setThemeMode} runeMode={runeMode} setRuneMode={setRuneMode}
@@ -692,7 +737,7 @@
             startkapital={startkapital} setStart={setStart}
             gameTypes={gameTypes} setGameTypes={setGameTypes}
             yellowCards={yellowCards} setYellowCards={setYellowCards}
-            setRounds={setRounds} setNextRoundBock={setNextRoundBock} setNextRoundRamsch={setNextRoundRamsch}
+            setRounds={setRounds} setDealRatings={setDealRatings} setNextRoundBock={setNextRoundBock} setNextRoundRamsch={setNextRoundRamsch}
             setCurrentPflichtramsch={setCurrentPflichtramsch} setCurrentBockRound={setCurrentBockRound}
             online={{
               status:onlineStatus,

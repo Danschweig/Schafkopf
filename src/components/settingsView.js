@@ -4,7 +4,7 @@
       bockMode,setBockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,updateBockAllowed,
       players,setPlayers,fivePlayerMode,setFivePlayerMode,tariff,setTariff,updT,startkapital,setStart,
       gameTypes,setGameTypes,exportData,exportSession,exportConfig,importFile,
-      setYellowCards,setRounds,setNextRoundBock,setNextRoundRamsch,setCurrentPflichtramsch,setCurrentBockRound,
+      setYellowCards,setRounds,setDealRatings,setNextRoundBock,setNextRoundRamsch,setCurrentPflichtramsch,setCurrentBockRound,
       setBockAllowSolo,setBockAllowWenz,setBockAllowGeier,setBockAllowRamsch,online
     }){
       return <>
@@ -34,7 +34,7 @@
 
         {settingsTab!=="online"&&<DataSettings
           players={players} setPlayers={setPlayers} setTariff={setTariff} setStart={setStart}
-          setGameTypes={setGameTypes} setYellowCards={setYellowCards} setRounds={setRounds}
+          setGameTypes={setGameTypes} setYellowCards={setYellowCards} setRounds={setRounds} setDealRatings={setDealRatings}
           setFivePlayerMode={setFivePlayerMode}
           setForcePflichtramsch={setForcePflichtramsch} setForcePflichtramschChance={setForcePflichtramschChance}
           setBockMode={setBockMode} setBockAllowSolo={setBockAllowSolo} setBockAllowWenz={setBockAllowWenz}
@@ -53,7 +53,7 @@
         <div style={s.card(connected?"#7de87a55":C.border,connected?C.successBg:C.bg1)}>
           <div style={s.sec}>Firebase Online-Modus</div>
           <div style={{fontSize:11,color:C.dim,lineHeight:1.45,marginBottom:12}}>
-            Optionaler gemeinsamer Spielstand fuer mehrere Geraete. Runden, Spieler, Tarife, Spielarten und Rundenregeln werden in Echtzeit synchronisiert. Darstellung und gerade offene Eingabeformulare bleiben lokal.
+            Optionaler gemeinsamer Spielstand fuer mehrere Geraete. Runden, Austeil-Bewertungen, Spieler, Tarife, Spielarten und Rundenregeln werden in Echtzeit synchronisiert. Darstellung und gerade offene Eingabeformulare bleiben lokal.
           </div>
 
           {connected?<div>
@@ -223,7 +223,7 @@
     }
 
     function DataSettings({
-      setPlayers,setTariff,setStart,setGameTypes,setYellowCards,setRounds,setFivePlayerMode,
+      setPlayers,setTariff,setStart,setGameTypes,setYellowCards,setRounds,setDealRatings,setFivePlayerMode,
       setForcePflichtramsch,setForcePflichtramschChance,setBockMode,
       setBockAllowSolo,setBockAllowWenz,setBockAllowGeier,setBockAllowRamsch,
       setNextRoundBock,setNextRoundRamsch,setCurrentPflichtramsch,setCurrentBockRound,
@@ -244,9 +244,11 @@
           </label>
         </div>
         <div style={{fontSize:10,color:C.dim,marginBottom:6}}>Loeschen</div>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
           <button onClick={()=>{if(window.confirm("Alle Runden loeschen?"))setRounds([]);}}
-            style={{...s.btn(false,"#e85d4a"),flex:1,padding:8}}>Alle Runden loeschen</button>
+            style={{...s.btn(false,"#e85d4a"),padding:8}}>Alle Runden loeschen</button>
+          <button onClick={()=>{if(window.confirm("Alle Austeil-Bewertungen loeschen?"))setDealRatings([]);}}
+            style={{...s.btn(false,"#e85d4a"),padding:8}}>Bewertungen loeschen</button>
           <button onClick={()=>{if(window.confirm("Alles zuruecksetzen? Runden UND Einstellungen werden auf Standard zurueckgesetzt.")){
             const defaultPlayers=["Spieler 1","Spieler 2","Spieler 3","Spieler 4"];
             setPlayers(defaultPlayers);
@@ -267,7 +269,8 @@
             setCurrentPflichtramsch(false);
             setCurrentBockRound(false);
             setRounds([]);
-          }}} style={{...s.btn(false,"#e85d4a"),flex:1,padding:8}}>Alles zuruecksetzen</button>
+            setDealRatings([]);
+          }}} style={{...s.btn(false,"#e85d4a"),padding:8,gridColumn:"1 / -1"}}>Alles zuruecksetzen</button>
         </div>
       </div>;
     }

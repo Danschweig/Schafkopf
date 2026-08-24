@@ -63,6 +63,31 @@
           .map((round,index)=>({...round,runde:index+1}));
       }
 
+      function mergeDealRatings(baseRatings=[],localRatings=[],remoteRatings=[]){
+        const base=new Map(baseRatings.map(entry=>[String(entry.id),entry]));
+        const local=new Map(localRatings.map(entry=>[String(entry.id),entry]));
+        const remote=new Map(remoteRatings.map(entry=>[String(entry.id),entry]));
+        const ids=new Set([...base.keys(),...local.keys(),...remote.keys()]);
+        const merged=[];
+
+        ids.forEach(id=>{
+          const baseEntry=base.get(id);
+          const localEntry=local.get(id);
+          const remoteEntry=remote.get(id);
+          const localChanged=!jsonEqual(localEntry,baseEntry);
+          const remoteChanged=!jsonEqual(remoteEntry,baseEntry);
+          let selected;
+
+          if(!localChanged)selected=remoteEntry;
+          else if(!remoteChanged)selected=localEntry;
+          else selected=localEntry;
+
+          if(selected)merged.push(cloneJson(selected));
+        });
+
+        return merged.sort((a,b)=>(Number(a.createdAt)||0)-(Number(b.createdAt)||0)||String(a.id).localeCompare(String(b.id)));
+      }
+
       function mergeSessionState(baseState={},localState={},remoteState={}){
         const merged={};
         const keys=new Set([...Object.keys(baseState||{}),...Object.keys(localState||{}),...Object.keys(remoteState||{})]);
@@ -73,6 +98,8 @@
           const remoteValue=remoteState?.[key];
           if(key==="rounds"){
             merged.rounds=mergeRounds(baseValue,localValue,remoteValue);
+          }else if(key==="dealRatings"){
+            merged.dealRatings=mergeDealRatings(baseValue,localValue,remoteValue);
           }else if(jsonEqual(localValue,baseValue)){
             if(remoteValue!==undefined)merged[key]=cloneJson(remoteValue);
           }else if(localValue!==undefined){

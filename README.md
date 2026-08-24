@@ -35,7 +35,7 @@ Die Firebase-Webkonfiguration ist kein Admin-Schluessel und darf mit der Web-App
 2. Den angezeigten fuenfstelligen Raumcode an die Mitspieler weitergeben.
 3. Auf weiteren Geraeten denselben Code unter **Raum beitreten** eingeben.
 
-Synchronisiert werden Runden, Spieler, Kartenstrafen, Tarife, Spielarten, 5-Spieler-Modus sowie Ramsch- und Bock-Regeln. Theme, Runenmodus, Navigation und ein gerade noch nicht gespeichertes Eingabeformular bleiben geraetespezifisch.
+Synchronisiert werden Runden, Spieler, Kartenstrafen, Austeil-Bewertungen, Tarife, Spielarten, 5-Spieler-Modus sowie Ramsch- und Bock-Regeln. Theme, Runenmodus, Navigation und ein gerade noch nicht gespeichertes Eingabeformular bleiben geraetespezifisch.
 
 Bei parallelen Aenderungen verwendet die App Firestore-Transaktionen und eine Drei-Wege-Zusammenfuehrung. Gleichzeitig neu erfasste Runden bleiben dadurch erhalten. Wenn exakt dieselbe bestehende Runde gleichzeitig auf zwei Geraeten bearbeitet wird, gewinnt die zuletzt erfolgreich synchronisierte Bearbeitung.
 

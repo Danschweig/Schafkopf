@@ -15,7 +15,7 @@
     }
 
     function ViewerApp({data}) {
-      const {players, rounds, startkapital, tariff, gameTypes:gTypes, exportDate} = data;
+      const {players, rounds, dealRatings=[], startkapital, tariff, gameTypes:gTypes, exportDate} = data;
       const gt = gTypes || DEFAULT_GAME_TYPES;
       const allTypes = [...gt, {id:"farbwenz",label:"Farbwenz",cat:"solo2"},{id:"farbgeier",label:"Farbgeier",cat:"solo1"}];
 
@@ -25,7 +25,7 @@
 
       function importAndOpen() {
         try { localStorage.setItem(LS_KEY, JSON.stringify({
-          players,fivePlayerMode:data.fivePlayerMode||players.length===5,rounds,startkapital,tariff,gameTypes:gt,
+          players,fivePlayerMode:data.fivePlayerMode||players.length===5,rounds,dealRatings,startkapital,tariff,gameTypes:gt,
           forcePflichtramsch:data.forcePflichtramsch||false,
           forcePflichtramschChance:Math.max(1,Number(data.forcePflichtramschChance)||20),
           bockMode:data.bockMode||false,

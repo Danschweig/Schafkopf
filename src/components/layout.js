@@ -8,6 +8,7 @@
               {nav==="entry"&&(editRound?`Bearbeiten ${typeCfg?.label||""}`:aussetzer?`${typeCfg?.label||""} (${aussetzer} out)`:typeCfg?.label||"")}
               {nav==="verlauf"&&`Verlauf (${rounds.length})`}
               {nav==="chart"&&"Chart & Statistik"}
+              {nav==="austeilen"&&"Austeilkuenste"}
               {nav==="settings"&&"Einstellungen"}
             </div>
           </div>
@@ -64,6 +65,7 @@
         ["home",String.fromCodePoint(0x1F0A1),"Spiel"],
         ["verlauf",`${String.fromCodePoint(0x1F4CB)} ${roundsCount}`,"Verlauf"],
         ["chart",String.fromCodePoint(0x1F4CA),"Chart"],
+        ["austeilen",String.fromCodePoint(0x1F0A0),"Austeilen"],
         ["settings",String.fromCodePoint(0x2699),"Einst."]
       ];
       return <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.navBg,borderTop:`1px solid ${C.border}`,display:"flex",boxShadow:C.mode==="light"?"0 -2px 12px rgba(35,70,35,0.08)":"none"}}>
