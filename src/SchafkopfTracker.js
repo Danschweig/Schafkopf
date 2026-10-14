@@ -128,6 +128,7 @@
       const [onlineStatus,setOnlineStatus]=useState("offline");
       const [onlineSyncing,setOnlineSyncing]=useState(false);
       const [onlineError,setOnlineError]=useState("");
+      const [joinRoomRequest,setJoinRoomRequest]=useState(null);
       const prevPlayersRef=useRef(players);
       const onlineClientRef=useRef(null);
       const onlineBaseRef=useRef(null);
@@ -142,6 +143,7 @@
 
       useEffect(()=>{
         const prevPlayers=prevPlayersRef.current;
+        if(applyingOnlineRef.current){prevPlayersRef.current=players;return;}
         if(prevPlayers===players)return;
         const renameMap=new Map();
         if(prevPlayers.length===players.length){
@@ -168,20 +170,23 @@
         prevPlayersRef.current=players;
       },[players]);
       useEffect(()=>{
+        if(applyingOnlineRef.current)return;
         setPlayers(ps=>normalizePlayers(ps,fivePlayerMode));
         setAussetzer(a=>fivePlayerMode?a:null);
         setSpatzenAussetzer(null);
         setAussetzenStep(0);
       },[fivePlayerMode]);
       useEffect(()=>{
+        if(applyingOnlineRef.current)return;
         setYellowCards(cards=>Object.fromEntries(players.map(p=>[p,cards[p]||0])));
       },[players]);
       useEffect(()=>{
         if(applyingOnlineRef.current)return;
         setNextRoundRamsch({rolled:false,forced:false});
       },[forcePflichtramsch,forcePflichtramschChance]);
-      useEffect(()=>{if(!bockMode){setNextRoundBock(false);setCurrentBockRound(false);}},[bockMode]);
+      useEffect(()=>{if(!applyingOnlineRef.current&&!bockMode){setNextRoundBock(false);setCurrentBockRound(false);}},[bockMode]);
       useEffect(()=>{
+        if(applyingOnlineRef.current)return;
         if(!forcePflichtramsch)return;
         if(nav!=="home"||editRound||selType!==null||nextRoundRamsch.rolled)return;
         const chance=Math.max(1,Number(forcePflichtramschChance)||20);
@@ -250,6 +255,7 @@
         if(playTab!==target)setPlayTab(target);
       },[bockActive,bockAllowRamsch,gameTypes,playTab,bockAllowSolo,bockAllowWenz,bockAllowGeier]);
       useEffect(()=>{
+        if(applyingOnlineRef.current)return;
         if(bockMode&&!bockAllowSolo&&!bockAllowWenz&&!bockAllowGeier&&!bockAllowRamsch)setBockAllowRamsch(true);
       },[bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch]);
 
@@ -337,18 +343,32 @@
         setBockAllowRamsch(state.bockAllowRamsch);
         setNextRoundBock(state.nextRoundBock);
         setNextRoundRamsch(state.nextRoundRamsch);
-        setTimeout(()=>{applyingOnlineRef.current=false;},0);
       }
 
       function handleOnlineRemote(rawState,meta){
+        const joining=!onlineReadyRef.current;
         const state=normalizeOnlineState(rawState);
+        onlineReadyRef.current=false;
+        onlinePendingRef.current=null;
+        if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
+        onlineTimerRef.current=null;
         onlineBaseRef.current={state,revision:meta.revision,hash:JSON.stringify(state)};
-        onlineReadyRef.current=true;
         setOnlineRoomCode(meta.roomCode);
         setOnlineRoomInput(meta.roomCode);
         setOnlineStatus("online");
         setOnlineError("");
         applyOnlineState(state);
+        if(joining){
+          setForm(emptyForm());
+          setEditRound(null);
+          setSelType(null);
+          setAussetzer(null);
+          setSpatzenAussetzer(null);
+          setAussetzenStep(0);
+          setCurrentPflichtramsch(false);
+          setCurrentBockRound(false);
+          setNav(current=>current==="entry"?"home":current);
+        }
       }
 
       function handleOnlineListenerError(error){
@@ -356,15 +376,21 @@
         setOnlineError(onlineErrorMessage(error));
       }
 
-      async function connectOnline(mode,rawRoomCode=onlineRoomInput,{silent=false}={}){
+      async function connectOnline(mode,rawRoomCode=onlineRoomInput,{silent=false,confirmed=false}={}){
         if(onlineStatus==="connecting")return;
-        if(mode==="join"&&!silent&&(rounds.length>0||dealRatings.length>0)&&!window.confirm("Beim Beitritt wird der lokale Spielstand durch den Online-Raum ersetzt. Fortfahren?"))return;
+        if(mode==="join"&&!silent&&!confirmed){
+          setJoinRoomRequest(rawRoomCode);
+          return;
+        }
         const connectionId=++onlineConnectionIdRef.current;
         setOnlineStatus("connecting");
         setOnlineError("");
         onlineReadyRef.current=false;
         onlineBaseRef.current=null;
         onlinePendingRef.current=null;
+        applyingOnlineRef.current=false;
+        onlineWriteInFlightRef.current=false;
+        setOnlineSyncing(false);
         if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
         onlineClientRef.current?.disconnect();
 
@@ -393,18 +419,21 @@
           onlineClientRef.current?.disconnect();
           onlineClientRef.current=null;
           onlineReadyRef.current=false;
+          applyingOnlineRef.current=false;
           setOnlineStatus("offline");
           setOnlineError(onlineErrorMessage(error));
         }
       }
 
       function disconnectOnline(){
+        setJoinRoomRequest(null);
         onlineConnectionIdRef.current+=1;
         onlineClientRef.current?.disconnect();
         onlineClientRef.current=null;
         onlineReadyRef.current=false;
         onlineBaseRef.current=null;
         onlinePendingRef.current=null;
+        applyingOnlineRef.current=false;
         onlineWriteInFlightRef.current=false;
         if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
         onlineTimerRef.current=null;
@@ -442,6 +471,7 @@
             setOnlineError(onlineErrorMessage(error));
           }
         }finally{
+          if(connectionId!==onlineConnectionIdRef.current)return;
           onlineWriteInFlightRef.current=false;
           if(connectionId===onlineConnectionIdRef.current)setOnlineSyncing(false);
           if(onlineReadyRef.current&&onlinePendingRef.current){
@@ -452,10 +482,20 @@
       }
 
       useEffect(()=>{
-        if(onlineStatus!=="online"||!onlineReadyRef.current||!onlineClientRef.current)return;
+        if(onlineStatus!=="online"||!onlineClientRef.current)return;
         const base=onlineBaseRef.current;
         if(!base)return;
         const hash=JSON.stringify(sharedSessionState);
+        // Uploads stay disabled until React has committed the entire room state.
+        // Replacing local data must never be interpreted as a local edit.
+        if(applyingOnlineRef.current){
+          if(hash===base.hash){
+            applyingOnlineRef.current=false;
+            onlineReadyRef.current=true;
+          }
+          return;
+        }
+        if(!onlineReadyRef.current)return;
         if(hash===base.hash)return;
         onlinePendingRef.current={
           state:sharedSessionState,
@@ -687,6 +727,14 @@
       const activePlayTab=visiblePlayTabs.find(t=>t.id===uiPlayTab)||visiblePlayTabs[0];
 
       return <div style={s.page}>
+        {joinRoomRequest!==null&&<JoinRoomDialog
+          roomCode={joinRoomRequest}
+          onCancel={()=>setJoinRoomRequest(null)}
+          onConfirm={()=>{
+            const code=joinRoomRequest;
+            setJoinRoomRequest(null);
+            connectOnline("join",code,{confirmed:true});
+          }}/>}
         <TopBar
           nav={nav} aussetzenStep={aussetzenStep} editRound={editRound} typeCfg={typeCfg}
           aussetzer={aussetzer} rounds={rounds} tariff={tariff} standings={standings}/>

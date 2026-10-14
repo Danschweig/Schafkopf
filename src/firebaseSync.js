@@ -142,7 +142,10 @@
 
         function attachListener(onState,onError){
           if(unsubscribe)unsubscribe();
-          unsubscribe=firestore.onSnapshot(roomRef,snapshot=>{
+          unsubscribe=firestore.onSnapshot(roomRef,{includeMetadataChanges:true},snapshot=>{
+            // A cached snapshot can contain stale data from this device.
+            // Joining and reconnecting always start from the server's state.
+            if(snapshot.metadata.fromCache)return;
             if(!snapshot.exists()){
               onError?.(Object.assign(new Error("Der Online-Raum wurde geloescht. Der lokale Spielstand bleibt erhalten."),{code:"room-deleted"}));
               return;
@@ -191,7 +194,7 @@
           const candidate=normalizeRoomCode(rawRoomCode);
           if(!validRoomCode(candidate))throw new Error("Der Raumcode muss aus 5 oder 10 Zeichen bestehen.");
           const candidateRef=firestore.doc(db,ROOM_COLLECTION,candidate);
-          const snapshot=await firestore.getDoc(candidateRef);
+          const snapshot=await firestore.getDocFromServer(candidateRef);
           if(!snapshot.exists())throw new Error("Online-Raum nicht gefunden.");
           roomCode=candidate;
           roomRef=candidateRef;
@@ -201,11 +204,13 @@
 
         async function saveState(localState,baseState,baseRevision){
           if(!roomRef)throw new Error("Kein Online-Raum verbunden.");
+          const targetRef=roomRef;
           const local=validateState(localState);
           const base=cloneJson(baseState||{});
 
           return firestore.runTransaction(db,async transaction=>{
-            const snapshot=await transaction.get(roomRef);
+            const snapshot=await transaction.get(targetRef);
+            if(roomRef!==targetRef)throw new Error("Die Online-Verbindung wurde beendet.");
             if(!snapshot.exists())throw new Error("Der Online-Raum wurde geloescht.");
             const current=snapshot.data();
             const revision=Number(current.revision)||0;
@@ -213,7 +218,7 @@
               ?local
               :mergeSessionState(base,local,current.state||{});
             validateState(state);
-            transaction.update(roomRef,{
+            transaction.update(targetRef,{
               state,
               revision:revision+1,
               updatedAt:firestore.serverTimestamp(),

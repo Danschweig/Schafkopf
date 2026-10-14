@@ -41,6 +41,8 @@ Fuer diese Funktionen muessen die aktuellen Regeln aus [`firebase.rules`](fireba
 
 Synchronisiert werden Runden, Spieler, Kartenstrafen, Austeil-Bewertungen, Tarife, Spielarten, 5-Spieler-Modus sowie Ramsch- und Bock-Regeln. Theme, Runenmodus, Navigation und ein gerade noch nicht gespeichertes Eingabeformular bleiben geraetespezifisch.
 
+Beim Beitritt (auch beim automatischen Wiederverbinden) ersetzt der aktuelle Server-Spielstand alle lokalen Sitzungsdaten. Ein offenes Eingabeformular wird verworfen. Lokale Daten werden dabei weder hochgeladen noch mit dem Raum zusammengefuehrt. Erst nach der vollstaendigen Uebernahme werden neue Aenderungen synchronisiert; ohne Serververbindung wird der Beitritt nicht abgeschlossen.
+
 Bei parallelen Aenderungen verwendet die App Firestore-Transaktionen und eine Drei-Wege-Zusammenfuehrung. Gleichzeitig neu erfasste Runden bleiben dadurch erhalten. Wenn exakt dieselbe bestehende Runde gleichzeitig auf zwei Geraeten bearbeitet wird, gewinnt die zuletzt erfolgreich synchronisierte Bearbeitung.
 
 ## Lokaler Start
