@@ -32,8 +32,12 @@ Die Firebase-Webkonfiguration ist kein Admin-Schluessel und darf mit der Web-App
 ## Gemeinsame Runde starten
 
 1. Auf dem ersten Geraet **Einstellungen > Online > Neuen Raum erstellen** waehlen.
-2. Den angezeigten fuenfstelligen Raumcode an die Mitspieler weitergeben.
-3. Auf weiteren Geraeten denselben Code unter **Raum beitreten** eingeben.
+2. Auf weiteren Geraeten **Einstellungen > Online > Offene Runden** oeffnen und bei der gewuenschten Runde **Beitreten** waehlen. Die Liste zeigt Spielernamen, Spielanzahl und die letzte Aktivitaet und aktualisiert sich automatisch.
+3. Alternativ den angezeigten fuenfstelligen Raumcode unter **Raum beitreten** eingeben. Aeltere zehnstellige Raumcodes werden ebenfalls unterstuetzt.
+
+Unter **Offene Runden > Schliessen / loeschen** kann jede Runde nach zwei getrennten Sicherheitsabfragen endgueltig aus Firebase geloescht werden. Verbundene Geraete beenden dann die Synchronisierung und behalten ihren lokalen Spielstand. **Online-Raum verlassen** trennt dagegen nur das eigene Geraet und laesst die Online-Runde offen. Alle in `schafkopfRooms` vorhandenen Dokumente gelten als offene Runden, auch bereits frueher angelegte.
+
+Fuer diese Funktionen muessen die aktuellen Regeln aus [`firebase.rules`](firebase.rules) in Firebase veroeffentlicht werden (Firebase-Konsole oder `firebase deploy --only firestore:rules --project smashbingo`). Die Datei enthaelt die gemeinsamen Regeln fuer Schafkopf und SmashBingo: Die bestehenden Zugriffe auf den gemeinsamen Bingo-Pool, die Rundenergebnisse und die manuellen Ranglisten-Korrekturen bleiben erhalten. Im Schafkopf-Bereich erlauben die Regeln allen anonym angemeldeten App-Nutzern, offene Runden aufzulisten, zu lesen, zu bearbeiten und zu loeschen. Die beiden Sicherheitsabfragen erfolgen in der App. Alle weiteren Pfade bleiben gesperrt.
 
 Synchronisiert werden Runden, Spieler, Kartenstrafen, Austeil-Bewertungen, Tarife, Spielarten, 5-Spieler-Modus sowie Ramsch- und Bock-Regeln. Theme, Runenmodus, Navigation und ein gerade noch nicht gespeichertes Eingabeformular bleiben geraetespezifisch.
 

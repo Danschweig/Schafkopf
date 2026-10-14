@@ -352,6 +352,7 @@
       }
 
       function handleOnlineListenerError(error){
+        if(error?.code==="room-deleted")disconnectOnline();
         setOnlineError(onlineErrorMessage(error));
       }
 
@@ -749,7 +750,7 @@
               configText:firebaseConfigText,
               setConfigText:setFirebaseConfigText,
               createRoom:()=>connectOnline("create"),
-              joinRoom:()=>connectOnline("join"),
+              joinRoom:code=>connectOnline("join",typeof code==="string"?code:onlineRoomInput),
               copyRoomCode:copyOnlineRoomCode,
               disconnect:disconnectOnline
             }}

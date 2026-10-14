@@ -48,7 +48,7 @@
     function OnlineSettings({online}){
       const connecting=online.status==="connecting";
       const connected=online.status==="online";
-      const roomCodeLength=window.SchafkopfFirebase?.roomCodeLength||5;
+      const validCode=window.SchafkopfFirebase?.validRoomCode(online.roomInput);
       return <>
         <div style={s.card(connected?"#7de87a55":C.border,connected?C.successBg:C.bg1)}>
           <div style={s.sec}>Firebase Online-Modus</div>
@@ -63,7 +63,7 @@
               <button onClick={online.copyRoomCode} style={{...s.btn(false,"#4ab8e8"),padding:11}}>Kopieren</button>
             </div>
             <div style={{fontSize:10,color:C.dim,marginBottom:12}}>
-              Diesen Code auf den anderen Geraeten unter „Raum beitreten“ eingeben.
+              Auf anderen Geraeten die Runde unten auswaehlen oder diesen Code unter „Raum beitreten“ eingeben.
             </div>
             <button onClick={online.disconnect} style={{...s.btn(false,"#e85d4a"),width:"100%",padding:10}}>Online-Raum verlassen</button>
           </div>:<div>
@@ -89,12 +89,12 @@
               <input
                 style={{...s.input,textTransform:"uppercase",letterSpacing:2}}
                 value={online.roomInput}
-                maxLength={roomCodeLength}
+                maxLength={10}
                 onChange={e=>online.setRoomInput(e.target.value)}
                 placeholder="RAUMCODE"
               />
-              <button disabled={connecting||online.roomInput.length!==roomCodeLength} onClick={online.joinRoom}
-                style={{...s.btn(false,"#4ab8e8"),padding:"8px 12px",opacity:(connecting||online.roomInput.length!==roomCodeLength)?0.45:1}}>
+              <button disabled={connecting||!validCode} onClick={()=>online.joinRoom()}
+                style={{...s.btn(false,"#4ab8e8"),padding:"8px 12px",opacity:(connecting||!validCode)?0.45:1}}>
                 Beitreten
               </button>
             </div>
@@ -105,7 +105,94 @@
           </div>}
         </div>
 
+        <OpenRooms online={online}/>
       </>;
+    }
+
+    function OpenRooms({online}){
+      const [rooms,setRooms]=useState([]);
+      const [loading,setLoading]=useState(true);
+      const [error,setError]=useState("");
+      const [deleting,setDeleting]=useState("");
+      const [reload,setReload]=useState(0);
+      const clientRef=useRef(null);
+      const deletingRef=useRef(false);
+
+      useEffect(()=>{
+        let active=true;
+        let stop=null;
+        setRooms([]);
+        setLoading(true);
+        setError("");
+        clientRef.current=null;
+        function failed(err){
+          if(!active)return;
+          setLoading(false);
+          setError(String(err?.code||"").includes("permission-denied")
+            ?"Die Rundenliste ist in Firebase gesperrt. Bitte die aktuellen Regeln aus firebase.rules veroeffentlichen."
+            :err?.message||"Offene Runden konnten nicht geladen werden.");
+        }
+        const timer=setTimeout(async()=>{
+          try{
+            const config=parseFirebaseConfigText(online.configText);
+            const client=await window.SchafkopfFirebase.createClient(config);
+            if(!active)return;
+            clientRef.current=client;
+            stop=client.watchRooms(next=>{
+              if(!active)return;
+              setRooms(next);
+              setLoading(false);
+              setError("");
+            },failed);
+          }catch(err){failed(err);}
+        },350);
+        return ()=>{active=false;clearTimeout(timer);stop?.();clientRef.current=null;};
+      },[online.configText,reload]);
+
+      async function closeRoom(room){
+        if(deletingRef.current||!clientRef.current)return;
+        if(!window.confirm(`Runde ${room.code} wirklich schliessen und fuer alle Geraete loeschen?`))return;
+        if(!window.confirm(`Bist du dir wirklich, wirklich sicher? Runde ${room.code} wird endgueltig aus Firebase geloescht. Das kann nicht rueckgaengig gemacht werden.`))return;
+        deletingRef.current=true;
+        setDeleting(room.code);
+        setError("");
+        try{
+          await clientRef.current.deleteRoom(room.code);
+          if(room.code===online.roomCode)online.disconnect();
+        }catch(err){
+          setError(String(err?.code||"").includes("permission-denied")
+            ?"Loeschen in Firebase verweigert. Bitte die aktuellen Regeln aus firebase.rules veroeffentlichen."
+            :err?.message||"Die Runde konnte nicht geloescht werden.");
+        }finally{deletingRef.current=false;setDeleting("");}
+      }
+
+      return <div style={s.card()}>
+        <div style={s.sec}>Offene Runden</div>
+        <div style={{fontSize:11,color:C.dim,lineHeight:1.45,marginBottom:12}}>
+          Alle Online-Runden werden hier automatisch aktualisiert. Waehle eine Runde zum Beitreten. Schliessen loescht sie nach zwei Bestaetigungen fuer alle Geraete aus Firebase; lokale Spielstaende bleiben erhalten.
+        </div>
+        {loading&&<div role="status" style={{fontSize:11,color:C.dim}}>Offene Runden werden geladen ...</div>}
+        {error&&<div role="alert" style={{fontSize:11,color:"#e85d4a",marginBottom:10}}>{error}</div>}
+        {!loading&&!error&&rooms.length===0&&<div style={{fontSize:11,color:C.dim}}>Aktuell sind keine Online-Runden offen.</div>}
+        {rooms.map(room=>{
+          const current=room.code===online.roomCode;
+          const busy=online.status==="connecting"||!!deleting;
+          return <div key={room.code} style={{border:`1px solid ${current?"#7de87a55":C.border}`,borderRadius:7,padding:10,marginTop:8}}>
+            <div style={{fontSize:14,fontWeight:"bold",color:C.text,overflowWrap:"anywhere"}}>
+              {room.code}{current&&<span style={{fontSize:10,color:"#7de87a",marginLeft:8}}>Aktuelle Runde</span>}
+            </div>
+            <div style={{fontSize:11,color:C.dim,margin:"6px 0",overflowWrap:"anywhere"}}>{room.players.join(" · ")||"Noch keine Spielernamen"}</div>
+            <div style={{fontSize:10,color:C.dim,marginBottom:10}}>
+              {room.roundCount} Spiele{room.updatedAt>0&&` · Zuletzt aktiv: ${new Date(room.updatedAt).toLocaleString("de-DE")}`}
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              <button disabled={busy||current} onClick={()=>online.joinRoom(room.code)} style={{...s.btn(false,"#4ab8e8"),padding:10,flex:1,opacity:busy||current?0.45:1}}>{current?"Verbunden":"Beitreten"}</button>
+              <button disabled={busy} onClick={()=>closeRoom(room)} style={{...s.btn(false,"#e85d4a"),padding:10,flex:1,opacity:busy?0.45:1}}>{deleting===room.code?"Wird geloescht ...":"Schliessen / loeschen"}</button>
+            </div>
+          </div>;
+        })}
+        {error&&<button onClick={()=>setReload(n=>n+1)} disabled={!!deleting} style={{...s.btn(false,"#4ab8e8"),padding:10,marginTop:10}}>Erneut laden</button>}
+      </div>;
     }
 
     function GeneralSettings({

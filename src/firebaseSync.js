@@ -19,7 +19,11 @@
       }
 
       function normalizeRoomCode(value){
-        return String(value||"").toUpperCase().replace(/[^A-Z2-9]/g,"").slice(0,ROOM_CODE_LENGTH);
+        return String(value||"").toUpperCase().replace(/[^A-Z2-9]/g,"").slice(0,10);
+      }
+
+      function validRoomCode(value){
+        return /^[A-Z2-9]{5}$|^[A-Z2-9]{10}$/.test(String(value||""));
       }
 
       function createRoomCode(){
@@ -140,7 +144,7 @@
           if(unsubscribe)unsubscribe();
           unsubscribe=firestore.onSnapshot(roomRef,snapshot=>{
             if(!snapshot.exists()){
-              onError?.(new Error("Der Online-Raum wurde geloescht."));
+              onError?.(Object.assign(new Error("Der Online-Raum wurde geloescht. Der lokale Spielstand bleibt erhalten."),{code:"room-deleted"}));
               return;
             }
             const data=snapshot.data();
@@ -185,7 +189,7 @@
 
         async function joinRoom(rawRoomCode,onState,onError){
           const candidate=normalizeRoomCode(rawRoomCode);
-          if(candidate.length!==ROOM_CODE_LENGTH)throw new Error(`Der Raumcode muss aus ${ROOM_CODE_LENGTH} Zeichen bestehen.`);
+          if(!validRoomCode(candidate))throw new Error("Der Raumcode muss aus 5 oder 10 Zeichen bestehen.");
           const candidateRef=firestore.doc(db,ROOM_COLLECTION,candidate);
           const snapshot=await firestore.getDoc(candidateRef);
           if(!snapshot.exists())throw new Error("Online-Raum nicht gefunden.");
@@ -219,6 +223,26 @@
           });
         }
 
+        function watchRooms(onRooms,onError){
+          return firestore.onSnapshot(firestore.collection(db,ROOM_COLLECTION),snapshot=>{
+            const rooms=snapshot.docs.map(document=>{
+              const data=document.data();
+              return {
+                code:document.id,
+                players:Array.isArray(data.state?.players)?data.state.players:[],
+                roundCount:Array.isArray(data.state?.rounds)?data.state.rounds.length:0,
+                updatedAt:data.updatedAt?.toMillis?.()||data.createdAt?.toMillis?.()||0
+              };
+            }).sort((a,b)=>b.updatedAt-a.updatedAt||a.code.localeCompare(b.code));
+            onRooms(rooms);
+          },onError);
+        }
+
+        async function deleteRoom(code){
+          if(!validRoomCode(code))throw new Error("Ungueltiger Raumcode.");
+          await firestore.deleteDoc(firestore.doc(db,ROOM_COLLECTION,code));
+        }
+
         function disconnect(){
           if(unsubscribe)unsubscribe();
           unsubscribe=null;
@@ -230,6 +254,8 @@
           uid:credential.user.uid,
           createRoom,
           joinRoom,
+          watchRooms,
+          deleteRoom,
           saveState,
           disconnect
         };
@@ -239,6 +265,7 @@
         version:FIREBASE_VERSION,
         roomCodeLength:ROOM_CODE_LENGTH,
         normalizeRoomCode,
+        validRoomCode,
         validateConfig,
         mergeSessionState,
         createClient
