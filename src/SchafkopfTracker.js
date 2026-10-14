@@ -92,7 +92,7 @@
       const [fivePlayerMode,setFivePlayerMode]=useState(initialFivePlayerMode);
       const [players,setPlayers]    = useState(normalizePlayers(sv?.players,initialFivePlayerMode));
       const [tariff,setTariff]      = useState(sv?.tariff||{sl:25,sauspiel:25,solo:50});
-      const [startkapital,setStart] = useState(sv?.startkapital||1500);
+      const [startkapital,setStart] = useState(sv?.startkapital||1000);
       const migrateRounds=(rs)=>{if(!rs)return[];return rs.map(r=>({...r,typeCat:r.typeCat==="solo"? (r.typeId==="wenz"?"solo2":"solo1"):r.typeCat}));};
       const migrateGameTypes=(gt)=>{if(!gt)return[];return gt.map(t=>({...t,cat:t.cat==="solo"?"solo1":t.cat,laufendeFrom:t.id==="geier"?2:t.laufendeFrom}));};
       const [rounds,setRounds]      = useState(migrateRounds(sv?.rounds)||[]);
@@ -298,7 +298,7 @@
           players:remotePlayers,
           fivePlayerMode:remoteFive,
           tariff:data?.tariff||{sl:25,sauspiel:25,solo:50},
-          startkapital:Number(data?.startkapital)||1500,
+          startkapital:Number(data?.startkapital)||1000,
           rounds:remoteRounds,
           dealRatings:normalizeDealRatings(data?.dealRatings),
           gameTypes:remoteGameTypes,

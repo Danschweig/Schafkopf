@@ -341,7 +341,7 @@
             setPlayers(defaultPlayers);
             setFivePlayerMode(false);
             setTariff({sl:25,sauspiel:25,solo:50});
-            setStart(1500);
+            setStart(1000);
             setGameTypes(DEFAULT_GAME_TYPES);
             setYellowCards(Object.fromEntries(defaultPlayers.map(p=>[p,0])));
             setForcePflichtramsch(false);

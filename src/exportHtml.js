@@ -3,7 +3,7 @@
     const {LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,ReferenceLine,ResponsiveContainer,BarChart,Bar}=Recharts;
     const SESSION=JSON.parse(document.getElementById('sk-data').textContent);
     const ALL_TYPES_RAW=JSON.parse(document.getElementById('sk-types').textContent);
-    const PLAYERS=SESSION.players;const ROUNDS=SESSION.rounds||[];const START=SESSION.startkapital||1100;const TARIFF=SESSION.tariff||{sl:25,sauspiel:25,solo:50};
+    const PLAYERS=SESSION.players;const ROUNDS=SESSION.rounds||[];const START=SESSION.startkapital||1000;const TARIFF=SESSION.tariff||{sl:25,sauspiel:25,solo:50};
     const PCOLORS=["#e85d4a","#f5c842","#4ab8e8","#7de87a","#a080e0"];
     const ALL_TYPES=[...ALL_TYPES_RAW,{id:"farbwenz",label:"Farbwenz",cat:"solo2"},{id:"farbgeier",label:"Farbgeier",cat:"solo1"}];
     const TYPE_CATS={"2vs2":{label:"2 vs 2",color:"#4ab8e8"},"solo1":{label:"Solo",color:"#f5c842"},"solo2":{label:"Solo",color:"#d08b3a"},"ramsch":{label:"Ramsch",color:"#e85d4a"}};
