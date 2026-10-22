@@ -15,8 +15,10 @@ async function harness(){
   });
   const firestore={
     getFirestore:()=>({}),
-    doc:(_db,collection,id)=>({path:`${collection}/${id}`}),
-    collection:(_db,name)=>({path:name}),
+    doc:(_db,...parts)=>({path:parts.join("/")}),
+    collection:(_db,...parts)=>({path:parts.join("/")}),
+    where:(field,operator,value)=>({field,operator,value}),
+    query:(ref,...constraints)=>({...ref,constraints}),
     serverTimestamp:()=>({serverTimestamp:true}),
     async getDocFromServer(ref){paths.push(ref.path);return snapshot(ref);},
     onSnapshot(ref,options,next,error){
@@ -39,7 +41,7 @@ async function harness(){
     "firebase-auth.js":{getAuth:()=>({}),signInAnonymously:async()=>({user:{uid:"test-device"}})},
     "firebase-firestore.js":firestore
   };
-  const context={window:{},crypto,TextEncoder,__importForTest:async url=>{
+  const context={window:{SchafkopfDealRatings:require("../src/dealRatings.js")},crypto,TextEncoder,__importForTest:async url=>{
     const module=modules[url.split("/").at(-1)];
     assert.ok(module,`Unexpected import: ${url}`);
     return module;
@@ -76,6 +78,47 @@ test("Firebase client: join accepts five/ten-character codes and forwards only c
   assert.equal(h.listeners.has("schafkopfRooms/ABCDE"),false);
   await assert.rejects(()=>h.client.joinRoom("ABCD",()=>{}));
   h.client.disconnect();
+});
+
+test("Firebase client: confirmed pending scores use private player documents and never the shared state",async()=>{
+  const h=await harness();const id="deal-private-1234567890";
+  const entry={id,dealer:"Anna",sealed:true,ratings:{},ratingMeta:{}};
+  const state={players:["Anna","Ben","Clara","David"],rounds:[],dealRatings:[entry],completedDeals:{},openDealId:id};
+  h.records.set("schafkopfRooms/ABCDE",{state,revision:1,createdAt:100});
+  await h.client.joinRoom("ABCDE",()=>{});
+  const meta={method:"automatic",algorithmVersion:"hand-v2",rules:{deck:"long",hochzeit:true,wenz:true},cardIds:["secret"],photo:"secret"};
+  await h.client.submitPrivateRating(id,"Ben",6.8,meta);
+  const saved=h.records.get(`schafkopfRooms/ABCDE/privateDealRatings/${id}/players/1`);
+  assert.equal(saved.ownerId,"test-device");assert.equal(saved.score,6.8);
+  assert.ok(!JSON.stringify(saved).includes("secret"));
+  assert.deepEqual(h.records.get("schafkopfRooms/ABCDE").state.dealRatings[0].ratings,{});
+  const game={id:123,runde:1,typeId:"sauspiel",gewonnen:true,dealId:id};
+  const updated=await h.client.saveState({...state,rounds:[game],completedDeals:{[id]:123},dealRatings:[{...entry,ratings:{Ben:6.8}}]},state,1);
+  assert.equal(updated.state.completedDeals[id],123);
+  assert.deepEqual(clone(updated.state.ratingRelease),{dealId:id,roundIndex:0});
+  assert.deepEqual(clone(updated.state.dealRatings[0].ratings),{});
+  await assert.rejects(()=>h.client.submitPrivateRating(id,"Ben",9,meta),/abgeschlossen/);
+});
+
+test("Firebase client: pending queries are scoped to owner/generation, released queries still exclude old room generations",async()=>{
+  const h=await harness();const id="deal-private-1234567890";
+  h.records.set("schafkopfRooms/ABCDE",{state:{completedDeals:{}},revision:1,createdAt:100});
+  await h.client.joinRoom("ABCDE",()=>{});
+  const received=[];
+  let lastQuery;
+  const listen=h.firestore.onSnapshot;
+  h.firestore.onSnapshot=(ref,...rest)=>{lastQuery=ref;return listen(ref,...rest);};
+  let stop=h.client.watchPrivateRatings(id,values=>received.push(values));
+  assert.deepEqual(clone(lastQuery.constraints),[{field:"roomCreatedAt",operator:"==",value:100},{field:"ownerId",operator:"==",value:"test-device"}]);
+  const callback=h.listeners.get(lastQuery.path).next;
+  const docs=[{data:()=>({player:"Ben",score:6.8})}];
+  callback({metadata:{fromCache:true},docs});callback({metadata:{hasPendingWrites:true},docs});assert.equal(received.length,0);
+  callback({metadata:{fromCache:false,hasPendingWrites:false},docs});assert.equal(received.length,1);
+  stop();h.records.set("schafkopfRooms/ABCDE",{state:{completedDeals:{[id]:123}},revision:2,createdAt:100});h.emit("ABCDE");
+  stop=h.client.watchPrivateRatings(id,()=>{});
+  assert.deepEqual(clone(lastQuery.constraints),[{field:"roomCreatedAt",operator:"==",value:100}]);
+  stop();h.client.disconnect();
+  callback({metadata:{fromCache:false,hasPendingWrites:false},docs});assert.equal(received.length,1);
 });
 
 test("Firebase client: stale-base transaction keeps both players and their matching provenance",async()=>{

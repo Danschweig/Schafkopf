@@ -75,7 +75,57 @@ Moduswechsel ändert keine bestehenden Werte. Die Einstellung bleibt nach dem
 Neuladen auf diesem Gerät erhalten und wird nicht zwischen Online-Geräten
 synchronisiert. Der Legacy-Modus unterstützt auch fünf Spieler.
 
-Unter **Austeilen** einmal pro Tisch eine neue Austeilung mit dem Austeiler anlegen. Auf den anderen Geräten dieselbe Austeilung auswählen, den eigenen Spieler wählen und entweder manuell bewerten oder **Karten auswählen** verwenden. Erst **Bewertung bestätigen und speichern** speichert den Wert. Eine erneute Bestätigung oder ein Wechsel zwischen manueller und automatischer Methode ersetzt die Bewertung dieses Spielers in dieser Austeilung.
+Online wird immer die verdeckte Einzelbewertung verwendet. Die lokale
+Legacy-Einstellung bleibt gespeichert und gilt wieder im Offline-Modus.
+
+Unter **Austeilen** einmal pro Spielrunde eine gemeinsame Austeilung mit dem
+Austeiler anlegen. Alle Geräte wählen dieselbe Austeilung und den eigenen
+Spieler. **Bewertung bestätigen und speichern** lädt den eigenen Wert verdeckt
+hoch. Auch der Austeiler kann seine Hand erfassen; seine eigene Hand zählt
+weiterhin nicht zu seiner Austeil-Statistik. Vor dem Rundeneintrag kann der
+Inhaber des Spielerplatzes seine Bewertung ersetzen. Erst das Speichern von
+Spielart und Ergebnis im Spielprotokoll gibt die Werte für alle frei.
+
+### Verdeckte Kartenwerte bis zum Rundenergebnis
+
+1. Vor dem Spielen einmal **Austeilen > Neue Austeilung anlegen** verwenden.
+2. Jeder Spieler scannt und bestätigt auf seinem eigenen Handy seine Hand.
+   Bestätigte Werte sind zunächst nur auf dem eigenen angemeldeten Gerät
+   lesbar. Andere Geräte bekommen weder die Werte noch ihre Bewertungsregeln.
+3. Nach dem Spiel wie gewohnt Spielart, Spieler und Ergebnis eintragen.
+   Mit diesem Rundeneintrag werden die bestätigten Werte für alle sichtbar
+   und zur Austeil-Statistik hinzugefügt. Danach sind sie unveränderlich.
+4. Erst dann die nächste Austeilung anlegen. Kartenstrafen, das Öffnen oder
+   Abbrechen eines Eingabeformulars und das Bearbeiten einer alten Runde
+   geben die aktuelle Austeilung nicht frei.
+
+Bis zur Freigabe berücksichtigen auch Durchschnitte, Zähler, Sicherungen und
+Teilen-Links keine verdeckten Werte. Fotos und Karten-IDs verlassen das Gerät
+weiterhin nicht. Offline werden bestätigte Werte getrennt vom gemeinsamen
+Spielstand lokal aufbewahrt und ebenfalls erst nach dem Rundeneintrag gezählt.
+Historische Bewertungen aus älteren Versionen bleiben unverändert sichtbar.
+
+**Für dieses Update müssen die aktuellen Regeln aus
+[`firebase.rules`](firebase.rules) in der Firebase-Konsole veröffentlicht werden.**
+Ein Push auf GitHub veröffentlicht diese Regeln nicht. Anschließend die neue
+App-Version auf allen beteiligten Geräten neu laden. Ohne die neuen Regeln
+werden private Uploads abgewiesen; die App veröffentlicht als Ersatz keine
+Werte im gemeinsamen Spielstand. Die Smash-Bingo-Regelblöcke sind unverändert.
+
+Die privaten Dokumente liegen unter
+`schafkopfRooms/{roomId}/privateDealRatings/{dealId}/players/{playerIndex}`.
+Sie enthalten nur den numerischen Wert, bereinigte Bewertungsmetadaten, die
+anonyme Geräte-UID und Zeitangaben. Der erste bestätigende Browser besitzt
+den Spielerplatz für diese Austeilung. Die bestehende anonyme Anmeldung ist
+keine persönliche Anmeldung mit einem Spielernamen; auf einem anderen Gerät
+kann man die private Bestätigung dieses Browsers nicht vorzeitig lesen oder
+ersetzen. Die Raum-Erstellungszeit verhindert den Zugriff auf alte private
+Dokumente nach einer Wiederverwendung desselben Raumcodes.
+
+`completedDeals` im Raum enthält ausschließlich Freigabemarker. Die Regeln
+verlangen dazu ein eingetragenes Spielergebnis; der Client schreibt Ergebnis
+und Marker in derselben Transaktion. Ein Rückgängigmachen des Ergebnisses
+macht bereits freigegebene Bewertungen nicht wieder geheim.
 
 Die automatische Bewertung gilt für **langes Blatt (8 aus 32 Karten)**;
 kurzes Blatt wird weiterhin manuell bewertet. Sauspiel, Hochzeit, Wenz,
@@ -146,14 +196,15 @@ verfügbar. Die Browser-Laufzeit liegt unter
 das eigene Modell und die Laufzeit geladen. Die PWA speichert diese statischen Dateien nach Bedarf
 im Cache. Der erste Scan braucht eine Internetverbindung.
 
-Es ist weiterhin kein Build, kein Inferenzserver, kein API-Schlüssel für
-Bilderkennung und keine neue Firebase-Freigabe nötig. Beim Push müssen auch
+Es ist weiterhin kein Build, kein Inferenzserver und kein API-Schlüssel für
+Bilderkennung nötig. Die verdeckten Online-Bewertungen benötigen die oben
+beschriebenen neuen Firebase-Regeln. Beim Push müssen auch
 das eigene Modell samt Metadaten in `models/`, die Dateien unter `vendor/`, die
 Scanner-Skripte und `scanner-check.html` enthalten sein. `.tools/` und
 `node_modules/` sind ausschließlich lokale Entwicklungshilfen und werden
 ignoriert.
 
-Vor der Auswertung wird das Foto unter Beachtung seiner Orientierung auf 640 × 640 Pixel mit proportionaler Skalierung und Randflächen verkleinert. Nur diese Pixel gehen an den lokalen Worker. Die App lädt keine Fotos hoch und speichert sie weder in Firebase noch in Sitzungsdaten oder Sicherungen. Die Vorschau bleibt vorübergehend im Arbeitsspeicher und wird beim Wechseln oder Schließen der Eingabe freigegeben. Die bestehenden Firebase-Regeln einschließlich Smash Bingo bleiben unverändert.
+Vor der Auswertung wird das Foto unter Beachtung seiner Orientierung auf 640 × 640 Pixel mit proportionaler Skalierung und Randflächen verkleinert. Nur diese Pixel gehen an den lokalen Worker. Die App lädt keine Fotos hoch und speichert sie weder in Firebase noch in Sitzungsdaten oder Sicherungen. Die Vorschau bleibt vorübergehend im Arbeitsspeicher und wird beim Wechseln oder Schließen der Eingabe freigegeben. Die Firestore-Regeln ergänzen den Schutz der privaten Zahlenwerte; die Smash-Bingo-Regeln bleiben unverändert.
 
 Das Ergebnis markiert vorgeschlagene Karten im Foto. Nur ausreichend eindeutige,
 unterschiedliche Karten werden in die Auswahl übernommen. Mehrere Eckzeichen
@@ -332,11 +383,22 @@ Seite. Es veröffentlicht den lokalen Arbeitsstand nicht.
 
 Die bisherigen numerischen Einträge in `dealRatings[].ratings[spieler]` bleiben erhalten. Zusätzlich enthält `ratingMeta[spieler]` Methode (`manual`/`automatic`), Algorithmusversion und bei automatischer Bewertung die Regeln (`deck` und die sieben Spielart-Schalter; bei historischen Werten weiterhin nur `hochzeit` und `wenz`). Neue manuelle Bewertungen tragen `manual-v1`; historische Bewertungen werden als `manual`/`legacy` ohne nachträglich erfundene Regeln gekennzeichnet. Unterschiedliche Versionen bleiben beim Laden, Exportieren, Importieren und Umbenennen der Spieler erhalten.
 
-Wie schon bisher ist eine Austeilung unabhängig von den nachträglich erfassten Spielen in `rounds`. Ihre dauerhafte `id` dient gleichzeitig als `roundId` der Austeilung. Es wird keine Zuordnung zu einem Spiel im Spielprotokoll geraten. Der Austeiler steht am Austeilungseintrag, der bewertende Spieler ist der Schlüssel in `ratings` und `ratingMeta`. Beim Anlegen wird zunächst nur eine leere Austeilung synchronisiert; erst die ausdrückliche Bestätigung fügt einen Bewertungswert hinzu. Auf mehreren Geräten dieselbe Austeilung verwenden, statt je Gerät eine neue anzulegen.
+Neue Austeilungen sind mit `sealed: true` markiert. Ihre dauerhafte `id` dient
+weiterhin als `roundId` der Austeilung. Die nächste neu eingetragene Spielrunde
+verweist mit `dealId` auf die offene Austeilung. Der gemeinsame Spielstand
+enthält dort leere `ratings` und `ratingMeta`; die Zahlenwerte liegen in
+separaten privaten Dokumenten. Erst nach der Freigabe werden diese für alle
+geladen. Exporte enthalten nur freigegebene Bewertungen als normale
+historische Einträge. Auf mehreren Geräten dieselbe Austeilung verwenden.
 
 Der Austeilerwert bleibt der ungewichtete Durchschnitt **aller Einzelbewertungen der aktuell geführten Mitspieler außer dem Austeiler** – kein Durchschnitt von Rundendurchschnitten und keine neue Gewichtung für automatische Werte. Gesamt- und Spielerwerte zeigen ihre Anzahl an Bewertungen. Leere Austeilungen zählen noch nicht zur Statistik. Methoden, Versionen und gespeicherte Regeln sind an den einzelnen Bewertungen sichtbar.
 
-Die bestehenden Firestore-Räume, anonymen Anmeldungen, Transaktionen und Zugriffsregeln werden weiterverwendet. Gleichzeitige Änderungen verschiedener Spieler derselben Austeilung werden zusammengeführt; bei demselben Spieler gewinnt die zuletzt erfolgreich synchronisierte Änderung mitsamt ihrer Methode und Version. Wiederholte Bestätigungen nutzen dieselbe Austeilungs-ID und denselben Spielerschlüssel. Handkarten bleiben nur im lokalen Eingabezustand und werden weder in Firestore noch in Sicherungen gespeichert. Es werden keine Fotos gespeichert und keine neuen Dienste benötigt. Der Service-Worker-Cache steht mit der Fotoerkennung auf `schafkopf-v29`.
+Die bestehenden Firestore-Räume, anonymen Anmeldungen und Transaktionen werden
+weiterverwendet. Private Dokumente haben einen festen Spielerplatz pro
+Austeilung; vor der Freigabe kann nur dessen Inhaber den Wert ersetzen.
+Verschiedene Spieler laden unabhängig hoch. Historische, bereits öffentliche
+Bewertungen verwenden weiterhin die bisherige Zusammenführung. Handkarten
+bleiben lokal. Der Service-Worker-Cache steht auf `schafkopf-v30`.
 
 ### Entwicklung und Prüfungen
 
@@ -350,4 +412,24 @@ npm run check
 
 Bei gesperrtem `npm.ps1` unter Windows kann stattdessen `npm.cmd` verwendet werden. `npm test` prüft Algorithmusfälle, 1.000 deterministisch ausgewählte Hände, historische Daten, Ersetzen, parallele Zusammenführung und den vollständigen React-Bedienablauf einschließlich Bestätigung und erneutem Laden. Die Online-Regressionstests simulieren zusätzlich parallele Geräte, verzögerte und doppelte Rückmeldungen, ausstehende Uploads sowie Raumbeitritt, Raumwechsel und Löschung. Die Firebase-Client-Tests prüfen Snapshot-Filter und Transaktionen mit einem simulierten SDK-Transport und kontrollieren, dass Raumoperationen ausschließlich `schafkopfRooms` ansprechen. Die Scanner-Tests prüfen Klassenzuordnung, Bildvorbereitung, Unsicherheit, Duplikate, Korrektur, Bestätigung, Abbruch und Ressourcenfreigabe. Zusätzlich läuft das echte gebündelte ONNX-Modell mit der gebündelten WASM-Laufzeit auf einem leeren Bild und dem unabhängigen Sechs-Karten-Testfoto. `npm run check` übersetzt sämtliche Produktionsskripte mit dem gleichen Babel-React-Preset wie die App, prüft gemeinsame Syntax und globale Deklarationen, die Worker-Syntax sowie die benötigten Scanner- und PWA-Dateien.
 
-Hier erfolgreich geprüft: 91 Tests sowie die Skript-/PWA-Prüfung. Die Tests verwenden lokalen Speicher, einen simulierten Firebase-Transport und die tatsächliche lokale Modellinferenz; sie sind kein Live-Test und keine Auswertung der Firestore-Regeln durch den Emulator. Ein Live-Abgleich zwischen Geräten, die Firebase-Zugriffsregeln im Emulator und eine visuelle Smartphone-/Browserprüfung wurden in dieser Umgebung nicht ausgeführt; die Browser-Verbindung meldete keinen verfügbaren Browser. Für die automatische Bewertung sind keine neuen Regelfreigaben nötig. Die lokale `firebase.rules` entspricht nach dem Merge bis auf Leerzeichen und Zeilenumbrüche dem vom Nutzer bereitgestellten gemeinsamen Regelwerk für Smash Bingo und Schafkopf. Bei der Merge-Nachprüfung und der Erweiterung um die Fotoerkennung wurden keine Regeln geändert oder veröffentlicht.
+Erfolgreich geprüft: 96 App-Tests, die Skript-/PWA-Prüfung und zehn zusätzliche
+Tests mit dem echten Firestore-Emulator. Die Emulator-Tests prüfen private
+Zugriffe, Abfragen, Freigabe und Schreibsperre, Raumcode-Wiederverwendung und
+die unveränderten Smash-Bingo-Bereiche. Ein Test führt den tatsächlichen
+Firebase-Client der App mit zwei getrennten Geräte-Identitäten aus: vor dem
+Ergebnis nur eigene Werte, danach beide Bewertungen. Ein physischer
+Smartphone-Test und eine Prüfung gegen das produktive Firebase-Projekt wurden
+nicht ausgeführt. Die neuen Regeln wurden hier nicht veröffentlicht.
+
+Die zusätzlichen Regeltests benötigen Java 21 sowie lokale Testabhängigkeiten
+unter `.tools/` (unabhängig von der statischen App):
+
+```powershell
+npm.cmd install --prefix .tools/firestore-tests --no-audit --no-fund firebase-tools@15.34.1 @firebase/rules-unit-testing@6.0.0 firebase@13.1.0
+npm.cmd run test:rules
+```
+
+Das Testskript verwendet ausschließlich das lokale Emulator-Projekt
+`demo-schafkopf-private` auf `127.0.0.1:8189` und veröffentlicht nichts.
+Java 21 wird aus `.tools/java21/` verwendet, falls dort vorhanden; andernfalls
+muss eine passende Java-Version über den Systempfad erreichbar sein.

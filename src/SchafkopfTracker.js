@@ -90,6 +90,10 @@
       const migrateGameTypes=(gt)=>{if(!gt)return[];return gt.map(t=>({...t,cat:t.cat==="solo"?"solo1":t.cat,laufendeFrom:t.id==="geier"?2:t.laufendeFrom}));};
       const [rounds,setRounds]      = useState(migrateRounds(sv?.rounds)||[]);
       const [dealRatings,setDealRatings]=useState(()=>normalizeDealRatings(sv?.dealRatings));
+      const [completedDeals,setCompletedDeals]=useState(()=>window.SchafkopfDealRatings.normalizeCompletions(sv?.completedDeals));
+      const [localPrivateRatings,setLocalPrivateRatings]=useState(()=>{try{return JSON.parse(localStorage.getItem("schafkopf-private-ratings-v1"))||{};}catch{return{};}});
+      const [onlinePrivateRatings,setOnlinePrivateRatings]=useState({});
+      const [privateRatingError,setPrivateRatingError]=useState("");
       const [gameTypes,setGameTypes]= useState(()=>{const saved=sv?.gameTypes;if(saved&&saved.length>0)return migrateGameTypes(saved);return DEFAULT_GAME_TYPES;});
       const [yellowCards,setYellowCards]=useState(()=>Object.fromEntries(normalizePlayers(sv?.players,initialFivePlayerMode).map(p=>[p,sv?.yellowCards?.[p]||0])));
       const [selType,setSelType]    = useState(null);
@@ -130,6 +134,7 @@
       const onlinePendingRef=useRef(null);
       const onlineTimerRef=useRef(null);
       const onlineWriteInFlightRef=useRef(false);
+      const onlineWritePromiseRef=useRef(null);
       const onlineAutoConnectRef=useRef(false);
       const onlineConnectionIdRef=useRef(0);
       const applyingOnlineRef=useRef(false);
@@ -150,6 +155,7 @@
         if(renameMap.size>0){
           setRounds(rs=>rs.map(r=>migrateRoundPlayerRefs(r,renameMap)));
           setDealRatings(entries=>entries.map(entry=>migrateDealRatingPlayerRefs(entry,renameMap)));
+          setLocalPrivateRatings(current=>Object.fromEntries(Object.entries(current).map(([id,values])=>[id,values.map(value=>({...value,player:renamePlayerRefs(value.player,renameMap)}))])));
           setYellowCards(cards=>Object.fromEntries(players.map((p,i)=>[p,Math.min(1,cards[prevPlayers[i]]||cards[p]||0)])));
           setForm(f=>({
             ...f,
@@ -187,7 +193,8 @@
         const chance=Math.max(1,Number(forcePflichtramschChance)||20);
         setNextRoundRamsch({rolled:true,forced:Math.random()<(1/chance)});
       },[forcePflichtramsch,forcePflichtramschChance,nav,editRound,selType,aussetzenStep,nextRoundRamsch.rolled]);
-      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
+      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,completedDeals,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,completedDeals,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
+      useEffect(()=>{try{localStorage.setItem("schafkopf-private-ratings-v1",JSON.stringify(localPrivateRatings));}catch{}},[localPrivateRatings]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);
@@ -262,6 +269,7 @@
         startkapital,
         rounds,
         dealRatings,
+        completedDeals,
         gameTypes,
         yellowCards,
         forcePflichtramsch,
@@ -274,7 +282,7 @@
         nextRoundBock,
         nextRoundRamsch
       }),[
-        players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,
+        players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,completedDeals,gameTypes,yellowCards,
         forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,
         bockAllowGeier,bockAllowRamsch,nextRoundBock,nextRoundRamsch
       ]);
@@ -306,6 +314,7 @@
           startkapital:Number(data?.startkapital)||1000,
           rounds:remoteRounds,
           dealRatings:normalizeDealRatings(data?.dealRatings),
+          completedDeals:window.SchafkopfDealRatings.normalizeCompletions(data?.completedDeals),
           gameTypes:remoteGameTypes,
           yellowCards:Object.fromEntries(remotePlayers.map(p=>[p,data?.yellowCards?.[p]||0])),
           forcePflichtramsch:!!data?.forcePflichtramsch,
@@ -332,6 +341,7 @@
         setStart(state.startkapital);
         setRounds(state.rounds);
         setDealRatings(state.dealRatings);
+        setCompletedDeals(state.completedDeals);
         setGameTypes(state.gameTypes);
         setYellowCards(state.yellowCards);
         setForcePflichtramsch(state.forcePflichtramsch);
@@ -409,6 +419,7 @@
         setOnlineSyncing(false);
         if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
         onlineClientRef.current?.disconnect();
+        setOnlinePrivateRatings({});setPrivateRatingError("");
 
         try{
           if(!window.SchafkopfFirebase)throw new Error("Firebase-Modul wurde nicht geladen.");
@@ -424,7 +435,7 @@
           const onState=(state,meta)=>{if(connectionId===onlineConnectionIdRef.current)handleOnlineRemote(state,meta);};
           const onError=error=>{if(connectionId===onlineConnectionIdRef.current)handleOnlineListenerError(error);};
           const code=mode==="create"
-            ?await client.createRoom(sharedSessionState,onState,onError)
+            ?await client.createRoom({...sharedSessionState,dealRatings:visibleDealRatings.map(entry=>entry.sealed&&entry.released?window.SchafkopfDealRatings.exportRatings([entry])[0]:entry)},onState,onError)
             :await client.joinRoom(rawRoomCode,onState,onError);
           if(connectionId!==onlineConnectionIdRef.current){client.disconnect();return;}
           setOnlineRoomCode(code);
@@ -459,6 +470,7 @@
         setOnlineStatus("offline");
         setOnlineSyncing(false);
         setOnlineError("");
+        setOnlinePrivateRatings({});setPrivateRatingError("");
         try{localStorage.removeItem(ONLINE_ROOM_KEY);}catch{}
       }
 
@@ -480,7 +492,9 @@
         setOnlineSyncing(true);
         let retryDelay=150;
         try{
-          const saved=await onlineClientRef.current.saveState(pending.state,pending.baseState,pending.baseRevision);
+          const writing=onlineClientRef.current.saveState(pending.state,pending.baseState,pending.baseRevision);
+          onlineWritePromiseRef.current=writing;
+          const saved=await writing;
           if(connectionId===onlineConnectionIdRef.current){
             const base=onlineBaseRef.current;
             if(base&&base.revision>saved.revision){
@@ -505,6 +519,7 @@
         }finally{
           if(connectionId!==onlineConnectionIdRef.current)return;
           onlineWriteInFlightRef.current=false;
+          onlineWritePromiseRef.current=null;
           if(connectionId===onlineConnectionIdRef.current)setOnlineSyncing(false);
           if(onlineReadyRef.current&&onlinePendingRef.current){
             if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
@@ -536,6 +551,21 @@
         if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
         onlineTimerRef.current=setTimeout(flushOnlineState,450);
       },[sharedSessionState,onlineStatus]);
+
+      const privateWatchKey=JSON.stringify(dealRatings.filter(entry=>entry.sealed).map(entry=>[entry.id,!!onlineBaseRef.current?.state.completedDeals?.[entry.id]]));
+      useEffect(()=>{
+        if(onlineStatus!=="online"||!onlineClientRef.current)return;
+        const client=onlineClientRef.current;
+        const connectionId=onlineConnectionIdRef.current;
+        const stops=dealRatings.filter(entry=>entry.sealed).map(entry=>client.watchPrivateRatings(entry.id,values=>{
+          if(connectionId===onlineConnectionIdRef.current)setOnlinePrivateRatings(current=>({...current,[entry.id]:values}));
+        },error=>{if(connectionId===onlineConnectionIdRef.current)setPrivateRatingError(onlineErrorMessage(error));}));
+        return ()=>stops.forEach(stop=>stop());
+      },[onlineStatus,onlineRoomCode,privateWatchKey]);
+
+      const visibleDealRatings=window.SchafkopfDealRatings.projectRatings(dealRatings,onlineRoomCode?onlinePrivateRatings:localPrivateRatings,completedDeals,false,players);
+      const editableDealRatings=window.SchafkopfDealRatings.projectRatings(dealRatings,onlineRoomCode?onlinePrivateRatings:localPrivateRatings,completedDeals,true,players);
+      const exportedDealRatings=window.SchafkopfDealRatings.exportRatings(visibleDealRatings);
 
       useEffect(()=>{
         if(onlineAutoConnectRef.current)return;
@@ -578,7 +608,10 @@
           setRounds(r=>r.map(round=>round.id===editRound.id?{...round,...savedForm,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,aussetzer:aussetzer||null,spatzenAussetzer:spatzenAussetzer||null,betrag:b,deltas:preview}:round));
           setEditRound(null);setNav("verlauf");
         }else{
-          setRounds(r=>[...r,{id:Date.now(),runde:r.length+1,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,...savedForm,aussetzer:aussetzer||null,spatzenAussetzer:spatzenAussetzer||null,betrag:b,deltas:preview}]);
+          const roundId=Date.now();
+          const active=window.SchafkopfDealRatings.activeDeal(dealRatings,completedDeals);
+          setRounds(r=>[...r,{id:roundId,runde:r.length+1,typeId:selType,typeLabel:typeCfg.label,typeCat:typeCfg.cat,...savedForm,aussetzer:aussetzer||null,spatzenAussetzer:spatzenAussetzer||null,betrag:b,deltas:preview,...(active?{dealId:active.id}:{})}]);
+          if(active)setCompletedDeals(current=>({...current,[active.id]:roundId}));
           setNav("home");
           setNextRoundRamsch({rolled:false,forced:false});
           setNextRoundBock(qualifiesBock);
@@ -632,25 +665,53 @@
 
       function startDealRating(dealer,ratings={}){
         if(!players.includes(dealer))return null;
+        const active=window.SchafkopfDealRatings.activeDeal(dealRatings,completedDeals);
+        if(active)return active.id;
         const createdAt=Date.now();
         const id=`deal-${window.crypto?.randomUUID?.()||`${createdAt}-${Math.random().toString(36).slice(2)}`}`;
         setDealRatings(entries=>[...entries,{
           id,roundId:id,
           createdAt,
           dealer,
-          ratings,ratingMeta:Object.fromEntries(Object.keys(ratings).map(player=>[player,{method:"manual",algorithmVersion:"manual-v1",rules:null}]))
+          sealed:true,ratings:{},ratingMeta:{}
         }]);
+        if(Object.keys(ratings).length)setLocalPrivateRatings(current=>({...current,[id]:Object.entries(ratings).map(([player,score])=>({player,score,meta:{method:"manual",algorithmVersion:"manual-v1",rules:null}}))}));
         return id;
       }
 
       function saveDealRating(dealId,player,score,meta){
         if(!players.includes(player))throw new Error("Der Spieler ist nicht mehr in dieser Runde.");
+        const entry=dealRatings.find(item=>item.id===dealId);
+        if(entry?.sealed){
+          if(!window.SchafkopfDealRatings.validScore(score))throw new Error("Ungültige Bewertung.");
+          if(completedDeals[dealId])throw new Error("Diese Runde ist bereits abgeschlossen. Die Bewertung bleibt unverändert.");
+          if(onlineStatus==="connecting")throw new Error("Bitte warten, bis die Online-Verbindung hergestellt ist.");
+          if(onlineRoomCode){
+            return (async()=>{
+              const connectionId=onlineConnectionIdRef.current;
+              const client=onlineClientRef.current;
+              if(!client||onlineStatus!=="online")throw new Error("Zum Hochladen bitte den Online-Raum verbinden.");
+              if(onlineWritePromiseRef.current)await onlineWritePromiseRef.current;
+              await flushOnlineState();
+              if(connectionId!==onlineConnectionIdRef.current)throw new Error("Der Online-Raum wurde gewechselt.");
+              const saved=await client.submitPrivateRating(dealId,player,score,meta);
+              if(connectionId!==onlineConnectionIdRef.current)return;
+              setOnlinePrivateRatings(current=>({...current,[dealId]:[...(current[dealId]||[]).filter(item=>item.player!==player),saved]}));
+              setPrivateRatingError("");
+              return {private:true,uploaded:true};
+            })();
+          }
+          const saved={player,score,meta:window.SchafkopfDealRatings.cleanMeta(meta)};
+          setLocalPrivateRatings(current=>({...current,[dealId]:[...(current[dealId]||[]).filter(item=>item.player!==player),saved]}));
+          return {private:true,uploaded:false};
+        }
         // Validate before reporting success; a functional update preserves other players' saves.
         window.SchafkopfDealRatings.upsertRating(dealRatings,dealId,player,score,meta);
         setDealRatings(entries=>window.SchafkopfDealRatings.upsertRating(entries,dealId,player,score,meta));
       }
 
       function saveLegacyDealRating(dealer,ratings){
+        if(window.SchafkopfDealRatings.activeDeal(dealRatings,completedDeals))throw new Error("Bitte zuerst das Ergebnis der laufenden Runde eintragen.");
         const raters=players.filter(player=>player!==dealer);
         if(!players.includes(dealer)||!raters.length||!ratings||raters.some(player=>!Number.isInteger(ratings[player])||!window.SchafkopfDealRatings.validScore(ratings[player])))
           throw new Error("Bitte für alle Mitspieler eine Bewertung von 1 bis 10 auswählen.");
@@ -675,7 +736,7 @@
       function exportData(){
         try{
           const data={
-            players,fivePlayerMode,rounds,dealRatings,startkapital,tariff,yellowCards,
+            players,fivePlayerMode,rounds,dealRatings:exportedDealRatings,startkapital,tariff,yellowCards,
             forcePflichtramsch,
             forcePflichtramschChance,
             bockMode,
@@ -708,7 +769,7 @@
       }
 
       function exportSession(){
-        const data={type:"schafkopf-session",players,fivePlayerMode,rounds,dealRatings,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock,exportDate:new Date().toLocaleDateString("de-DE")};
+        const data={type:"schafkopf-session",players,fivePlayerMode,rounds,dealRatings:exportedDealRatings,startkapital,tariff,gameTypes,yellowCards,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock,exportDate:new Date().toLocaleDateString("de-DE")};
         const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
         const a=document.createElement("a");a.href=URL.createObjectURL(blob);
         a.download=`schafkopf-sicherung-${new Date().toISOString().slice(0,10)}.json`;a.click();
@@ -807,6 +868,7 @@
             spatzenAussetzer={spatzenAussetzer} setSpatzenAussetzer={setSpatzenAussetzer}/>} 
 
           {nav==="entry"&&typeCfg&&<EntryForm form={form} upd={upd} players={players} tariff={tariff}
+            pendingDealDealer={window.SchafkopfDealRatings.activeDeal(dealRatings,completedDeals)?.dealer}
             konten={editRound?kontenForEdit:konten} typeCfg={typeCfg} preview={preview}
             onSave={saveRound} onBack={cancelEntry} isEdit={!!editRound} roundNr={rounds.length+1} aussetzer={aussetzer} spatzenAussetzer={spatzenAussetzer}
             forcedPflichtramsch={currentPflichtramsch} forcedBockRound={currentBockRound}/>} 
@@ -816,8 +878,9 @@
           {nav==="chart"&&<ChartTab rounds={rounds} players={players} startkapital={startkapital} gameTypes={gameTypes}/>} 
 
           {nav==="austeilen"&&<DealRatingsView
-            players={players} dealRatings={dealRatings} gameTypes={gameTypes}
-            legacyRating={legacyRating} onLegacySave={saveLegacyDealRating}
+            players={players} dealRatings={editableDealRatings} statsRatings={visibleDealRatings} gameTypes={gameTypes}
+            privateError={privateRatingError} online={!!onlineRoomCode} hasOpenDeal={!!window.SchafkopfDealRatings.activeDeal(dealRatings,completedDeals)}
+            legacyRating={legacyRating&&!onlineRoomCode} onLegacySave={saveLegacyDealRating}
             onStart={startDealRating} onSave={saveDealRating} onUndo={undoLastDealRating}/>}
 
           {nav==="settings"&&<SettingsView

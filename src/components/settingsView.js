@@ -238,7 +238,7 @@
           </button>
           <div style={{fontSize:11,color:C.dim,lineHeight:1.5,marginTop:8}}>
             {legacyRating?"Alter Modus: Austeiler wählen, alle anderen Spieler mit 1–10 bewerten und gemeinsam speichern.":"Neuer Modus: gemeinsame Austeilung anlegen und pro Spieler manuell, mit Kartenauswahl oder Foto bewerten."}
-            {" "}Die Auswahl gilt für dieses Gerät. Gespeicherte Bewertungen und die Statistik bleiben erhalten.
+            {" "}Die Auswahl gilt für dieses Gerät. Online werden immer verdeckte Einzelbewertungen verwendet. Gespeicherte Bewertungen und die Statistik bleiben erhalten.
           </div>
         </div>
 

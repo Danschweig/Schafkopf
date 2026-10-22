@@ -19,19 +19,22 @@
       const id=String(entry.id||`deal-${entry.createdAt||index}`);
       const ratings=Object.fromEntries(Object.entries(entry.ratings||{})
         .map(([player,score])=>[player,Number(score)]).filter(([,score])=>validScore(score)));
-      return {id,roundId:String(entry.roundId||id),createdAt:Number(entry.createdAt)||0,dealer:String(entry.dealer),ratings,
-        ratingMeta:Object.fromEntries(Object.keys(ratings).map(player=>[player,cleanMeta(entry.ratingMeta?.[player])]))};
+      return {id,roundId:String(entry.roundId||id),createdAt:Number(entry.createdAt)||0,dealer:String(entry.dealer),
+        ...(entry.sealed===true?{sealed:true}:{}),ratings:entry.sealed?{}:ratings,
+        ratingMeta:entry.sealed?{}:Object.fromEntries(Object.keys(ratings).map(player=>[player,cleanMeta(entry.ratingMeta?.[player])]))};
     });
   }
   function upsertRating(entries,dealId,player,score,meta){
     if(!validScore(score))throw new Error("Die Bewertung muss zwischen 1,0 und 10,0 liegen.");
     const entry=entries.find(deal=>deal.id===dealId);
     if(!entry)throw new Error("Diese Austeilung ist nicht mehr vorhanden. Bitte neu auswählen.");
+    if(entry.sealed)throw new Error("Diese Bewertung muss verdeckt gespeichert werden.");
     if(!player||player===entry.dealer)throw new Error("Bitte einen anderen Spieler als den Austeiler wählen.");
     return entries.map(deal=>deal.id===dealId?{...deal,
       ratings:{...deal.ratings,[player]:score},ratingMeta:{...deal.ratingMeta,[player]:cleanMeta(meta)}}:deal);
   }
   function dealerStats(players,entries){
+    entries=entries.filter(entry=>!entry.sealed||entry.released===true);
     return Object.fromEntries(players.map(dealer=>{
       const deals=entries.filter(entry=>entry.dealer===dealer);
       const valuesFor=player=>deals.map(entry=>Number(entry.ratings?.[player])).filter(validScore);
@@ -42,7 +45,30 @@
         byPlayer:Object.fromEntries(raters.map(player=>[player,summary(valuesFor(player))]))}];
     }));
   }
-  const api={validScore,cleanMeta,normalizeDealRatings,upsertRating,dealerStats};
+  function normalizeCompletions(value={}){
+    return Object.fromEntries(Object.entries(value||{}).filter(([id,roundId])=>id.startsWith("deal-")&&Number.isSafeInteger(roundId)&&roundId>0));
+  }
+  function activeDeal(entries,completed={}){
+    return entries.find(entry=>entry.sealed&&!Object.hasOwn(completed,entry.id))||null;
+  }
+  function projectRatings(entries,privateRatings={},completed={},includeOwn=false,players=[]){
+    return entries.map(entry=>{
+      if(!entry.sealed)return entry;
+      const released=Object.hasOwn(completed,entry.id);
+      const values=released||includeOwn?privateRatings[entry.id]||[]:[];
+      const ratings={},ratingMeta={};
+      for(const value of values){
+        const player=players.length&&Number.isInteger(value.playerIndex)?players[value.playerIndex]:value.player;
+        if(!player||!validScore(value.score))continue;
+        ratings[player]=value.score;ratingMeta[player]=cleanMeta(value.meta);
+      }
+      return {...entry,released,ratings,ratingMeta};
+    });
+  }
+  function exportRatings(entries){
+    return entries.filter(entry=>!entry.sealed||entry.released).map(({sealed,released,...entry})=>entry);
+  }
+  const api={validScore,cleanMeta,normalizeDealRatings,upsertRating,dealerStats,normalizeCompletions,activeDeal,projectRatings,exportRatings};
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   else root.SchafkopfDealRatings=api;
 })(typeof window!=="undefined"?window:globalThis);

@@ -119,6 +119,8 @@
             merged.rounds=mergeRounds(baseValue,localValue,remoteValue);
           }else if(key==="dealRatings"){
             merged.dealRatings=mergeDealRatings(baseValue,localValue,remoteValue);
+          }else if(key==="completedDeals"){
+            merged.completedDeals={...localValue,...remoteValue};
           }else if(jsonEqual(localValue,baseValue)){
             if(remoteValue!==undefined)merged[key]=cloneJson(remoteValue);
           }else if(localValue!==undefined){
@@ -154,6 +156,8 @@
         let roomRef=null;
         let roomCode="";
         let unsubscribe=null;
+        let roomDocument=null;
+        const privateListeners=new Set();
 
         function attachListener(onState,onError){
           if(unsubscribe)unsubscribe();
@@ -167,6 +171,7 @@
               return;
             }
             const data=snapshot.data();
+            roomDocument=data;
             onState?.(cloneJson(data.state||{}),{
               roomCode,
               revision:Number(data.revision)||0,
@@ -178,6 +183,9 @@
 
         async function createRoom(initialState,onState,onError){
           const state=validateState(initialState);
+          state.completedDeals=state.completedDeals||{};
+          state.dealRatings=(state.dealRatings||[]).map(entry=>entry.sealed?{...entry,ratings:{},ratingMeta:{}}:entry);
+          state.openDealId=state.dealRatings.find(entry=>entry.sealed&&!state.completedDeals[entry.id])?.id||null;
           for(let attempt=0;attempt<5;attempt+=1){
             const candidate=createRoomCode();
             const candidateRef=firestore.doc(db,ROOM_COLLECTION,candidate);
@@ -214,6 +222,7 @@
           if(!snapshot.exists())throw new Error("Online-Raum nicht gefunden.");
           roomCode=candidate;
           roomRef=candidateRef;
+          roomDocument=snapshot.data();
           attachListener(onState,onError);
           return roomCode;
         }
@@ -233,6 +242,18 @@
             const state=revision===Number(baseRevision)
               ?local
               :mergeSessionState(base,local,current.state||{});
+            // Release markers only come from a newly committed game result.
+            // Old releases remain public even if its game is subsequently undone.
+            state.completedDeals={...(current.state?.completedDeals||{})};
+            const toRelease=(state.rounds||[]).findIndex(round=>round.dealId&&!round.cardPenalty&&!state.completedDeals[round.dealId]);
+            if(toRelease>=0){
+              const round=state.rounds[toRelease];
+              state.completedDeals[round.dealId]=round.id;
+              state.ratingRelease={dealId:round.dealId,roundIndex:toRelease};
+            }
+            // Numeric sealed values never enter the common room document.
+            state.dealRatings=(state.dealRatings||[]).map(entry=>entry.sealed?{...entry,ratings:{},ratingMeta:{}}:entry);
+            state.openDealId=state.dealRatings.find(entry=>entry.sealed&&!state.completedDeals[entry.id]&&!(state.rounds||[]).some(round=>round.dealId===entry.id&&!round.cardPenalty))?.id||null;
             validateState(state);
             transaction.update(targetRef,{
               state,
@@ -259,16 +280,55 @@
           },onError);
         }
 
+        async function submitPrivateRating(dealId,player,score,meta){
+          if(!roomRef)throw new Error("Kein Online-Raum verbunden.");
+          if(!Number.isFinite(score)||score<1||score>10)throw new Error("Ungültige Bewertung.");
+          const targetRef=roomRef;
+          return firestore.runTransaction(db,async transaction=>{
+            const snapshot=await transaction.get(targetRef);
+            if(roomRef!==targetRef||!snapshot.exists())throw new Error("Der Online-Raum ist nicht mehr verbunden.");
+            const room=snapshot.data(),state=room.state||{};
+            const entry=state.dealRatings?.find(item=>item.id===dealId&&item.sealed);
+            const index=state.players?.indexOf(player);
+            if(!entry||index<0)throw new Error("Bitte die aktuelle Austeilung und deinen Spieler auswählen.");
+            if(state.completedDeals?.[dealId])throw new Error("Diese Runde ist bereits abgeschlossen. Die Bewertung bleibt unverändert.");
+            if(state.openDealId!==dealId)throw new Error("Bitte warten, bis diese Austeilung online bereit ist.");
+            const clean=window.SchafkopfDealRatings.cleanMeta(meta);
+            const target=firestore.doc(db,ROOM_COLLECTION,roomCode,"privateDealRatings",dealId,"players",String(index));
+            // No read of another player's document; rules enforce ownership of
+            // this deterministic player slot, including on replacements.
+            transaction.set(target,{ownerId:credential.user.uid,player,playerIndex:index,score,meta:clean,
+              roomCreatedAt:room.createdAt,updatedAt:firestore.serverTimestamp()});
+            return {player,playerIndex:index,score,meta:clean,ownerId:credential.user.uid};
+          });
+        }
+
+        function watchPrivateRatings(dealId,onRatings,onError){
+          if(!roomRef||!roomDocument?.createdAt)return ()=>{};
+          const targetRef=roomRef;
+          const filters=[firestore.where("roomCreatedAt","==",roomDocument.createdAt)];
+          if(!roomDocument.state?.completedDeals?.[dealId])filters.push(firestore.where("ownerId","==",credential.user.uid));
+          const collection=firestore.collection(db,ROOM_COLLECTION,roomCode,"privateDealRatings",dealId,"players");
+          const stop=firestore.onSnapshot(firestore.query(collection,...filters),{includeMetadataChanges:true},snapshot=>{
+            if(roomRef!==targetRef||snapshot.metadata.fromCache||snapshot.metadata.hasPendingWrites)return;
+            onRatings(snapshot.docs.map(document=>document.data()));
+          },onError);
+          privateListeners.add(stop);
+          return ()=>{privateListeners.delete(stop);stop();};
+        }
+
         async function deleteRoom(code){
           if(!validRoomCode(code))throw new Error("Ungueltiger Raumcode.");
           await firestore.deleteDoc(firestore.doc(db,ROOM_COLLECTION,code));
         }
 
         function disconnect(){
+          privateListeners.forEach(stop=>stop());privateListeners.clear();
           if(unsubscribe)unsubscribe();
           unsubscribe=null;
           roomRef=null;
           roomCode="";
+          roomDocument=null;
         }
 
         return {
@@ -278,6 +338,8 @@
           watchRooms,
           deleteRoom,
           saveState,
+          submitPrivateRating,
+          watchPrivateRatings,
           disconnect
         };
       }

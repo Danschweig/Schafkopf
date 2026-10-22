@@ -22,8 +22,9 @@
         ...window.SchafkopfHandEvaluation.rulesForGameTypes(gameTypes),...(savedMeta?.rules?.deck==="long"?savedMeta.rules:{})
       }));
       const [notice,setNotice]=useState("");
+      const [saving,setSaving]=useState(false);
       const evaluation=useMemo(()=>cards.length===8?window.SchafkopfHandEvaluation.evaluateHand(cards,rules):null,[cards,rules]);
-      const complete=!scanning&&(method==="manual"?window.SchafkopfDealRatings.validScore(manual):Number.isFinite(evaluation?.score));
+      const complete=!scanning&&!saving&&(method==="manual"?window.SchafkopfDealRatings.validScore(manual):Number.isFinite(evaluation?.score));
       function toggleCard(id){
         setCards(current=>current.includes(id)?current.filter(card=>card!==id):current.length<8?[...current,id]:current);
         setNotice("");
@@ -34,8 +35,13 @@
         const meta=method==="automatic"?{method,algorithmVersion:evaluation.algorithmVersion,rules:evaluation.rules}
           :{method,algorithmVersion:"manual-v1",rules:null};
         try{
-          onSave(deal.id,player,score,meta);
-          setNotice(`Bestätigt: ${formatDealScore(score)} / 10. Ein vorheriger Wert wird ersetzt.`);
+          const finish=result=>{
+            setSaving(false);
+            setNotice(result?.private?`Verdeckt ${result.uploaded?"hochgeladen":"auf diesem Gerät gespeichert"}: ${formatDealScore(score)} / 10. Für andere erst nach dem Rundeneintrag sichtbar.`:`Bestätigt: ${formatDealScore(score)} / 10. Ein vorheriger Wert wird ersetzt.`);
+          };
+          const result=onSave(deal.id,player,score,meta);
+          if(result?.then){setSaving(true);setNotice("Wird verdeckt hochgeladen …");result.then(finish,error=>{setSaving(false);setNotice(error.code==="permission-denied"?"Hochladen verweigert: Bitte die neuen Firebase-Regeln veröffentlichen und prüfen, ob dieser Spieler bereits auf einem anderen Gerät bestätigt wurde.":error.message);});}
+          else finish(result);
         }catch(error){setNotice(error.message);}
       }
       function breakdown(label,candidate){
@@ -135,7 +141,7 @@
       }
       return <div style={s.card("#4ab8e855",C.bg1)}>
         <div style={s.sec}>Neue Austeilung</div>
-        <div style={{fontSize:11,color:C.dim,lineHeight:1.5,marginBottom:10}}>Wer hat ausgeteilt? Danach bewertet jeder andere Spieler seine Karten von 1 bis 10. Alle Bewertungen werden gemeinsam gespeichert.</div>
+        <div style={{fontSize:11,color:C.dim,lineHeight:1.5,marginBottom:10}}>Wer hat ausgeteilt? Danach bewertet jeder andere Spieler seine Karten von 1 bis 10. Alle Bewertungen werden gemeinsam verdeckt gespeichert und erst mit dem nächsten Rundenergebnis zur Statistik hinzugefügt.</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:6}}>
           {players.map((name,index)=><button key={name} aria-pressed={dealer===name} onClick={()=>{setDealer(name);setRatings({});setNotice("");}}
             style={{...s.pBtn(dealer===name,PCOLORS[index]),minHeight:44,overflowWrap:"anywhere"}}>{name}</button>)}
@@ -158,14 +164,14 @@
       </div>;
     }
 
-    function DealRatingsView({players,dealRatings,gameTypes,legacyRating,onLegacySave,onStart,onSave,onUndo}){
+    function DealRatingsView({players,dealRatings,statsRatings=dealRatings,gameTypes,legacyRating,onLegacySave,onStart,onSave,onUndo,privateError,online,hasOpenDeal}){
       const [newDealer,setNewDealer]=useState(null);
       const [selectedId,setSelectedId]=useState(()=>dealRatings[dealRatings.length-1]?.id||"");
       const [player,setPlayer]=useState("");
       const deal=dealRatings.find(entry=>entry.id===selectedId);
-      const raters=deal?players.filter(name=>name!==deal.dealer):[];
-      const stats=useMemo(()=>window.SchafkopfDealRatings.dealerStats(players,dealRatings),[players,dealRatings]);
-      const countedDeals=dealRatings.filter(entry=>Object.keys(entry.ratings||{}).length>0).length;
+      const raters=deal?(deal.sealed?players:players.filter(name=>name!==deal.dealer)):[];
+      const stats=useMemo(()=>window.SchafkopfDealRatings.dealerStats(players,statsRatings),[players,statsRatings]);
+      const countedDeals=statsRatings.filter(entry=>(!entry.sealed||entry.released)&&Object.keys(entry.ratings||{}).length>0).length;
       useEffect(()=>{
         if(!dealRatings.some(entry=>entry.id===selectedId))setSelectedId(dealRatings[dealRatings.length-1]?.id||"");
       },[dealRatings,selectedId]);
@@ -182,7 +188,7 @@
         {legacyRating?<LegacyDealRatingForm players={players} onSave={onLegacySave}/>:<div style={s.card("#4ab8e855",C.bg1)}>
           <div style={s.sec}>Austeilung bewerten</div>
           <div style={{fontSize:11,color:C.text,lineHeight:1.5,marginBottom:10}}>
-            Pro Austeilung und Spieler zählt genau eine bestätigte Bewertung. Auf mehreren Geräten dieselbe Austeilung auswählen. Sie wird wie bisher unabhängig vom Spielprotokoll erfasst.
+            Pro Runde einmal die Austeilung anlegen. Jeder wählt auf seinem Handy den eigenen Spieler und bestätigt seine Kartenbewertung. Andere sehen den Wert erst, wenn Spielart und Ergebnis der Runde eingetragen sind. Die Statistik wartet ebenfalls bis dahin.
           </div>
           <div style={{border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginBottom:12}}>
             <div style={{fontSize:11,color:C.dim,marginBottom:8}}>Für eine neue Austeilung den Austeiler wählen. Nur einmal pro Tisch anlegen.</div>
@@ -190,33 +196,36 @@
               {players.map((name,index)=><button key={name} title={name} aria-pressed={newDealer===name} onClick={()=>setNewDealer(name)}
                 style={{...s.pBtn(newDealer===name,PCOLORS[index]),overflowWrap:"anywhere",minHeight:44}}>{name}</button>)}
             </div>
-            <button disabled={!newDealer} onClick={start} style={{...s.btn(!!newDealer,"#4ab8e8"),width:"100%",marginTop:10,opacity:newDealer?1:0.45}}>Neue Austeilung anlegen</button>
+            <button disabled={!newDealer||hasOpenDeal} onClick={start} style={{...s.btn(!!newDealer&&!hasOpenDeal,"#4ab8e8"),width:"100%",marginTop:10,opacity:newDealer&&!hasOpenDeal?1:0.45}}>Neue Austeilung anlegen</button>
+            {hasOpenDeal&&<div style={{fontSize:11,marginTop:8}}>Die aktuelle Austeilung gehört zur nächsten eingetragenen Spielrunde. Erst danach kann die nächste angelegt werden.</div>}
           </div>
           <label style={{fontSize:11,color:C.dim}}>Austeilung auswählen
             <select aria-label="Austeilung auswählen" style={{...s.input,marginTop:5}} value={deal?selectedId:""} onChange={event=>{setSelectedId(event.target.value);setPlayer("");}}>
               <option value="" disabled>Noch keine Austeilung</option>
-              {dealRatings.map((entry,index)=><option key={entry.id} value={entry.id}>Austeilung {index+1} · {entry.dealer} · {Object.keys(entry.ratings||{}).length} bewertet</option>)}
+              {dealRatings.map((entry,index)=><option key={entry.id} value={entry.id}>Austeilung {index+1} · {entry.dealer} · {entry.sealed&&!entry.released?"verdeckte Runde":`${Object.keys(entry.ratings||{}).length} bewertet`}</option>)}
             </select>
           </label>
           {deal&&<>
             <div style={{fontSize:10,color:C.dim,margin:"8px 0",overflowWrap:"anywhere"}}>Runden-ID der Austeilung: {deal.roundId||deal.id}</div>
+            {deal.sealed&&<div style={{fontSize:11,lineHeight:1.5,marginBottom:8}}>{deal.released?"Runde abgeschlossen: bestätigte Bewertungen sind jetzt sichtbar und unveränderlich.":online?"Verdeckte Runde: Nur deine auf diesem Gerät bestätigten Werte sind für dich sichtbar. Für die anderen Spieler bleiben sie bis zum Rundeneintrag gesperrt.":"Verdeckte Runde: Diese Werte zählen erst nach dem Rundeneintrag zur Statistik. Für getrennte Handys bitte einen Online-Raum verwenden."}</div>}
             <div style={{display:"grid",gap:6}}>
               {raters.map(name=><button key={name} aria-pressed={player===name} onClick={()=>setPlayer(name)}
                 style={{...s.btn(player===name,PCOLORS[players.indexOf(name)]),textAlign:"left",minHeight:48}}>
                 <span style={{fontWeight:"bold"}}>{name}</span>
-                <span style={{display:"block",fontSize:10,marginTop:4}}>{deal.ratings?.[name]!=null?`${formatDealScore(deal.ratings[name])} / 10 · ${ratingMethodLabel(deal.ratingMeta?.[name])}`:"Noch nicht bestätigt"}</span>
+                <span style={{display:"block",fontSize:10,marginTop:4}}>{deal.ratings?.[name]!=null?`${formatDealScore(deal.ratings[name])} / 10 · ${ratingMethodLabel(deal.ratingMeta?.[name])}`:deal.sealed&&!deal.released?"Verdeckt · eigenen Spieler auswählen":"Noch nicht bestätigt"}</span>
                 {deal.ratingMeta?.[name]?.rules&&<span style={{display:"block",fontSize:10,marginTop:4}}>{ratingRulesLabel(deal.ratingMeta[name].rules)}</span>}
               </button>)}
             </div>
-            {player&&raters.includes(player)&&<HandRatingEditor key={`${deal.id}:${player}`} player={player} deal={deal} onSave={onSave} gameTypes={gameTypes}/>}
+            {player&&raters.includes(player)&&!(deal.sealed&&deal.released)&&<HandRatingEditor key={`${deal.id}:${player}`} player={player} deal={deal} onSave={onSave} gameTypes={gameTypes}/>}
           </>}
         </div>}
 
+        {privateError&&<div role="alert" style={{fontSize:11,color:"#e85d4a",marginTop:8}}>{privateError}</div>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,margin:"18px 0 9px"}}>
           <div style={{...s.sec,marginBottom:0}}>Austeil-Statistik</div>
           <div style={{fontSize:9,color:C.mute}}>{countedDeals} bewertete Austeilungen</div>
         </div>
-        <div style={{fontSize:10,color:C.dim,lineHeight:1.5,marginBottom:10}}>Wie bisher: Durchschnitt aller Einzelbewertungen, über alle Methoden und Versionen. Die Zahl in Klammern nennt die Anzahl der Bewertungen.</div>
+        <div style={{fontSize:10,color:C.dim,lineHeight:1.5,marginBottom:10}}>Durchschnitt aller freigegebenen Einzelbewertungen der Mitspieler, über alle Methoden und Versionen. Die eigene Hand des Austeilers zählt nicht zu seiner Austeil-Statistik. Die Zahl in Klammern nennt die Anzahl der Bewertungen.</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(250px,100%),1fr))",gap:10}}>
           {players.map((dealerName,index)=>{const dealerStats=stats[dealerName];return <div key={dealerName} style={{...s.card(PCOLORS[index]+"55",PCOLORS[index]+"0d"),marginBottom:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:10}}>

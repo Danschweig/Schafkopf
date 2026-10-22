@@ -2,7 +2,7 @@ const {test}=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const vm=require("node:vm");
-const {normalizeDealRatings,upsertRating,dealerStats}=require("../src/dealRatings.js");
+const {normalizeDealRatings,upsertRating,dealerStats,projectRatings,exportRatings,activeDeal,normalizeCompletions}=require("../src/dealRatings.js");
 const context={window:{}};
 vm.runInNewContext(fs.readFileSync(require.resolve("../src/firebaseSync.js"),"utf8"),context);
 const merge=(base,local,remote)=>JSON.parse(JSON.stringify(context.window.SchafkopfFirebase.mergeSessionState(
@@ -11,6 +11,26 @@ const players=["Anna","Ben","Clara","David"];
 const automatic={method:"automatic",algorithmVersion:"hand-v1",rules:{deck:"long",hochzeit:true,wenz:false}};
 const manual={method:"manual",algorithmVersion:"manual-v1",rules:null};
 const original=()=>normalizeDealRatings([{id:"round-1",createdAt:100,dealer:"Anna",ratings:{Ben:7,Clara:5}}]);
+
+test("sealed ratings never normalize into public values or update dealer statistics before release",()=>{
+  const entry=normalizeDealRatings([{id:"deal-private-123456",dealer:"Anna",sealed:true,ratings:{Ben:9},ratingMeta:{Ben:automatic}}]);
+  assert.deepEqual(entry[0].ratings,{});assert.deepEqual(entry[0].ratingMeta,{});
+  assert.throws(()=>upsertRating(entry,entry[0].id,"Ben",8,automatic),/verdeckt/);
+  const privateValues={[entry[0].id]:[{player:"Ben",score:8.3,meta:automatic},{player:"Clara",score:3,meta:manual}]};
+  const own=projectRatings(entry,privateValues,{},true);
+  assert.equal(own[0].ratings.Ben,8.3);
+  assert.equal(dealerStats(players,own).Anna.count,0);
+  assert.deepEqual(projectRatings(entry,privateValues)[0].ratings,{});
+  assert.deepEqual(exportRatings(own),[]);
+  const released=projectRatings(entry,privateValues,{[entry[0].id]:123});
+  assert.equal(dealerStats(players,released).Anna.count,2);
+  assert.equal(dealerStats(players,released).Anna.average,5.65);
+  assert.deepEqual(exportRatings(released)[0].ratings,{Ben:8.3,Clara:3});
+  assert.equal(Object.hasOwn(exportRatings(released)[0],"sealed"),false);
+  assert.equal(activeDeal(entry).id,entry[0].id);
+  assert.equal(activeDeal(entry,{[entry[0].id]:123}),null);
+  assert.deepEqual(normalizeCompletions({[entry[0].id]:123,"deal-invalid":-1,other:124}),{[entry[0].id]:123});
+});
 
 test("legacy scores and identity survive normalization, metadata is inferred",()=>{
   const entries=original();

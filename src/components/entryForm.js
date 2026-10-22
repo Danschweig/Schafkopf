@@ -1,5 +1,5 @@
     // ── Entry Form ───────────────────────────────────────────────
-    function EntryForm({form,upd,players,tariff,konten,typeCfg,preview,onSave,onBack,isEdit,roundNr,aussetzer,spatzenAussetzer,forcedPflichtramsch,forcedBockRound}){
+    function EntryForm({form,upd,players,tariff,konten,typeCfg,preview,onSave,onBack,isEdit,roundNr,aussetzer,spatzenAussetzer,forcedPflichtramsch,forcedBockRound,pendingDealDealer}){
       const catColor=TYPE_CATS[typeCfg.cat]?.color||"#fff";
       const aussetzerList=[aussetzer,spatzenAussetzer].filter(Boolean);
       const activePlayers=aussetzerList.length?players.filter(p=>!aussetzerList.includes(p)):players;
@@ -85,6 +85,7 @@
           </div>
         </div>}
 
+        {!isEdit&&pendingDealDealer&&<div style={{fontSize:11,lineHeight:1.5,color:C.dim,marginBottom:10}}>Mit dem Eintragen dieses Ergebnisses werden die verdeckten Kartenbewertungen der Austeilung von {pendingDealDealer} für alle freigegeben.</div>}
         <div style={{display:"flex",gap:8}}>
           <button onClick={onBack} style={{...s.btn(false,"#5a5a8a"),padding:"12px 16px"}}>← Zurück</button>
           <button onClick={onSave} disabled={!preview}

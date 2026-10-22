@@ -46,6 +46,14 @@ const click=node=>{assert.ok(!node.props.disabled,"Cannot click a disabled butto
 const card=(app,label)=>app.rendered.root.findAllByType("button").find(node=>node.props["aria-label"]===label);
 const confirmation=app=>button(app,/^Bewertung bestätigen/);
 const open=app=>click(button(app,/Austeilen$/));
+const privateState=instance=>JSON.parse(instance.storage.get("schafkopf-private-ratings-v1")||"{}");
+function enterSauspiel(instance){
+  click(button(instance,/Spiel$/));
+  act(()=>instance.rendered.root.findByType(instance.context.HomeView).props.startRound("sauspiel"));
+  act(()=>instance.rendered.root.findByType(instance.context.EntryForm).props.upd("spieler","Ben"));
+  act(()=>instance.rendered.root.findByType(instance.context.EntryForm).props.upd("partner","Clara"));
+  click(button(instance,/Runde \d+ eintragen$/));
+}
 
 test("full app: pick eight cards, explicitly confirm, replace and reload without exposing cards",()=>{
   const instance=app();
@@ -116,13 +124,13 @@ test("full app: create shared empty dealing, choose players, keep each rating se
   assert.equal(entry.dealer,"Anna");
   assert.equal(entry.id,entry.roundId);
   assert.deepEqual(entry.ratings,{});
-  click(button(instance,/^BenNoch/));
+  click(button(instance,/^BenVerdeckt/));
   assert.equal(button(instance,"Karten auswählen").props["aria-pressed"],true);
   click(button(instance,"Manuell bewerten"));
   click(card(instance,"Ben: 8 von 10"));
   assert.deepEqual(instance.state().dealRatings[0].ratings,{});
   click(confirmation(instance));
-  click(button(instance,/^ClaraNoch/));
+  click(button(instance,/^ClaraVerdeckt/));
   assert.equal(confirmation(instance).props.disabled,true);
   assert.equal(button(instance,"Karten auswählen").props["aria-pressed"],true);
   assert.ok(button(instance,"Karten fotografieren"));
@@ -130,8 +138,14 @@ test("full app: create shared empty dealing, choose players, keep each rating se
   click(card(instance,"Clara: 3 von 10"));
   click(confirmation(instance));
   entry=instance.state().dealRatings[0];
-  assert.deepEqual(entry.ratings,{Ben:8,Clara:3});
+  assert.deepEqual(entry.ratings,{});
+  assert.deepEqual(Object.fromEntries(privateState(instance)[entry.id].map(item=>[item.player,item.score])),{Ben:8,Clara:3});
   assert.equal(instance.state().dealRatings.length,1);
+  assert.match(text(instance.rendered.root),/0 bewertete Austeilungen/);
+  enterSauspiel(instance);
+  assert.equal(instance.state().completedDeals[entry.id],instance.state().rounds[0].id);
+  assert.equal(instance.state().rounds[0].dealId,entry.id);
+  open(instance);
   assert.match(text(instance.rendered.root),/5,5 \(2\)/);
   act(()=>instance.rendered.unmount());
 });
@@ -178,6 +192,7 @@ async function onlineApp(local={players,dealRatings:[oldDeal]},server=local){
   const storage=new Map([["schafkopf-v1",JSON.stringify(local)],["schafkopf-firebase-room-v1","ABCDE"]]);
   const timers=new Map();
   const writes=[];
+  const privateWrites=[],privateListeners=new Map(),privateValues={};
   let timerId=0;
   let receive;
   let firstReceive;
@@ -185,12 +200,19 @@ async function onlineApp(local={players,dealRatings:[oldDeal]},server=local){
   let revision=1;
   let instance;
   const client={
+    uid:"test-device",
     async joinRoom(code,onState,onError){receive=onState;firstReceive??=onState;fail=onError;onState(server,{roomCode:code,revision});return code;},
     async saveState(state,baseState,baseRevision){
       writes.push(JSON.parse(JSON.stringify({state,baseState,baseRevision})));
       return {state,revision:baseRevision+1};
     },
-    disconnect(){},watchRooms(){return ()=>{};}
+    async submitPrivateRating(dealId,player,score,meta){
+      const saved={player,score,meta,ownerId:"test-device"};privateWrites.push({dealId,...saved});
+      privateValues[dealId]=[...(privateValues[dealId]||[]).filter(item=>item.player!==player),saved];
+      privateListeners.get(dealId)?.(privateValues[dealId]);return saved;
+    },
+    watchPrivateRatings(dealId,next){privateListeners.set(dealId,next);next(privateValues[dealId]||[]);return ()=>privateListeners.delete(dealId);},
+    disconnect(){privateListeners.clear();},watchRooms(){return ()=>{};}
   };
   await act(async()=>{
     instance=app(local,storage,context=>{
@@ -199,7 +221,8 @@ async function onlineApp(local={players,dealRatings:[oldDeal]},server=local){
       context.SchafkopfFirebase.createClient=async()=>client;
     });
   });
-  return {...instance,writes,client,
+  return {...instance,writes,client,privateWrites,
+    async emitPrivate(dealId,values){await act(async()=>privateListeners.get(dealId)?.(values));},
     async emit(state,nextRevision=revision+1){revision=nextRevision;await act(async()=>receive(state,{roomCode:"ABCDE",revision}));},
     async fail(error){await act(async()=>fail(error));},
     async emitFromFirst(state){await act(async()=>firstReceive(state,{roomCode:"ABCDE",revision:100}));},
@@ -426,11 +449,12 @@ test("rating modes: legacy batches save once, persist across reload and share un
     click(button(instance,"Bewertung speichern"));
     const entries=instance.state().dealRatings;
     assert.equal(entries.length,2);
-    assert.deepEqual(entries[1].ratings,{Ben:8,Clara:4,David:6});
+    assert.deepEqual(entries[1].ratings,{});
+    assert.deepEqual(Object.fromEntries(privateState(instance)[entries[1].id].map(item=>[item.player,item.score])),{Ben:8,Clara:4,David:6});
     assert.equal(entries[1].id,entries[1].roundId);
-    for(const meta of Object.values(entries[1].ratingMeta))assert.deepEqual(meta,{method:"manual",algorithmVersion:"manual-v1",rules:null});
+    for(const {meta} of privateState(instance)[entries[1].id])assert.deepEqual(meta,{method:"manual",algorithmVersion:"manual-v1",rules:null});
     assert.deepEqual(entries[0].ratingMeta.Ben,original.ratingMeta.Ben);
-    assert.equal(instance.context.SchafkopfDealRatings.dealerStats(players,entries).Anna.count,5);
+    assert.equal(instance.context.SchafkopfDealRatings.dealerStats(players,entries).Anna.count,2);
     assert.equal(instance.context.SchafkopfDealRatings.dealerStats(players,entries).Anna.average,6);
     act(()=>instance.rendered.unmount());
     restored=app(undefined,instance.storage);
@@ -461,30 +485,72 @@ test("legacy mode: five players need four ratings and changing dealer discards o
     for(const name of ["Anna","Clara","David","Eva"])click(card(instance,`${name}: 5 von 10`));
     click(button(instance,"Bewertung speichern"));
     assert.equal(instance.state().dealRatings.length,2);
-    assert.deepEqual(instance.state().dealRatings[1].ratings,{Anna:5,Clara:5,David:5,Eva:5});
+    assert.deepEqual(instance.state().dealRatings[1].ratings,{});
+    assert.deepEqual(Object.fromEntries(privateState(instance)[instance.state().dealRatings[1].id].map(item=>[item.player,item.score])),{Anna:5,Clara:5,David:5,Eva:5});
     assert.equal(instance.state().dealRatings[1].dealer,"Ben");
     assert.deepEqual(instance.state().dealRatings[0].ratings,oldDeal.ratings);
   }finally{act(()=>instance.rendered.unmount());}
 });
 
-test("online: rating mode stays local and a legacy batch synchronizes as one complete deal",async()=>{
+test("online: legacy preference stays local and online rounds always use private individual submissions",async()=>{
   const instance=await onlineApp();
   try{
     await instance.flush();assert.equal(instance.writes.length,0);
     click(button(instance,/Einst\.$/));click(legacyToggle(instance));
     await instance.flush();assert.equal(instance.writes.length,0);
     open(instance);click(button(instance,"Anna"));
-    for(const name of ["Ben","Clara","David"])click(card(instance,`${name}: 6 von 10`));
+    assert.equal(instance.rendered.root.findAllByType(instance.context.LegacyDealRatingForm).length,0);
     await instance.flush();assert.equal(instance.writes.length,0);
-    click(button(instance,"Bewertung speichern"));
+    click(button(instance,"Neue Austeilung anlegen"));
     await instance.flush();assert.equal(instance.writes.length,1);
     const shared=instance.writes[0].state;
     assert.equal(Object.hasOwn(shared,"legacyRating"),false);
     assert.equal(shared.dealRatings.length,2);
-    assert.deepEqual(shared.dealRatings[1].ratings,{Ben:6,Clara:6,David:6});
+    assert.deepEqual(shared.dealRatings[1].ratings,{});
+    assert.equal(shared.dealRatings[1].sealed,true);
     await instance.emit(shared,3);
     assert.equal(instance.state().legacyRating,true);
     await instance.flush();assert.equal(instance.writes.length,1);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("online: own scan uploads privately, statistics wait for the game and other values arrive only after release",async()=>{
+  const instance=await onlineApp({players,dealRatings:[]});
+  try{
+    open(instance);click(button(instance,"Anna"));click(button(instance,"Neue Austeilung anlegen"));
+    const entry=instance.state().dealRatings[0];
+    click(button(instance,/^BenVerdeckt/));
+    instance.context.SchafkopfCardScanner.scanPhoto=async()=>scanResult(photographedHand);
+    await act(async()=>photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}}));
+    await act(async()=>confirmation(instance).props.onClick());
+    assert.equal(instance.privateWrites.length,1);
+    assert.equal(instance.privateWrites[0].score,6.8);
+    assert.deepEqual(instance.state().dealRatings[0].ratings,{});
+    assert.match(text(instance.rendered.root),/Verdeckt hochgeladen/);
+    assert.match(text(instance.rendered.root),/0 bewertete Austeilungen/);
+    assert.ok(instance.writes.every(write=>Object.keys(write.state.dealRatings[0].ratings).length===0));
+    assert.ok(!JSON.stringify(instance.writes).includes("cardIds"));
+    enterSauspiel(instance);
+    await instance.flush();
+    await instance.emitPrivate(entry.id,[{player:"Ben",score:6.8,meta:{method:"automatic",algorithmVersion:"hand-v2",rules:null}},{player:"Clara",score:4.2,meta:{method:"manual",algorithmVersion:"manual-v1",rules:null}}]);
+    open(instance);
+    assert.match(text(instance.rendered.root),/Runde abgeschlossen/);
+    assert.match(text(instance.rendered.root),/5,5 \(2\)/);
+    assert.equal(instance.rendered.root.findAllByType(instance.context.HandRatingEditor).length,0);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("online: a failed private upload never falls back to publishing a score",async()=>{
+  const instance=await onlineApp({players,dealRatings:[]});
+  try{
+    instance.client.submitPrivateRating=async()=>{throw Object.assign(new Error('denied'),{code:'permission-denied'});};
+    open(instance);click(button(instance,"Anna"));click(button(instance,"Neue Austeilung anlegen"));
+    click(button(instance,/^BenVerdeckt/));click(button(instance,"Manuell bewerten"));click(card(instance,"Ben: 9 von 10"));
+    await act(async()=>confirmation(instance).props.onClick());
+    assert.match(text(instance.rendered.root),/Hochladen verweigert/);
+    assert.deepEqual(instance.state().dealRatings[0].ratings,{});
+    assert.ok(instance.writes.every(write=>Object.keys(write.state.dealRatings[0].ratings).length===0));
+    assert.equal(instance.privateWrites.length,0);
   }finally{act(()=>instance.rendered.unmount());}
 });
 

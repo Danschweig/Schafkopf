@@ -1,6 +1,8 @@
 node_modules/
 __pycache__/
 .tools/
+firebase-debug.log
+firestore-debug.log
 
 # Private Kartenfotos: nur Anleitung und leere Ordnerstruktur versionieren.
 kartenfotos/**
