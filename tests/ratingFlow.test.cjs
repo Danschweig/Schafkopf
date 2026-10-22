@@ -498,8 +498,9 @@ test("photo flow: camera recognition previews eight cards and saves only the con
     instance.context.SchafkopfCardScanner.scanPhoto=async(file,options)=>{usedModel=options.model;return {...scanResult(photographedHand),modelVersion:instance.context.SchafkopfCardScannerCore.MODELS.personal.version};};
     open(instance);click(button(instance,/^Ben7,0/));
     assert.equal(button(instance,"Karten auswählen").props["aria-pressed"],true);
-    const modelSelect=instance.rendered.root.findAllByType("select").find(node=>node.findAllByType("option").some(option=>option.props.value==="personal"));
-    act(()=>modelSelect.props.onChange({target:{value:"personal"}}));
+    assert.equal(instance.rendered.root.findAllByType("select").filter(node=>node.findAllByType("option").some(option=>["personal","standard"].includes(option.props.value))).length,0);
+    assert.match(text(instance.rendered.root),/Kartenscan \(Beta\)/);
+    assert.doesNotMatch(text(instance.rendered.root),/Allgemeines Kartenmodell/);
     assert.equal(photoInput(instance).props.accept,"image/*");
     await act(async()=>photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}}));
     assert.equal(usedModel,"personal");

@@ -3,6 +3,60 @@
 Die Python-Skripte sind Entwicklungshilfen. Die statische App braucht weiterhin
 weder Python noch einen Build. Sie laden keine Nutzerfotos hoch.
 
+## Dritter Datensatz: weitere echte Handfotos
+
+Zwölf zusätzliche Originalfotos wurden visuell beschriftet. Vor dem Erzeugen
+der Varianten wurden `IMG_7936.jpg` und `IMG_7939.jpg` nach `kartenfotos/test/`
+verschoben und für den späteren Test reserviert. Die ursprüngliche bekannte
+Testaufnahme bleibt ebenfalls dort. Alle neuen Aufnahmen stammen offenbar
+aus derselben Fotositzung: Die zwei reservierten Fotos prüfen neue Hände,
+aber keine anderen Geräte oder Aufnahmesituationen.
+
+Die zehn übrigen neuen Fotos und die drei bisherigen Trainingshände liefern
+je 48 Varianten. Zusammen mit 384 zusammengesetzten Szenen und 128
+Eckzeichen-Anordnungen enthält `.tools/card-training/pilot-v3/` damit
+1.136 Trainingsbilder und 64 synthetische Validierungsbilder. Alle 32 Klassen
+sind jetzt auch in den echten Trainingshänden vertreten. Der dritte Lauf
+trainierte alle Schichten ausgehend vom besten Checkpoint des zweiten Laufs
+über zwölf weitere Epochen (rund 44 Minuten CPU-Training).
+
+```powershell
+& .tools/model-export/Scripts/python.exe scripts/prepare-card-training.py --output .tools/card-training/pilot-v3 --synthetic 384 --patch-scenes 128 --real-variants 48 --seed 20261024 --photo-backgrounds
+& .tools/model-export/Scripts/python.exe scripts/train-card-model.py --data .tools/card-training/pilot-v3/dataset.yaml --weights .tools/card-training/runs/pilot-v2/weights/best.pt --name pilot-v3 --epochs 12 --freeze 0 --lr 0.0002 --nbs 16 --warmup 1 --warmup-bias-lr 0.002
+& .tools/model-export/Scripts/python.exe scripts/export-trained-card-model.py .tools/card-training/runs/pilot-v3/weights/best.pt --output .tools/card-training/candidate-v3/bavarian-cards.onnx --version bavarian-corners-pilot-2026-10-22-v3
+```
+
+Das Ausgabeziel muss noch frei sein. Die Varianten ändern Drehung, Größe,
+Platzierung, Hintergrund und Beleuchtung und fügen teilweise leichte
+Unschärfe und Bildrauschen hinzu. Die Kartenzeichen werden nicht gespiegelt.
+Markierungen folgen den geometrischen Transformationen. Bei Querformatfotos
+richtet `trainingRotationDegreesCCW` nur die abgeleitete Trainingsansicht auf;
+die Originale und ihre Markierungen in Originalpixeln bleiben unverändert.
+Neu hinzugefügte Trainingsfotos ohne Beschriftung führen jetzt zu einem Fehler,
+statt unbemerkt beim Erzeugen des Datensatzes übersprungen zu werden.
+
+Die private Aufteilung und beschrifteten Kontrollbilder liegen unter
+`kartenfotos/aufbereitung/neue-fotos/`. Die Datensatzprüfung und Vorschau liegen
+unter `kartenfotos/aufbereitung/datensatz-v3-pruefung.json` und
+`kartenfotos/aufbereitung/trainingsbeispiele-v3.jpg`. Kein Testfoto und kein
+daraus gewonnener Ausschnitt wird für Training, Hintergründe oder interne
+Validierung verwendet. Nach Auswahl und Export des Checkpoints wurden beide
+neuen Testfotos mit der gebündelten ONNX-WASM-Laufzeit ausgewertet: jeweils
+acht richtige Karten ohne falsche Übernahme. Die Auswahlgrenzen wurden dafür
+nicht geändert. Auch das bekannte ältere Testfoto liefert nun acht richtige
+Karten; beim ersten Beispielfoto fehlt weiterhin Eichel-König und die Hand
+bleibt unvollständig. Ein anderes Kartenmotiv zeigt weiterhin Verwechslungen.
+Version 3 wurde nach diesen Prüfungen in die App übernommen.
+
+Die abschließenden Tests sind wiederholbar (nach der ersten Auswertung sind
+die zwei Fotos bekannte Vergleichsfälle, keine frischen Blindtests):
+
+```powershell
+node scripts/check-card-photo.cjs kartenfotos/test/IMG_7936.jpg kartenfotos/test/IMG_7936.labels.json --report .tools/card-training/candidate-v3/holdout-7936.json
+node scripts/check-card-photo.cjs kartenfotos/test/IMG_7939.jpg kartenfotos/test/IMG_7939.labels.json --report .tools/card-training/candidate-v3/holdout-7939.json
+node scripts/benchmark-card-model.cjs models/bavarian-corners.onnx .tools/card-training/candidate-v3/benchmark.json
+```
+
 ## Daten
 
 `prepare-card-training.py` verwendet die visuell geprüften Einzelkartenbilder

@@ -34,14 +34,17 @@ Handyfotos oder sämtlicher Druckvarianten wurde nicht nachgewiesen.
 ## Nachtrainiertes Eckzeichenmodell
 
 `models/bavarian-corners.onnx` ist zusätzlich enthalten und für das vorhandene
-Kartenblatt voreingestellt. Es leitet sich vom selben AGPL-3.0-Checkpoint ab
+Kartenblatt das einzige im Scanner verwendete Modell. Es leitet sich vom selben AGPL-3.0-Checkpoint ab
 und übernimmt diese Lizenz. Das allgemeine Modell bleibt unverändert separat
 enthalten. Version, Klassen, Prüfsummen und Trainingsherkunft des zusätzlichen
 Modells stehen in `models/bavarian-corners.metadata.json`.
 
 Für das lokale Nachtraining wurden die vom Nutzer bereitgestellten
-Einzelkartenbilder und drei beschriftete Trainingshände verwendet. Die zweite
-Erweiterung umfasst 608 Trainingsansichten und 16 zusätzliche Epochen. Die
+Einzelkartenbilder und beschriftete Trainingshände verwendet. Nach der zweiten
+Erweiterung mit 608 Ansichten wurden zehn weitere echte Trainingsfotos
+ergänzt. Version 3 umfasst 1.136 Trainingsansichten aus 13 echten Händen und
+zwölf zusätzliche Epochen. Zwei neue Handfotos wurden vor der Variantenbildung
+für den abschließenden Test reserviert. Die
 Fotos und daraus erzeugten Trainingsbilder bleiben von Git ausgeschlossen;
 das Browser-Modell enthält die trainierten Gewichte. Es gibt keinen Dienst
 zum Hochladen oder Auswerten von Nutzerfotos.

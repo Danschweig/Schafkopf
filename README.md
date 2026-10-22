@@ -136,19 +136,19 @@ für die bisherige Formel verfügbar.
 Unter **Austeilen > Spieler > Karten auswählen > Karten fotografieren** lässt sich auf dem Handy die Kamera öffnen. Der Browser kann stattdessen eine Bildauswahl anbieten; am Computer öffnet sich die Dateiauswahl. Alle acht Karten breit auffächern und möglichst viel von jedem Motiv zeigen. Zahlen, Ober-/Unterzeichen und Farben sollen scharf und gut beleuchtet sichtbar sein. Ein neues Foto ersetzt die aktuelle, noch nicht gespeicherte Kartenauswahl.
 
 Die App führt YOLOv8n mit ONNX Runtime Web lokal in einem eigenen Worker aus.
-Voreingestellt ist **Dein Kartenblatt · neu trainiert (Beta)**:
-`models/bavarian-corners.onnx`, Version `bavarian-corners-pilot-2026-10-22-v2`.
+Unter **Kartenscan (Beta)** verwendet die App ausschließlich das eigene Modell:
+`models/bavarian-corners.onnx`, Version `bavarian-corners-pilot-2026-10-22-v3`.
 Dieses Modell erkennt die kleinen Eckzeichen der vorhandenen 32 Karten.
 Das ursprüngliche allgemeine Modell unter `models/bavarian-cards.onnx`
-bleibt separat auswählbar. Die Browser-Laufzeit liegt unter
+bleibt als historische Vergleichsdatei erhalten und ist im Scanner nicht
+verfügbar. Die Browser-Laufzeit liegt unter
 `vendor/onnxruntime/`. Beim ersten Scan werden insgesamt ungefähr 24 MB für
-das ausgewählte Modell und die Laufzeit geladen; ein Modellwechsel lädt
-zusätzlich etwa 12 MB. Die PWA speichert diese statischen Dateien nach Bedarf
+das eigene Modell und die Laufzeit geladen. Die PWA speichert diese statischen Dateien nach Bedarf
 im Cache. Der erste Scan braucht eine Internetverbindung.
 
 Es ist weiterhin kein Build, kein Inferenzserver, kein API-Schlüssel für
 Bilderkennung und keine neue Firebase-Freigabe nötig. Beim Push müssen auch
-beide Modelle samt Metadaten in `models/`, die Dateien unter `vendor/`, die
+das eigene Modell samt Metadaten in `models/`, die Dateien unter `vendor/`, die
 Scanner-Skripte und `scanner-check.html` enthalten sein. `.tools/` und
 `node_modules/` sind ausschließlich lokale Entwicklungshilfen und werden
 ignoriert.
@@ -158,8 +158,7 @@ Vor der Auswertung wird das Foto unter Beachtung seiner Orientierung auf 640 × 
 Das Ergebnis markiert vorgeschlagene Karten im Foto. Nur ausreichend eindeutige,
 unterschiedliche Karten werden in die Auswahl übernommen. Mehrere Eckzeichen
 derselben Karte ergeben im trainierten Eckzeichenmodell eine einzelne ID.
-Im allgemeinen Ganzkartenmodell bleiben doppelte Identitäten an getrennten
-Positionen unsicher. Widersprüchliche Vorschläge und mehr als acht erkannte
+Widersprüchliche Vorschläge und mehr als acht erkannte
 Karten werden nicht zu einer vollständigen Hand ergänzt. Fehlende oder falsche
 Karten können im bisherigen Wähler korrigiert werden. Erst bei acht ausgewählten
 Karten erscheint die Bewertung; gespeichert wird weiterhin ausschließlich nach
@@ -207,7 +206,7 @@ ersetzt. Der lokale Bericht liegt unter
 `kartenfotos/aufbereitung/trainingsbericht.md`. Diese wenigen Bilder belegen
 noch keine zuverlässige vollständige Acht-Karten-Erkennung.
 
-### Zweiter Trainingslauf und aktuelles Ergebnis
+### Zweiter Trainingslauf (historischer Vergleich)
 
 Der neue Datensatz enthält 608 Trainingsansichten: 384 zusammengesetzte
 Ansichten einschließlich 24 leerer Hintergründe, 128 Anordnungen einzelner
@@ -246,12 +245,42 @@ Rechner mit einem WASM-Thread bei etwa 314 ms, der Modellstart bei etwa
 410 ms. Die Bildvorbereitung lief dort mit Sharp. Das sind keine Handyzeiten;
 Canvas, Kamera, Downloads und Speichergrenzen können abweichen.
 
-Das geprüfte neue Modell ist als Beta in der App voreingestellt; das allgemeine
-Modell bleibt unverändert als eigene Auswahl erhalten. Private Benchmarkdaten,
+Das geprüfte eigene Modell wird als Beta ausschließlich verwendet. Das allgemeine
+Modell bleibt nur für lokale historische Vergleiche erhalten. Private Benchmarkdaten,
 Trainingsbilder und der ausführliche Bericht bleiben lokal unter
 `.tools/card-training/` bzw. `kartenfotos/aufbereitung/trainingsbericht-v2.md`.
 `npm.cmd run check:photo -- <Foto> <Referenz.json>` prüft standardmäßig das in
 der App voreingestellte Modell; `--model` erlaubt den expliziten Vergleich.
+
+### Dritter Trainingslauf und aktuelles Ergebnis
+
+Version 3 wurde aus Version 2 über zwölf weitere Epochen auf 1.136 Ansichten
+nachtrainiert. Dafür wurden zehn neue echte Trainingsfotos ergänzt; zusammen
+mit den bisherigen drei Händen sind jetzt alle 32 Karten in echten
+Trainingshänden vertreten. Die zwei neuen Testfotos wurden vor der
+Variantenbildung reserviert und weder für Training noch Checkpoint-Auswahl
+verwendet. Der Checkpoint wurde anhand der unveränderten internen Validierung
+gewählt und vor dem Test exportiert. Die Auswahlgrenzen bleiben unverändert.
+
+| Foto im abschließenden ONNX-WASM-Test | Richtig übernommen | Falsch übernommen |
+| --- | ---: | ---: |
+| Reserviert: `IMG_7936.jpg` | 8 von 8 | 0 |
+| Reserviert: `IMG_7939.jpg` | 8 von 8 | 0 |
+| Bekannt: `Handkarten4.jpg` | 8 von 8 | 0 |
+| Erstes Beispielfoto | 7 von 8 | 0 |
+| Anderes Kartenmotiv, sechs Karten | 4 von 6 | 1 |
+
+Beim ersten Beispielfoto bleibt Eichel-König unsicher. Auf dem anderen
+Kartenmotiv bestehen weiterhin Verwechslungen; eine abgedunkelte Variante
+enthält zwei falsche Übernahmen. Die zwei reservierten Fotos stammen aus
+derselben Aufnahmesitzung wie die neuen Trainingsfotos. Die Ergebnisse belegen
+keine allgemeine Zuverlässigkeit auf anderen Geräten oder bei anderem Licht.
+Der Median der 19 bekannten Vergleichsauswertungen liegt bei etwa 310 ms auf
+dem Windows-Rechner; das ist keine Messung auf einem Handy.
+
+Version 3 ist unter **Kartenscan (Beta)** das einzige verfügbare App-Modell.
+Der private Bericht liegt unter `kartenfotos/aufbereitung/trainingsbericht-v3.md`,
+die ausführlichen Auswertungen unter `.tools/card-training/candidate-v3/`.
 
 ### Auf iPhone und Android prüfen
 
@@ -267,7 +296,7 @@ Nach Veröffentlichung des vollständigen Arbeitsstands:
    Falls noch der vorherige Stand erscheint, die Seite erneut laden.
 2. Im Fotodialog **Fotoerkennung auf diesem Handy prüfen** öffnen, alternativ
    `scanner-check.html` im selben GitHub-Pages-Verzeichnis aufrufen.
-3. Das Kartenblatt auswählen und **Gerätetest starten** antippen. Der Test
+3. **Gerätetest starten** antippen. Der Test
    verwendet dieselben Produktionsdateien und denselben Worker wie die App.
    Auf einer leeren Fläche dürfen keine Karten übernommen werden. Die
    angezeigten Lade- und Erkennungszeiten gelten nur für diesen Lauf und dieses
@@ -279,9 +308,8 @@ Nach Veröffentlichung des vollständigen Arbeitsstands:
 5. In der App fehlende/falsche Karten korrigieren und erst danach die Bewertung
    bestätigen. Eine unvollständige Auswahl erzeugt keine Bewertung.
 
-Der Fotodialog bietet das allgemeine Modell und das lokal nachtrainierte
-Modell für das vorhandene Kartenblatt getrennt an. Pro Scan wird nur das
-ausgewählte Modell geladen. Das Ergebnis nennt die tatsächlich verwendete
+Der Fotodialog zeigt **Kartenscan (Beta)** und lädt stets das lokal
+nachtrainierte Modell für das vorhandene Kartenblatt. Das Ergebnis nennt die tatsächlich verwendete
 Version. Vor dem Laden kontrolliert der Worker Version, Zieltyp und
 Klassenreihenfolge der Metadaten; versionierte Modelladressen vermeiden die
 Vermischung mit älteren Cache-Einträgen.
@@ -308,7 +336,7 @@ Wie schon bisher ist eine Austeilung unabhängig von den nachträglich erfassten
 
 Der Austeilerwert bleibt der ungewichtete Durchschnitt **aller Einzelbewertungen der aktuell geführten Mitspieler außer dem Austeiler** – kein Durchschnitt von Rundendurchschnitten und keine neue Gewichtung für automatische Werte. Gesamt- und Spielerwerte zeigen ihre Anzahl an Bewertungen. Leere Austeilungen zählen noch nicht zur Statistik. Methoden, Versionen und gespeicherte Regeln sind an den einzelnen Bewertungen sichtbar.
 
-Die bestehenden Firestore-Räume, anonymen Anmeldungen, Transaktionen und Zugriffsregeln werden weiterverwendet. Gleichzeitige Änderungen verschiedener Spieler derselben Austeilung werden zusammengeführt; bei demselben Spieler gewinnt die zuletzt erfolgreich synchronisierte Änderung mitsamt ihrer Methode und Version. Wiederholte Bestätigungen nutzen dieselbe Austeilungs-ID und denselben Spielerschlüssel. Handkarten bleiben nur im lokalen Eingabezustand und werden weder in Firestore noch in Sicherungen gespeichert. Es werden keine Fotos gespeichert und keine neuen Dienste benötigt. Der Service-Worker-Cache steht mit der Fotoerkennung auf `schafkopf-v28`.
+Die bestehenden Firestore-Räume, anonymen Anmeldungen, Transaktionen und Zugriffsregeln werden weiterverwendet. Gleichzeitige Änderungen verschiedener Spieler derselben Austeilung werden zusammengeführt; bei demselben Spieler gewinnt die zuletzt erfolgreich synchronisierte Änderung mitsamt ihrer Methode und Version. Wiederholte Bestätigungen nutzen dieselbe Austeilungs-ID und denselben Spielerschlüssel. Handkarten bleiben nur im lokalen Eingabezustand und werden weder in Firestore noch in Sicherungen gespeichert. Es werden keine Fotos gespeichert und keine neuen Dienste benötigt. Der Service-Worker-Cache steht mit der Fotoerkennung auf `schafkopf-v29`.
 
 ### Entwicklung und Prüfungen
 
@@ -322,4 +350,4 @@ npm run check
 
 Bei gesperrtem `npm.ps1` unter Windows kann stattdessen `npm.cmd` verwendet werden. `npm test` prüft Algorithmusfälle, 1.000 deterministisch ausgewählte Hände, historische Daten, Ersetzen, parallele Zusammenführung und den vollständigen React-Bedienablauf einschließlich Bestätigung und erneutem Laden. Die Online-Regressionstests simulieren zusätzlich parallele Geräte, verzögerte und doppelte Rückmeldungen, ausstehende Uploads sowie Raumbeitritt, Raumwechsel und Löschung. Die Firebase-Client-Tests prüfen Snapshot-Filter und Transaktionen mit einem simulierten SDK-Transport und kontrollieren, dass Raumoperationen ausschließlich `schafkopfRooms` ansprechen. Die Scanner-Tests prüfen Klassenzuordnung, Bildvorbereitung, Unsicherheit, Duplikate, Korrektur, Bestätigung, Abbruch und Ressourcenfreigabe. Zusätzlich läuft das echte gebündelte ONNX-Modell mit der gebündelten WASM-Laufzeit auf einem leeren Bild und dem unabhängigen Sechs-Karten-Testfoto. `npm run check` übersetzt sämtliche Produktionsskripte mit dem gleichen Babel-React-Preset wie die App, prüft gemeinsame Syntax und globale Deklarationen, die Worker-Syntax sowie die benötigten Scanner- und PWA-Dateien.
 
-Hier erfolgreich geprüft: 92 Tests sowie die Skript-/PWA-Prüfung. Die Tests verwenden lokalen Speicher, einen simulierten Firebase-Transport und die tatsächliche lokale Modellinferenz; sie sind kein Live-Test und keine Auswertung der Firestore-Regeln durch den Emulator. Ein Live-Abgleich zwischen Geräten, die Firebase-Zugriffsregeln im Emulator und eine visuelle Smartphone-/Browserprüfung wurden in dieser Umgebung nicht ausgeführt; die Browser-Verbindung meldete keinen verfügbaren Browser. Für die automatische Bewertung sind keine neuen Regelfreigaben nötig. Die lokale `firebase.rules` entspricht nach dem Merge bis auf Leerzeichen und Zeilenumbrüche dem vom Nutzer bereitgestellten gemeinsamen Regelwerk für Smash Bingo und Schafkopf. Bei der Merge-Nachprüfung und der Erweiterung um die Fotoerkennung wurden keine Regeln geändert oder veröffentlicht.
+Hier erfolgreich geprüft: 91 Tests sowie die Skript-/PWA-Prüfung. Die Tests verwenden lokalen Speicher, einen simulierten Firebase-Transport und die tatsächliche lokale Modellinferenz; sie sind kein Live-Test und keine Auswertung der Firestore-Regeln durch den Emulator. Ein Live-Abgleich zwischen Geräten, die Firebase-Zugriffsregeln im Emulator und eine visuelle Smartphone-/Browserprüfung wurden in dieser Umgebung nicht ausgeführt; die Browser-Verbindung meldete keinen verfügbaren Browser. Für die automatische Bewertung sind keine neuen Regelfreigaben nötig. Die lokale `firebase.rules` entspricht nach dem Merge bis auf Leerzeichen und Zeilenumbrüche dem vom Nutzer bereitgestellten gemeinsamen Regelwerk für Smash Bingo und Schafkopf. Bei der Merge-Nachprüfung und der Erweiterung um die Fotoerkennung wurden keine Regeln geändert oder veröffentlicht.

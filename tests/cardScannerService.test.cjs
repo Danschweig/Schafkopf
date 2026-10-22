@@ -49,6 +49,8 @@ test("photo service uses a local worker URL, transfers only resized pixels, and 
   assert.equal(result.previewUrl,"blob:local-0");
   assert.equal(events.workers[0].url,"https://example.test/Schafkopf/src/cardScannerWorker.js");
   assert.equal(events.messages[0].message.pixels.byteLength,3*640*640*4);
+  assert.equal(events.messages[0].message.model,"personal");
+  assert.deepEqual(Object.keys(core.MODELS),["personal"]);
   assert.equal(events.messages[0].transfers[0],events.messages[0].message.pixels);
   assert.equal(events.workers[0].terminated,true);
   assert.equal(events.closed,1);
@@ -85,7 +87,9 @@ test("photo service rejects non-images, oversized photos and unsupported browser
 });
 test("photo service rejects an unknown model before decoding or starting inference",async()=>{
   const {api,events}=service();
-  await assert.rejects(()=>api.scanPhoto(photo,{model:"__proto__"}),/Kartenmodell/);
+  for(const model of ["standard","__proto__"]){
+    await assert.rejects(()=>api.scanPhoto(photo,{model}),/Kartenmodell/);
+  }
   assert.equal(events.workers.length,0);assert.equal(events.closed,0);
 });
 test("photo service accepts an actual 48 MP phone resolution and rejects larger decoded images",async()=>{

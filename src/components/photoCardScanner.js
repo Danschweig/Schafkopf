@@ -7,7 +7,7 @@
       const [status,setStatus]=useState("");
       const [error,setError]=useState("");
       const [result,setResult]=useState(null);
-      const [model,setModel]=useState(window.SchafkopfCardScannerCore.DEFAULT_MODEL);
+      const model=window.SchafkopfCardScannerCore.DEFAULT_MODEL;
       const cardLabel=id=>window.SchafkopfHandEvaluation.CARDS.find(card=>card.id===id)?.label||id;
       useEffect(()=>()=>{
         requestRef.current++;
@@ -60,11 +60,7 @@
           Verdeckte Motive, Spiegelungen und starke Schräglage erschweren die Erkennung. Bei eng gefächerten Handkarten ist diese Version unzuverlässig und kann falsche Karten vorschlagen. Bitte alle acht Karten kontrollieren.
         </div>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" aria-label="Foto der acht Handkarten" style={{display:"none"}} onChange={photograph}/>
-        <label style={{display:"block",fontSize:11,marginBottom:8}}>Kartenblatt
-          <select value={model} disabled={busy} onChange={event=>setModel(event.target.value)} style={{display:"block",width:"100%",minHeight:44,marginTop:4,background:C.inputBg,color:C.text,borderRadius:5}}>
-            {Object.entries(window.SchafkopfCardScannerCore.MODELS).map(([id,profile])=><option key={id} value={id}>{profile.label}</option>)}
-          </select>
-        </label>
+        <div style={{fontSize:11,color:C.dim,marginBottom:8}}>Kartenscan (Beta)</div>
         <button disabled={busy} onClick={()=>fileRef.current?.click()} style={{...s.btn(!busy,"#4ab8e8"),width:"100%",minHeight:48}}>
           Karten fotografieren
         </button>

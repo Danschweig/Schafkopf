@@ -3,7 +3,7 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const vm=require("node:vm");
 const core=require("../src/cardScannerCore.js");
-function worker(model="standard",changeMetadata=()=>{},runError=false){
+function worker(model="personal",changeMetadata=()=>{},runError=false){
   const profile=core.MODELS[model],messages=[],fetches=[],loads=[];
   let disposed=0;
   const metadata=JSON.parse(fs.readFileSync(require.resolve("../models/bavarian-cards.metadata.json"),"utf8"));
@@ -26,11 +26,11 @@ function worker(model="standard",changeMetadata=()=>{},runError=false){
   const scan=async(options={})=>{await context.self.onmessage({data:{type:"scan",model,pixels:new ArrayBuffer(3*640*640*4),...options}});return messages.at(-1);};
   return {scan,messages,fetches,loads,ort,disposed:()=>disposed};
 }
-for(const model of ["standard","personal"])test(`worker ${model}: correct model, target, Pages paths and version`,async()=>{
+for(const model of ["personal"])test(`worker ${model}: correct model, target, Pages paths and version`,async()=>{
   const w=worker(model),message=await w.scan(),profile=core.MODELS[model];
   assert.equal(message.type,"result");
   assert.equal(message.result.modelVersion,profile.version);
-  assert.deepEqual(message.result.cardIds,model==="personal"?["eichel-ober"]:[]);
+  assert.deepEqual(message.result.cardIds,["eichel-ober"]);
   assert.equal(w.loads[0].url,`https://example.test/Schafkopf/models/${profile.file}.onnx?v=${profile.version}`);
   assert.deepEqual(w.fetches,[`https://example.test/Schafkopf/models/${profile.file}.metadata.json?v=${profile.version}`]);
   assert.equal(w.ort.env.wasm.numThreads,1);
@@ -44,7 +44,7 @@ for(const mutate of [meta=>meta.version="stale",meta=>meta.target="wrong",meta=>
   assert.equal((await w.scan()).type,"error");assert.equal(w.loads.length,0);
 });
 test("worker rejects unknown model IDs and malformed buffers without any fetch",async()=>{
-  for(const options of [{model:"__proto__"},{model:"missing"},{pixels:new ArrayBuffer(4)}]){
+  for(const options of [{model:"standard"},{model:"__proto__"},{model:"missing"},{pixels:new ArrayBuffer(4)}]){
     const w=worker();assert.equal((await w.scan(options)).type,"error");assert.equal(w.fetches.length,0);
   }
 });
@@ -55,8 +55,8 @@ test("worker releases input when inference fails and does not produce a result",
 test("service-worker activation preserves other apps' caches",async()=>{
   const deleted=[],listeners={};
   const context={self:{addEventListener:(name,callback)=>listeners[name]=callback,clients:{claim:async()=>{}}},
-    caches:{keys:async()=>["smash-bingo-v1","other-app","schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28"],delete:async key=>deleted.push(key)}};
+    caches:{keys:async()=>["smash-bingo-v1","other-app","schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28","schafkopf-v29"],delete:async key=>deleted.push(key)}};
   vm.runInNewContext(fs.readFileSync(require.resolve("../sw.js"),"utf8"),context);
   let done;listeners.activate({waitUntil:promise=>{done=promise;}});await done;
-  assert.deepEqual(deleted,["schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27"]);
+  assert.deepEqual(deleted,["schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28"]);
 });

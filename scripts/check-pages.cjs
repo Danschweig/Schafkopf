@@ -1,8 +1,5 @@
 // Read-only HTTP deployment check. Does not claim browser/phone compatibility.
 const crypto=require("node:crypto");
-const fs=require("node:fs");
-const path=require("node:path");
-const root=path.resolve(__dirname,"..");
 async function checkPages(base){
   const url=new URL(base);
   if(!/^https?:$/.test(url.protocol)||!url.pathname.endsWith("/"))throw new Error("Bitte eine HTTP(S)-Adresse mit abschließendem / angeben.");
@@ -34,8 +31,7 @@ async function checkPages(base){
       if(file.endsWith(".wasm")&&!bytes.subarray(0,4).equals(Buffer.from([0,97,115,109])))throw new Error(`${file}: ungültiger WASM-Header`);
     }catch(error){failures.push(error.message);}
   }
-  const models=["bavarian-cards"];
-  if(fs.existsSync(path.join(root,"models/bavarian-corners.onnx")))models.push("bavarian-corners");
+  const models=[...new Set(Object.values(require("../src/cardScannerCore.js").MODELS).map(profile=>profile.file))];
   for(const model of models){
     try{
       const metadata=JSON.parse((await get(`models/${model}.metadata.json`,"json")).toString("utf8"));

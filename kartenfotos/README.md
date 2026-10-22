@@ -110,9 +110,10 @@ Lauf. Die Vorschau liegt lokal unter
 `aufbereitung/trainingsbeispiele-v2.jpg`. Originalfotos bleiben unverändert;
 Testfotos und ihre Ausschnitte wurden nicht zum Training verwendet.
 
-Nach 16 zusätzlichen Epochen wird das neue Modell in der App als **Dein
-Kartenblatt · neu trainiert (Beta)** verwendet; das allgemeine Modell bleibt
-separat auswählbar. Auf dem bekannten Testfoto werden weiterhin sieben von
+Nach 16 zusätzlichen Epochen wurde Version 2 in der App als **Dein
+Kartenblatt · neu trainiert (Beta)** verwendet. Das allgemeine Modell
+war damals separat auswählbar; inzwischen verwendet die App ausschließlich
+das eigene Modell. Auf dem bekannten Testfoto wurden mit Version 2 sieben von
 acht Karten ohne falsche Übernahme ausgewählt. Auf dem ersten zusätzlichen
 Beispielfoto steigt die Zahl von fünf auf sieben, ebenfalls ohne falsche
 Übernahme. Ein anderes Kartenmotiv zeigt weiterhin eine Verwechslung.
@@ -123,3 +124,36 @@ Der ausführliche private Bericht liegt unter
 unter `.tools/card-training/candidate-v2/benchmark.json`. Fotos, Vorschau,
 Datensätze, Checkpoints und diese lokalen Berichte werden nicht mitgepusht.
 Die App-Gewichte liegen separat unter `models/bavarian-corners.onnx`.
+
+## Weitere Fotos und dritter Datensatz
+
+Von zwölf neuen Handfotos sind zehn zusätzlich für das Training beschriftet.
+`IMG_7936.jpg` und `IMG_7939.jpg` liegen unter `test/` und sind vor jeder
+Variantenbildung für den späteren Test reserviert worden. Das ältere Testfoto
+bleibt dort. Die neuen Testhände haben andere Kartenkombinationen als die
+Trainingshände; sie stammen jedoch aus derselben Aufnahmesitzung.
+
+Für jedes neue Foto gibt es eine `*.labels.json` mit den acht Karten und den
+sichtbaren oberen Eckzeichen sowie eine `*.indices.txt`. Unter
+`aufbereitung/neue-fotos/` liegen beschriftete Kontrollbilder, eine Übersicht
+der ausgeschnittenen Eckzeichen und `split-manifest.json` mit Aufteilung und
+Prüfsummen. Bei Querformatbildern bleiben die Koordinaten im Originalbild;
+eine zusätzliche Rotationsangabe richtet nur die Trainingsansicht auf.
+
+Der vorbereitete Datensatz `.tools/card-training/pilot-v3/` enthält insgesamt
+1.136 Trainingsbilder, davon 480 Varianten der zehn neuen Fotos und 144
+Varianten der bisherigen drei Trainingshände. Hinzu kommen 384 synthetische
+Szenen und 128 Eckzeichen-Anordnungen. Die 64 synthetischen Validierungsbilder
+bleiben gleich. Alle 32 Karten sind nun auch in echten Trainingshänden
+vertreten. Testfotos werden für keine dieser Varianten verwendet.
+
+Eine private Vorschau liegt unter `aufbereitung/trainingsbeispiele-v3.jpg`,
+die Prüfung unter `aufbereitung/datensatz-v3-pruefung.json`.
+Mit diesen Daten wurde Version 3 über zwölf weitere Epochen trainiert und
+nach dem Test in die App übernommen. Beide reservierten Testfotos liefern
+jeweils acht richtige Karten ohne falsche Übernahme. Das ältere Testfoto
+liefert ebenfalls acht richtige Karten; beim ersten Beispielfoto bleiben es
+sieben. Ein anderes Kartenmotiv zeigt weiterhin Verwechslungen. Der private
+Bericht liegt unter `aufbereitung/trainingsbericht-v3.md`. Die zwei neuen
+Testfotos sind nach dieser Prüfung bekannte Vergleichsfälle. Fotos und erzeugte
+Varianten bleiben lokal.

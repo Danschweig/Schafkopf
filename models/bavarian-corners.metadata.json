@@ -1,5 +1,5 @@
 {
-  "version": "bavarian-corners-pilot-2026-10-22-v2",
+  "version": "bavarian-corners-pilot-2026-10-22-v3",
   "target": "rank-and-suit-index",
   "license": "AGPL-3.0",
   "classNames": [
@@ -49,37 +49,37 @@
   ],
   "source": "https://github.com/Nikiki95/schafkopf-engine/blob/d4e4efc04973416b1aa98e2d13cd268c8fcf0f6d/schafkopf_yolo.pt",
   "sourceSha256": "2c96ad125f098e5dc6d7ce0c363ee704f212f337633395b023a8e0d512203802",
-  "checkpointSha256": "a469a9612a7be459862d32d5652ed45265782cdf8ec17c98983464f2e909f075",
-  "onnxSha256": "df92dab05ded0b4580d8f32f05eb2129dcdabf2bba43916091a440819f6c1dde",
+  "checkpointSha256": "0ed9d8ceb539e73d7449a86dd17974431dee5920065bf4acc9335813ace73a74",
+  "onnxSha256": "d9d191976e8b375ee68bb5491d7bd7c78e3c102310132c27a957d82a2fa3834f",
   "training": {
     "seed": 20261022,
     "target": "rank-and-suit-index",
-    "realTrainingHands": 3,
-    "datasetSeed": 20261023,
+    "realTrainingHands": 13,
+    "datasetSeed": 20261024,
     "datasetGenerator": {
       "synthetic": 384,
       "patchScenes": 128,
-      "realVariantsPerHand": 32,
+      "realVariantsPerHand": 48,
       "photoBackgrounds": true,
       "validationImages": 64,
       "validationSeed": 78931
     },
-    "parentCheckpointSha256": "7305cb703e4be519fed6b27780316bbb83a707e1fcdcb158de59f20eac33ccfb",
+    "parentCheckpointSha256": "a469a9612a7be459862d32d5652ed45265782cdf8ec17c98983464f2e909f075",
     "images": {
-      "train": 608,
+      "train": 1136,
       "val": 64
     },
-    "requestedEpochs": 16,
-    "provenanceSha256": "fc335fe813a2c2fcb4fc460c344e6f0edb1f5660591a9ba9ca8b818df6e95835",
+    "requestedEpochs": 12,
+    "provenanceSha256": "862cf82d9ae85178b19e18e52888877a0e0d841253690cb0646763033f5b7d07",
     "internalValidationMetrics": {
-      "metrics/precision(B)": 0.94299,
-      "metrics/recall(B)": 0.92893,
-      "metrics/mAP50(B)": 0.97373,
-      "metrics/mAP50-95(B)": 0.70687,
-      "val/box_loss": 1.01369,
-      "val/cls_loss": 0.6103,
-      "val/dfl_loss": 0.87607,
-      "fitness": 0.70687
+      "metrics/precision(B)": 0.96004,
+      "metrics/recall(B)": 0.95099,
+      "metrics/mAP50(B)": 0.98087,
+      "metrics/mAP50-95(B)": 0.71888,
+      "val/box_loss": 0.99772,
+      "val/cls_loss": 0.56727,
+      "val/dfl_loss": 0.87736,
+      "fitness": 0.71888
     },
     "testImagesUsed": 0,
     "recipe": "scripts/train-card-model.py"

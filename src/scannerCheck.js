@@ -2,22 +2,17 @@
   "use strict";
   const check=document.getElementById("check"),photo=document.getElementById("photo");
   const cancel=document.getElementById("cancel"),report=document.getElementById("report"),preview=document.getElementById("preview");
-  const model=document.getElementById("model");
-  for(const [id,profile] of Object.entries(window.SchafkopfCardScannerCore.MODELS)){
-    const option=document.createElement("option");option.value=id;option.textContent=profile.label;model.append(option);
-  }
-  model.value=window.SchafkopfCardScannerCore.DEFAULT_MODEL;
   let controller=null,previewUrl=null;
   const seconds=ms=>(ms/1000).toFixed(2)+" s";
   async function scan(file,blank){
     if(controller)return;
-    check.disabled=true;photo.disabled=true;model.disabled=true;cancel.hidden=false;
+    check.disabled=true;photo.disabled=true;cancel.hidden=false;
     controller=new AbortController();
     if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null;}
     preview.hidden=true;
     try{
       const result=await window.SchafkopfCardScanner.scanPhoto(file,{
-        model:model.value,signal:controller.signal,onProgress:message=>{report.textContent=message;}
+        signal:controller.signal,onProgress:message=>{report.textContent=message;}
       });
       previewUrl=result.previewUrl;
       const lines=[blank?(result.cardIds.length===0?"Technischer Gerätetest erfolgreich: keine Karte auf leerer Fläche übernommen.":"Gerätetest auffällig: Karten auf leerer Fläche vorgeschlagen."):"Foto lokal ausgewertet. Bitte alle Vorschläge mit deinen Karten vergleichen.",
@@ -32,7 +27,7 @@
       report.textContent=lines.join("\n");
       if(!blank){preview.src=previewUrl;preview.hidden=false;}
     }catch(error){report.textContent=error.name==="AbortError"?"Test abgebrochen.":error.message+"\nBitte prüfen, ob models/, vendor/ und src/ vollständig auf GitHub Pages veröffentlicht wurden.";}
-    finally{check.disabled=false;photo.disabled=false;model.disabled=false;cancel.hidden=true;controller=null;}
+    finally{check.disabled=false;photo.disabled=false;cancel.hidden=true;controller=null;}
   }
   check.addEventListener("click",async()=>{
     const canvas=document.createElement("canvas");canvas.width=640;canvas.height=640;

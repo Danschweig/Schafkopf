@@ -24,6 +24,20 @@ INDEXES = [[.035,.055,.185,.22],[.815,.055,.965,.22],
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+def oriented_training_hand(image, metadata):
+    """Orient a derived view while keeping annotations in original-file pixels."""
+    degrees=metadata.get("trainingRotationDegreesCCW",0)
+    if degrees not in (0,90,180,270):
+        raise ValueError("trainingRotationDegreesCCW must be 0, 90, 180 or 270")
+    annotations=[dict(ann,indexBox=list(ann["indexBox"])) for ann in metadata["annotations"]]
+    for _ in range(degrees//90):
+        height,width=image.shape[:2]
+        image=cv2.rotate(image,cv2.ROTATE_90_COUNTERCLOCKWISE)
+        for ann in annotations:
+            x1,y1,x2,y2=ann["indexBox"]
+            ann["indexBox"]=[y1,width-x2,y2,width-x1]
+    return image,annotations
+
 def save_json(path,value):
     path.write_text(json.dumps(value,indent=2)+"\n",encoding="utf-8")
 
@@ -205,12 +219,19 @@ def main():
             refs[split].append(image)
             provenance["sources"].append({"file":path.relative_to(data).as_posix(),"sha256":digest(path),"split":split})
     real_sources=[];backgrounds=[]
+    # Do not silently omit newly added, still unlabelled photographs.
+    for photo in (data/"training").iterdir():
+        if photo.suffix.lower() in (".jpg",".jpeg",".png") and not photo.with_suffix(".labels.json").is_file():
+            raise ValueError(f"Training photo needs reviewed annotations: {photo.name}")
     for labels_path in sorted((data/"training").glob("*.labels.json")):
         metadata=json.loads(labels_path.read_text(encoding="utf-8"))
         assert metadata["split"]=="training"
         source=(data/metadata["source"]).resolve();source.relative_to((data/"training").resolve())
         assert digest(source)==metadata["sourceSha256"]
-        image=cv2.imread(str(source));real_sources.append((source,metadata,image))
+        image=cv2.imread(str(source));assert image is not None,source
+        image,annotations=oriented_training_hand(image,metadata)
+        metadata={**metadata,"annotations":annotations}
+        real_sources.append((source,metadata,image,labels_path))
         if args.photo_backgrounds:
             ih,iw=image.shape[:2]
             boxes=np.array([ann["indexBox"] for ann in metadata["annotations"]])
@@ -229,8 +250,9 @@ def main():
         save_sample(out,"train",f"index-{index:04d}",image,labels)
     rng=np.random.default_rng(39245 if args.seed==20261022 else args.seed+103)
     # Explicitly select training/, never glob all hand annotations or manifest hands.
-    for source,metadata,image in real_sources:
-        provenance["sources"].append({"file":source.relative_to(data).as_posix(),"sha256":digest(source),"split":"train"})
+    for source,metadata,image,labels_path in real_sources:
+        provenance["sources"].append({"file":source.relative_to(data).as_posix(),"sha256":digest(source),"split":"train",
+                                      "annotationsSha256":digest(labels_path),"trainingRotationDegreesCCW":metadata.get("trainingRotationDegreesCCW",0)})
         for index in range(args.real_variants):
             sample,labels=real_sample(image,metadata["annotations"],rng,index,backgrounds if args.photo_backgrounds else None)
             save_sample(out,"train",f"real-{source.stem}-{index:03d}",sample,labels)
