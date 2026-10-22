@@ -132,6 +132,7 @@
       const onlineAutoConnectRef=useRef(false);
       const onlineConnectionIdRef=useRef(0);
       const applyingOnlineRef=useRef(false);
+      const onlineAppliedHashRef=useRef(null);
       applyThemeMode(themeMode);
 
       useEffect(()=>{
@@ -277,6 +278,10 @@
         bockAllowGeier,bockAllowRamsch,nextRoundBock,nextRoundRamsch
       ]);
 
+      // Listener callbacks outlive the render that connected the room.
+      const latestSharedStateRef=useRef(sharedSessionState);
+      latestSharedStateRef.current=sharedSessionState;
+
       function onlineErrorMessage(error){
         const code=String(error?.code||"");
         if(code.includes("permission-denied"))return "Firebase-Zugriff verweigert. Bitte Authentication und Firestore-Regeln pruefen.";
@@ -319,6 +324,7 @@
 
       function applyOnlineState(state){
         applyingOnlineRef.current=true;
+        onlineAppliedHashRef.current=JSON.stringify(state);
         setPlayers(state.players);
         setFivePlayerMode(state.fivePlayerMode);
         setTariff(state.tariff);
@@ -338,19 +344,34 @@
         setNextRoundRamsch(state.nextRoundRamsch);
       }
 
-      function handleOnlineRemote(rawState,meta){
-        const joining=!onlineReadyRef.current;
-        const state=normalizeOnlineState(rawState);
+      function stageOnlineState(state){
         onlineReadyRef.current=false;
         onlinePendingRef.current=null;
         if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
         onlineTimerRef.current=null;
+        applyOnlineState(state);
+        latestSharedStateRef.current=state;
+      }
+
+      function handleOnlineRemote(rawState,meta){
+        const base=onlineBaseRef.current;
+        const joining=!base;
+        // Metadata-only or delayed snapshots must not roll back the room.
+        if(base&&meta.revision<=base.revision)return;
+        const state=normalizeOnlineState(rawState);
+        // Only the first snapshot replaces local session data. While connected,
+        // preserve edits awaiting upload or acknowledgement, including edits made
+        // after an in-flight save started. The server remains the new merge base.
+        const local=latestSharedStateRef.current;
+        const dirty=!joining&&JSON.stringify(local)!==base.hash;
+        const next=dirty?normalizeOnlineState(window.SchafkopfFirebase.mergeSessionState(
+          base.state,local,state)):state;
         onlineBaseRef.current={state,revision:meta.revision,hash:JSON.stringify(state)};
         setOnlineRoomCode(meta.roomCode);
         setOnlineRoomInput(meta.roomCode);
         setOnlineStatus("online");
         setOnlineError("");
-        applyOnlineState(state);
+        stageOnlineState(next);
         if(joining){
           setForm(emptyForm());
           setEditRound(null);
@@ -382,6 +403,7 @@
         onlineBaseRef.current=null;
         onlinePendingRef.current=null;
         applyingOnlineRef.current=false;
+        onlineAppliedHashRef.current=null;
         onlineWriteInFlightRef.current=false;
         setOnlineSyncing(false);
         if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
@@ -413,6 +435,7 @@
           onlineClientRef.current=null;
           onlineReadyRef.current=false;
           applyingOnlineRef.current=false;
+          onlineAppliedHashRef.current=null;
           setOnlineStatus("offline");
           setOnlineError(onlineErrorMessage(error));
         }
@@ -427,6 +450,7 @@
         onlineBaseRef.current=null;
         onlinePendingRef.current=null;
         applyingOnlineRef.current=false;
+        onlineAppliedHashRef.current=null;
         onlineWriteInFlightRef.current=false;
         if(onlineTimerRef.current)clearTimeout(onlineTimerRef.current);
         onlineTimerRef.current=null;
@@ -455,8 +479,22 @@
         setOnlineSyncing(true);
         let retryDelay=150;
         try{
-          await onlineClientRef.current.saveState(pending.state,pending.baseState,pending.baseRevision);
-          if(connectionId===onlineConnectionIdRef.current)setOnlineError("");
+          const saved=await onlineClientRef.current.saveState(pending.state,pending.baseState,pending.baseRevision);
+          if(connectionId===onlineConnectionIdRef.current){
+            const base=onlineBaseRef.current;
+            if(base&&base.revision>saved.revision){
+              // A newer server snapshot can arrive before this transaction's
+              // completion. Drop the now-acknowledged edit, keep later local
+              // edits, and retain the newer server state as the upload base.
+              const acknowledged=normalizeOnlineState(saved.state);
+              const next=normalizeOnlineState(window.SchafkopfFirebase.mergeSessionState(
+                acknowledged,latestSharedStateRef.current,base.state));
+              stageOnlineState(next);
+            }else{
+              handleOnlineRemote(saved.state,{roomCode:onlineRoomCode,revision:saved.revision});
+            }
+            setOnlineError("");
+          }
         }catch(error){
           if(connectionId===onlineConnectionIdRef.current&&onlineReadyRef.current){
             if(!onlinePendingRef.current)onlinePendingRef.current=pending;
@@ -482,11 +520,10 @@
         // Uploads stay disabled until React has committed the entire room state.
         // Replacing local data must never be interpreted as a local edit.
         if(applyingOnlineRef.current){
-          if(hash===base.hash){
-            applyingOnlineRef.current=false;
-            onlineReadyRef.current=true;
-          }
-          return;
+          if(hash!==onlineAppliedHashRef.current)return;
+          applyingOnlineRef.current=false;
+          onlineAppliedHashRef.current=null;
+          onlineReadyRef.current=true;
         }
         if(!onlineReadyRef.current)return;
         if(hash===base.hash)return;

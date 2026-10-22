@@ -11,7 +11,7 @@ const root=path.resolve(__dirname,"..");
 const players=["Anna","Ben","Clara","David"];
 const oldDeal={id:"historic",createdAt:100,dealer:"Anna",ratings:{Ben:7,Clara:5}};
 
-function app(saved={players,dealRatings:[oldDeal]},existingStorage){
+function app(saved={players,dealRatings:[oldDeal]},existingStorage,configure=()=>{}){
   const storage=existingStorage||new Map([["schafkopf-v1",JSON.stringify(saved)]]);
   const context={React,crypto,console,setTimeout,clearTimeout,
     Recharts:Object.fromEntries(["LineChart","Line","XAxis","YAxis","CartesianGrid","Tooltip","ReferenceLine","ResponsiveContainer","BarChart","Bar"].map(name=>[name,()=>null])),
@@ -28,8 +28,11 @@ function app(saved={players,dealRatings:[oldDeal]},existingStorage){
     const source=fs.readFileSync(path.join(root,file),"utf8");
     vm.runInContext(attributes.includes('type="text/babel"')?Babel.transform(source,{presets:["react"],filename:file}).code:source,context,{filename:file});
   }
+  configure(context);
   let rendered;
-  act(()=>{rendered=create(React.createElement(context.SchafkopfTracker));});
+  act(()=>{rendered=create(React.createElement(context.SchafkopfTracker),{
+    createNodeMock:element=>element.type==="dialog"?{showModal(){},close(){}}:null
+  });});
   return {rendered,context,storage,state:()=>JSON.parse(storage.get("schafkopf-v1"))};
 }
 const text=node=>typeof node==="string"?node:node.children.map(text).join("");
@@ -159,4 +162,197 @@ test("full app: changing rules recomputes a preview but saves only after confirm
   assert.equal(instance.state().dealRatings[0].ratings.Ben,5.2);
   assert.equal(instance.state().dealRatings[0].ratingMeta.Ben.rules.wenz,false);
   act(()=>instance.rendered.unmount());
+});
+
+// Deterministic transport and timers: these exercise the real Tracker effects,
+// not just the pure merge helper, without talking to the live shared database.
+async function onlineApp(local={players,dealRatings:[oldDeal]},server=local){
+  const storage=new Map([["schafkopf-v1",JSON.stringify(local)],["schafkopf-firebase-room-v1","ABCDE"]]);
+  const timers=new Map();
+  const writes=[];
+  let timerId=0;
+  let receive;
+  let firstReceive;
+  let fail;
+  let revision=1;
+  let instance;
+  const client={
+    async joinRoom(code,onState,onError){receive=onState;firstReceive??=onState;fail=onError;onState(server,{roomCode:code,revision});return code;},
+    async saveState(state,baseState,baseRevision){
+      writes.push(JSON.parse(JSON.stringify({state,baseState,baseRevision})));
+      return {state,revision:baseRevision+1};
+    },
+    disconnect(){},watchRooms(){return ()=>{};}
+  };
+  await act(async()=>{
+    instance=app(local,storage,context=>{
+      context.setTimeout=(callback,delay)=>{const id=++timerId;timers.set(id,{callback,delay});return id;};
+      context.clearTimeout=id=>timers.delete(id);
+      context.SchafkopfFirebase.createClient=async()=>client;
+    });
+  });
+  return {...instance,writes,client,
+    async emit(state,nextRevision=revision+1){revision=nextRevision;await act(async()=>receive(state,{roomCode:"ABCDE",revision}));},
+    async fail(error){await act(async()=>fail(error));},
+    async emitFromFirst(state){await act(async()=>firstReceive(state,{roomCode:"ABCDE",revision:100}));},
+    runTimer(){
+      const [id,timer]=[...timers][0];
+      timers.delete(id);
+      return timer.callback();
+    },
+    async flush(){
+      const queued=[...timers];
+      for(const [id,timer] of queued){
+        if(!timers.delete(id))continue;
+        await act(async()=>timer.callback());
+      }
+    }
+  };
+}
+function rateBen(instance,score=9){
+  open(instance);
+  click(button(instance,/^Ben7,0/));
+  click(card(instance,`Ben: ${score} von 10`));
+  click(confirmation(instance));
+}
+
+test("online: remote edits cannot discard a confirmed rating awaiting upload",async()=>{
+  const instance=await onlineApp();
+  try{
+    rateBen(instance);
+    const remote=instance.context.SchafkopfDealRatings.upsertRating(
+      instance.context.SchafkopfDealRatings.normalizeDealRatings([oldDeal]),"historic","Clara",3,
+      {method:"manual",algorithmVersion:"manual-v1",rules:null});
+    await instance.emit({players,dealRatings:remote});
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,9);
+    assert.equal(instance.state().dealRatings[0].ratings.Clara,3);
+    await instance.flush();
+    assert.equal(instance.writes.length,1);
+    assert.deepEqual(instance.writes[0].state.dealRatings[0].ratings,{Ben:9,Clara:3});
+    assert.equal(instance.writes[0].baseRevision,2);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("online: acknowledgement of an older save keeps newer local confirmations",async()=>{
+  const instance=await onlineApp();
+  try{
+    rateBen(instance);
+    await instance.flush();
+    assert.equal(instance.writes.length,1);
+    click(card(instance,"Ben: 4 von 10"));
+    click(confirmation(instance));
+    await instance.emit(instance.writes[0].state);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,4);
+    await instance.flush();
+    assert.equal(instance.writes.length,2);
+    assert.equal(instance.writes[1].state.dealRatings[0].ratings.Ben,4);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("online: initial join replaces local players and ratings without uploading them",async()=>{
+  const local={players:["Old A","Old B","Old C","Old D"],dealRatings:[{...oldDeal,dealer:"Old A",ratings:{"Old B":10}}],startkapital:2300};
+  const instance=await onlineApp(local,{players,dealRatings:[oldDeal],startkapital:1000});
+  try{
+    assert.deepEqual(instance.state().players,players);
+    assert.equal(instance.state().startkapital,1000);
+    assert.deepEqual(instance.state().dealRatings[0].ratings,oldDeal.ratings);
+    await instance.flush();
+    assert.equal(instance.writes.length,0);
+    rateBen(instance);
+    await instance.flush();
+    assert.equal(instance.writes.length,1);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("online: deleting a room stops queued uploads and keeps the local game",async()=>{
+  const instance=await onlineApp();
+  try{
+    rateBen(instance);
+    await instance.fail(Object.assign(new Error("Raum gelöscht"),{code:"room-deleted"}));
+    await instance.flush();
+    assert.equal(instance.writes.length,0);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,9);
+    assert.equal(instance.storage.has("schafkopf-firebase-room-v1"),false);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("online: duplicate and stale snapshots cannot replace newer local confirmations",async()=>{
+  const instance=await onlineApp();
+  try{
+    rateBen(instance);
+    await instance.emit({players,dealRatings:[oldDeal]},1);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,9);
+    await instance.emit({players,dealRatings:[oldDeal]},0);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,9);
+    await instance.flush();
+    assert.equal(instance.writes.length,1);
+    assert.equal(instance.writes[0].state.dealRatings[0].ratings.Ben,9);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("online: a confirmed room switch replaces the old session and ignores old callbacks",async()=>{
+  const instance=await onlineApp();
+  try{
+    rateBen(instance);
+    const nextPlayers=["New A","New B","New C","New D"];
+    instance.client.joinRoom=async(code,onState)=>{
+      onState({players:nextPlayers,dealRatings:[],startkapital:2000},{roomCode:code,revision:1});
+      return code;
+    };
+    click(button(instance,/Einst\.$/));
+    await act(async()=>{instance.rendered.root.findByType(instance.context.SettingsView).props.online.joinRoom("FGHJK");});
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,9);
+    assert.equal(instance.rendered.root.findAllByType("dialog").length,1);
+    await act(async()=>click(button(instance,"Beitreten")));
+    assert.deepEqual(instance.state().players,nextPlayers);
+    assert.deepEqual(instance.state().dealRatings,[]);
+    assert.equal(instance.state().startkapital,2000);
+    await instance.emitFromFirst({players,dealRatings:[oldDeal]});
+    assert.deepEqual(instance.state().players,nextPlayers);
+    await instance.flush();
+    assert.equal(instance.writes.length,0);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("online: after a successful save a newer server rating wins without being uploaded again",async()=>{
+  const instance=await onlineApp();
+  try{
+    rateBen(instance);
+    await instance.flush();
+    const remote=instance.context.SchafkopfDealRatings.upsertRating(
+      instance.context.SchafkopfDealRatings.normalizeDealRatings([oldDeal]),"historic","Ben",4,
+      {method:"manual",algorithmVersion:"manual-v1",rules:null});
+    await instance.emit({players,dealRatings:remote},3);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,4);
+    await instance.flush();
+    assert.equal(instance.writes.length,1);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+for(const laterLocal of [false,true])test(`online: late transaction acknowledgement ${laterLocal?"preserves a later local edit":"respects a newer server edit"}`,async()=>{
+  const instance=await onlineApp();
+  let finish;
+  let saving;
+  const normalSave=instance.client.saveState;
+  instance.client.saveState=(state,baseState,baseRevision)=>{
+    instance.writes.push(JSON.parse(JSON.stringify({state,baseState,baseRevision})));
+    return new Promise(resolve=>{finish=()=>resolve({state,revision:2});});
+  };
+  try{
+    rateBen(instance);
+    act(()=>{saving=instance.runTimer();});
+    assert.equal(instance.writes.length,1);
+    if(laterLocal){click(card(instance,"Ben: 10 von 10"));click(confirmation(instance));}
+    const remote=instance.context.SchafkopfDealRatings.upsertRating(
+      instance.context.SchafkopfDealRatings.normalizeDealRatings([oldDeal]),"historic","Ben",4,
+      {method:"manual",algorithmVersion:"manual-v1",rules:null});
+    await instance.emit({players,dealRatings:remote},3);
+    finish();
+    await act(async()=>{await saving;});
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,laterLocal?10:4);
+    instance.client.saveState=normalSave;
+    await instance.flush();
+    assert.equal(instance.writes.length,laterLocal?2:1);
+    if(laterLocal)assert.equal(instance.writes[1].baseRevision,3);
+  }finally{finish?.();act(()=>instance.rendered.unmount());}
 });

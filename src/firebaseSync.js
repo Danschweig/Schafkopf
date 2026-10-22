@@ -160,7 +160,8 @@
           unsubscribe=firestore.onSnapshot(roomRef,{includeMetadataChanges:true},snapshot=>{
             // A cached snapshot can contain stale data from this device.
             // Joining and reconnecting always start from the server's state.
-            if(snapshot.metadata.fromCache)return;
+            // Local optimistic writes are not server acknowledgements.
+            if(snapshot.metadata.fromCache||snapshot.metadata.hasPendingWrites)return;
             if(!snapshot.exists()){
               onError?.(Object.assign(new Error("Der Online-Raum wurde geloescht. Der lokale Spielstand bleibt erhalten."),{code:"room-deleted"}));
               return;
