@@ -16,7 +16,8 @@ function app(saved={players,dealRatings:[oldDeal]},existingStorage,configure=()=
   const context={React,crypto,console,setTimeout,clearTimeout,
     Recharts:Object.fromEntries(["LineChart","Line","XAxis","YAxis","CartesianGrid","Tooltip","ReferenceLine","ResponsiveContainer","BarChart","Bar"].map(name=>[name,()=>null])),
     localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
-    document:{body:{style:{}},querySelector:()=>({setAttribute(){}})},
+    document:{currentScript:{src:"http://localhost/src/cardScanner.js"},body:{style:{}},querySelector:()=>({setAttribute(){}})},
+    URL,AbortController,
     navigator:{userAgent:"Node integration test"},matchMedia:()=>({matches:false}),
     location:{hash:"",href:"http://localhost/"},confirm:()=>true
   };
@@ -355,4 +356,88 @@ for(const laterLocal of [false,true])test(`online: late transaction acknowledgem
     assert.equal(instance.writes.length,laterLocal?2:1);
     if(laterLocal)assert.equal(instance.writes[1].baseRevision,3);
   }finally{finish?.();act(()=>instance.rendered.unmount());}
+});
+
+const photographedHand=["eichel-unter","gras-unter","herz-ass","herz-zehn","eichel-ass","eichel-zehn","schellen-koenig","gras-neun"];
+const photoInput=instance=>instance.rendered.root.findAllByType("input").find(node=>node.props.type==="file"&&node.props.capture==="environment");
+const scanResult=cardIds=>({cardIds,detections:cardIds.map((cardId,index)=>({cardId,box:[index*30,20,index*30+25,80],uncertain:false,confidence:.9})),warnings:[],previewUrl:"blob:local-preview"});
+
+test("photo flow: camera recognition previews eight cards and saves only the confirmed numeric result",async()=>{
+  const instance=app();
+  try{
+    let usedModel;
+    instance.context.SchafkopfCardScanner.scanPhoto=async(file,options)=>{usedModel=options.model;return {...scanResult(photographedHand),modelVersion:instance.context.SchafkopfCardScannerCore.MODELS.personal.version};};
+    open(instance);click(button(instance,/^Ben7,0/));click(button(instance,"Karten auswählen"));
+    const modelSelect=instance.rendered.root.findAllByType("select").find(node=>node.findAllByType("option").some(option=>option.props.value==="personal"));
+    act(()=>modelSelect.props.onChange({target:{value:"personal"}}));
+    assert.equal(photoInput(instance).props.accept,"image/*");
+    await act(async()=>photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}}));
+    assert.equal(usedModel,"personal");
+    assert.match(text(instance.rendered.root),/8 von 8 Karten vorgeschlagen/);
+    assert.match(text(instance.rendered.root),/6,8 \/ 10/);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,7);
+    click(confirmation(instance));
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,6.8);
+    assert.equal(instance.state().dealRatings[0].ratingMeta.Ben.algorithmVersion,"hand-v1");
+    assert.ok(!JSON.stringify(instance.state()).includes("blob:"));
+    assert.ok(!JSON.stringify(instance.state()).includes("eichel-unter"));
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("photo flow: incomplete recognition never creates a rating and can be corrected with the picker",async()=>{
+  const instance=app();
+  try{
+    instance.context.SchafkopfCardScanner.scanPhoto=async()=>scanResult(photographedHand.slice(0,7));
+    open(instance);click(button(instance,/^Ben7,0/));click(button(instance,"Karten auswählen"));
+    await act(async()=>photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}}));
+    assert.equal(confirmation(instance).props.disabled,true);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,7);
+    click(card(instance,"Gras-Neun"));
+    assert.equal(confirmation(instance).props.disabled,false);
+    click(confirmation(instance));
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,6.8);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("photo flow: abort prevents a late recognition result from replacing a manual correction",async()=>{
+  const instance=app();
+  let finish;
+  let pending;
+  try{
+    instance.context.SchafkopfCardScanner.scanPhoto=()=>new Promise(resolve=>{finish=resolve;});
+    open(instance);click(button(instance,/^Ben7,0/));click(button(instance,"Karten auswählen"));
+    act(()=>{pending=photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}});});
+    assert.equal(card(instance,"Gras-Neun").props.disabled,true);
+    assert.equal(confirmation(instance).props.disabled,true);
+    click(button(instance,"Erkennung abbrechen"));
+    click(card(instance,"Gras-Neun"));
+    finish(scanResult(photographedHand));
+    await act(async()=>{await pending;});
+    assert.match(text(instance.rendered.root),/1 von 8 Karten/);
+    assert.equal(card(instance,"Eichel-Unter").props["aria-pressed"],false);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,7);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("photo flow: incorrect suggestion from the real-photo failure can be replaced before confirmation",async()=>{
+  const instance=app();
+  // Reproduce the measured failure in the UI. This is not an inference test.
+  const reference=JSON.parse(fs.readFileSync(path.join(__dirname,"fixtures","handkarten.expected.json"),"utf8"));
+  try{
+    instance.context.SchafkopfCardScanner.scanPhoto=async()=>scanResult(["gras-ass","gras-zehn"]);
+    open(instance);click(button(instance,/^Ben7,0/));click(button(instance,"Karten auswählen"));
+    await act(async()=>photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}}));
+    assert.match(text(instance.rendered.root),/2 von 8 Karten vorgeschlagen/);
+    assert.equal(confirmation(instance).props.disabled,true);
+    click(card(instance,"Gras-Zehn"));
+    for(const id of reference.cardIds.filter(id=>id!=="gras-ass")){
+      const label=instance.context.SchafkopfHandEvaluation.CARDS.find(item=>item.id===id).label;
+      click(card(instance,label));
+    }
+    assert.match(text(instance.rendered.root),/4,1 \/ 10/);
+    assert.equal(card(instance,"Gras-Zehn").props["aria-pressed"],false);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,7);
+    click(confirmation(instance));
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,4.1);
+  }finally{act(()=>instance.rendered.unmount());}
 });

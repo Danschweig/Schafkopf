@@ -5,17 +5,22 @@
 // ändere die Versionsnummer in CACHE_NAME (z.B. v2, v3 ...).
 // Das erzwingt dass alle Nutzer die neue Version laden.
 // ─────────────────────────────────────────────────────────────────
-const CACHE_NAME = 'schafkopf-v24';
+const CACHE_NAME = 'schafkopf-v26';
 
 // Lokale Dateien – werden beim ersten Start gecacht
 const LOCAL_FILES = [
   './',
   './index.html',
+  './scanner-check.html',
+  './src/scannerCheck.js',
   './manifest.json',
   './icon.svg',
   './styles/app.css',
   './src/firebaseConfig.js',
   './src/handEvaluation.js',
+  './src/cardScannerCore.js',
+  './src/cardScanner.js',
+  './src/cardScannerWorker.js',
   './src/dealRatings.js',
   './src/firebaseSync.js',
   './src/core.js',
@@ -27,6 +32,7 @@ const LOCAL_FILES = [
   './src/components/homeView.js',
   './src/components/historyView.js',
   './src/components/dealRatingsView.js',
+  './src/components/photoCardScanner.js',
   './src/components/settingsView.js',
   './src/exportHtml.js',
   './src/SchafkopfTracker.js',
@@ -63,7 +69,7 @@ self.addEventListener('activate', event => {
     caches.keys()
       .then(keys => Promise.all(
         keys
-          .filter(key => key !== CACHE_NAME)
+          .filter(key => key.startsWith('schafkopf-v') && key !== CACHE_NAME)
           .map(key => caches.delete(key))
       ))
       .then(() => self.clients.claim())

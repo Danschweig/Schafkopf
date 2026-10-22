@@ -3,11 +3,15 @@
   "private": true,
   "scripts": {
     "test": "node --test tests/*.test.cjs",
-    "check": "node tests/check-scripts.cjs"
+    "check": "node tests/check-scripts.cjs",
+    "check:photo": "node scripts/check-card-photo.cjs",
+    "check:pages": "node scripts/check-pages.cjs"
   },
   "devDependencies": {
     "@babel/standalone": "7.23.10",
+    "onnxruntime-web": "1.20.1",
     "react": "18.3.1",
-    "react-test-renderer": "18.3.1"
+    "react-test-renderer": "18.3.1",
+    "sharp": "0.34.3"
   }
 }

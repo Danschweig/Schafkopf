@@ -1,1 +1,9 @@
 node_modules/
+__pycache__/
+.tools/
+
+# Private Kartenfotos: nur Anleitung und leere Ordnerstruktur versionieren.
+kartenfotos/**
+!kartenfotos/**/
+!kartenfotos/**/.gitkeep
+!kartenfotos/README.md

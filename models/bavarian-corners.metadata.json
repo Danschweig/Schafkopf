@@ -1,0 +1,93 @@
+{
+  "version": "bavarian-corners-pilot-2026-10-22-v2",
+  "target": "rank-and-suit-index",
+  "license": "AGPL-3.0",
+  "classNames": [
+    "Eichel_7",
+    "Eichel_8",
+    "Eichel_9",
+    "Eichel_10",
+    "Eichel_Unter",
+    "Eichel_Ober",
+    "Eichel_Koenig",
+    "Eichel_Ass",
+    "Gras_7",
+    "Gras_8",
+    "Gras_9",
+    "Gras_10",
+    "Gras_Unter",
+    "Gras_Ober",
+    "Gras_Koenig",
+    "Gras_Ass",
+    "Herz_7",
+    "Herz_8",
+    "Herz_9",
+    "Herz_10",
+    "Herz_Unter",
+    "Herz_Ober",
+    "Herz_Koenig",
+    "Herz_Ass",
+    "Schellen_7",
+    "Schellen_8",
+    "Schellen_9",
+    "Schellen_10",
+    "Schellen_Unter",
+    "Schellen_Ober",
+    "Schellen_Koenig",
+    "Schellen_Ass"
+  ],
+  "inputShape": [
+    1,
+    3,
+    640,
+    640
+  ],
+  "outputShape": [
+    1,
+    36,
+    8400
+  ],
+  "source": "https://github.com/Nikiki95/schafkopf-engine/blob/d4e4efc04973416b1aa98e2d13cd268c8fcf0f6d/schafkopf_yolo.pt",
+  "sourceSha256": "2c96ad125f098e5dc6d7ce0c363ee704f212f337633395b023a8e0d512203802",
+  "checkpointSha256": "a469a9612a7be459862d32d5652ed45265782cdf8ec17c98983464f2e909f075",
+  "onnxSha256": "df92dab05ded0b4580d8f32f05eb2129dcdabf2bba43916091a440819f6c1dde",
+  "training": {
+    "seed": 20261022,
+    "target": "rank-and-suit-index",
+    "realTrainingHands": 3,
+    "datasetSeed": 20261023,
+    "datasetGenerator": {
+      "synthetic": 384,
+      "patchScenes": 128,
+      "realVariantsPerHand": 32,
+      "photoBackgrounds": true,
+      "validationImages": 64,
+      "validationSeed": 78931
+    },
+    "parentCheckpointSha256": "7305cb703e4be519fed6b27780316bbb83a707e1fcdcb158de59f20eac33ccfb",
+    "images": {
+      "train": 608,
+      "val": 64
+    },
+    "requestedEpochs": 16,
+    "provenanceSha256": "fc335fe813a2c2fcb4fc460c344e6f0edb1f5660591a9ba9ca8b818df6e95835",
+    "internalValidationMetrics": {
+      "metrics/precision(B)": 0.94299,
+      "metrics/recall(B)": 0.92893,
+      "metrics/mAP50(B)": 0.97373,
+      "metrics/mAP50-95(B)": 0.70687,
+      "val/box_loss": 1.01369,
+      "val/cls_loss": 0.6103,
+      "val/dfl_loss": 0.87607,
+      "fitness": 0.70687
+    },
+    "testImagesUsed": 0,
+    "recipe": "scripts/train-card-model.py"
+  },
+  "export": {
+    "torch": "2.8.0+cpu",
+    "onnx": "1.18.0",
+    "ultralytics": "8.4.21",
+    "opset": 17
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "version": "bavarian-yolov8n-2026-03-13",
+  "source": "https://github.com/Nikiki95/schafkopf-engine/blob/d4e4efc04973416b1aa98e2d13cd268c8fcf0f6d/schafkopf_yolo.pt",
+  "sourceSha256": "2c96ad125f098e5dc6d7ce0c363ee704f212f337633395b023a8e0d512203802",
+  "license": "AGPL-3.0 (https://ultralytics.com/license)",
+  "onnxSha256": "860c3d0f2a47cb91eb32b0d58ded95ca143feffdc16eb6aed2eafe48bea2e162",
+  "inputShape": [
+    1,
+    3,
+    640,
+    640
+  ],
+  "outputShape": [
+    1,
+    36,
+    8400
+  ],
+  "classNames": [
+    "Eichel_7",
+    "Eichel_8",
+    "Eichel_9",
+    "Eichel_10",
+    "Eichel_Unter",
+    "Eichel_Ober",
+    "Eichel_Koenig",
+    "Eichel_Ass",
+    "Gras_7",
+    "Gras_8",
+    "Gras_9",
+    "Gras_10",
+    "Gras_Unter",
+    "Gras_Ober",
+    "Gras_Koenig",
+    "Gras_Ass",
+    "Herz_7",
+    "Herz_8",
+    "Herz_9",
+    "Herz_10",
+    "Herz_Unter",
+    "Herz_Ober",
+    "Herz_Koenig",
+    "Herz_Ass",
+    "Schellen_7",
+    "Schellen_8",
+    "Schellen_9",
+    "Schellen_10",
+    "Schellen_Unter",
+    "Schellen_Ober",
+    "Schellen_Koenig",
+    "Schellen_Ass"
+  ],
+  "export": {
+    "torch": "2.8.0+cpu",
+    "ultralytics": "8.4.21",
+    "onnx": "1.18.0",
+    "opset": 17
+  }
+}

@@ -11,12 +11,13 @@
       const [method,setMethod]=useState(savedMeta?.method==="automatic"?"automatic":"manual");
       const [manual,setManual]=useState(savedMeta?.method!=="automatic"?savedScore:null);
       const [cards,setCards]=useState([]);
+      const [scanning,setScanning]=useState(false);
       const [rules,setRules]=useState(()=>savedMeta?.rules?.deck==="long"?{...savedMeta.rules}:{
         deck:"long",hochzeit:gameTypes.some(type=>type.id==="hochzeit"),wenz:gameTypes.some(type=>type.id==="wenz")
       });
       const [notice,setNotice]=useState("");
       const evaluation=useMemo(()=>cards.length===8?window.SchafkopfHandEvaluation.evaluateHand(cards,rules):null,[cards,rules]);
-      const complete=method==="manual"?window.SchafkopfDealRatings.validScore(manual):!!evaluation;
+      const complete=!scanning&&(method==="manual"?window.SchafkopfDealRatings.validScore(manual):!!evaluation);
       function toggleCard(id){
         setCards(current=>current.includes(id)?current.filter(card=>card!==id):current.length<8?[...current,id]:current);
         setNotice("");
@@ -42,7 +43,7 @@
       return <div style={{...s.card(),marginTop:12}}>
         <div style={s.sec}>Kartenbewertung für {player}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
-          <button aria-pressed={method==="manual"} onClick={()=>{setMethod("manual");setNotice("");}} style={s.btn(method==="manual","#4ab8e8")}>Manuell bewerten</button>
+          <button aria-pressed={method==="manual"} onClick={()=>{setMethod("manual");setScanning(false);setNotice("");}} style={s.btn(method==="manual","#4ab8e8")}>Manuell bewerten</button>
           <button aria-pressed={method==="automatic"} onClick={()=>{setMethod("automatic");setNotice("");}} style={s.btn(method==="automatic","#4ab8e8")}>Karten auswählen</button>
         </div>
         {method==="manual"?<div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:5}}>
@@ -55,6 +56,7 @@
             Langes Blatt: 8 aus 32 Karten. Wähle deine Hand vor Spielansage und Kartentausch.
             Feste Heuristik für Sauspiel/Hochzeit und optional Wenz; keine Gewinnwahrscheinlichkeit und keine eigene Solo- oder Geierbewertung.
           </div>
+          <PhotoCardScanner onScanStart={()=>{setCards([]);setNotice("");}} onCards={ids=>{setCards(ids);setNotice("");}} onBusyChange={setScanning}/>
           <div style={{display:"grid",gap:6}}>
             {[["hochzeit","Hochzeit berücksichtigen"],["wenz","Wenz berücksichtigen"]].map(([key,label])=><button key={key}
               role="switch" aria-checked={rules[key]} onClick={()=>{setRules(current=>({...current,[key]:!current[key]}));setNotice("");}}
@@ -67,7 +69,7 @@
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:5}}>
               {window.SchafkopfHandEvaluation.CARDS.filter(card=>card.suit===suit.id).map(card=>{
                 const selected=cards.includes(card.id);
-                const disabled=!selected&&cards.length>=8;
+                const disabled=scanning||(!selected&&cards.length>=8);
                 return <button key={card.id} type="button" aria-label={card.label} aria-pressed={selected} disabled={disabled}
                   title={card.label} onClick={()=>toggleCard(card.id)}
                   style={{...s.btn(selected,"#4ab8e8"),minHeight:46,padding:"8px 0",fontWeight:"bold",fontSize:13,opacity:disabled?0.4:1,borderWidth:selected?2:1}}>
@@ -76,7 +78,7 @@
               })}
             </div>
           </fieldset>)}
-          <button disabled={cards.length===0} onClick={()=>{setCards([]);setNotice("");}} style={{...s.btn(false),marginBottom:10}}>Auswahl leeren</button>
+          <button disabled={scanning||cards.length===0} onClick={()=>{setCards([]);setNotice("");}} style={{...s.btn(false),marginBottom:10}}>Auswahl leeren</button>
           {evaluation&&<div aria-live="polite" style={s.card("#4ab8e855",C.bg2)}>
             <div style={{fontSize:22,fontWeight:"bold",color:dealScoreColor(evaluation.score)}}>{formatDealScore(evaluation.score)} / 10</div>
             <div style={{fontSize:11,lineHeight:1.5,marginTop:6}}>

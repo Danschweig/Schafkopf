@@ -1,0 +1,4 @@
+# Preserve the exact upstream runtime artifacts, including their checksums.
+vendor/onnxruntime/* -text
+models/*.onnx -text
+tests/fixtures/*.jpg -text
