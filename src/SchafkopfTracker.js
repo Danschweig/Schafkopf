@@ -104,6 +104,7 @@
       const [settingsTab,setSettingsTab]=useState("allg"); // 0=wer, 1=spieltyp
       const [themeMode,setThemeMode]=useState(sv?.themeMode||"dark");
       const [runeMode,setRuneMode]=useState(!!sv?.runeMode);
+      const [legacyRating,setLegacyRating]=useState(sv?.legacyRating===true);
       const [forcePflichtramsch,setForcePflichtramsch]=useState(!!sv?.forcePflichtramsch);
       const [forcePflichtramschChance,setForcePflichtramschChance]=useState(()=>Math.max(1,Number(sv?.forcePflichtramschChance)||20));
       const [bockMode,setBockMode]=useState(!!sv?.bockMode);
@@ -186,7 +187,7 @@
         const chance=Math.max(1,Number(forcePflichtramschChance)||20);
         setNextRoundRamsch({rolled:true,forced:Math.random()<(1/chance)});
       },[forcePflichtramsch,forcePflichtramschChance,nav,editRound,selType,aussetzenStep,nextRoundRamsch.rolled]);
-      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,themeMode,runeMode,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
+      useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);
@@ -629,7 +630,7 @@
         });
       }
 
-      function startDealRating(dealer){
+      function startDealRating(dealer,ratings={}){
         if(!players.includes(dealer))return null;
         const createdAt=Date.now();
         const id=`deal-${window.crypto?.randomUUID?.()||`${createdAt}-${Math.random().toString(36).slice(2)}`}`;
@@ -637,7 +638,7 @@
           id,roundId:id,
           createdAt,
           dealer,
-          ratings:{},ratingMeta:{}
+          ratings,ratingMeta:Object.fromEntries(Object.keys(ratings).map(player=>[player,{method:"manual",algorithmVersion:"manual-v1",rules:null}]))
         }]);
         return id;
       }
@@ -647,6 +648,14 @@
         // Validate before reporting success; a functional update preserves other players' saves.
         window.SchafkopfDealRatings.upsertRating(dealRatings,dealId,player,score,meta);
         setDealRatings(entries=>window.SchafkopfDealRatings.upsertRating(entries,dealId,player,score,meta));
+      }
+
+      function saveLegacyDealRating(dealer,ratings){
+        const raters=players.filter(player=>player!==dealer);
+        if(!players.includes(dealer)||!raters.length||!ratings||raters.some(player=>!Number.isInteger(ratings[player])||!window.SchafkopfDealRatings.validScore(ratings[player])))
+          throw new Error("Bitte für alle Mitspieler eine Bewertung von 1 bis 10 auswählen.");
+        // One complete entry: no intermediate empty deal or partial player saves.
+        return startDealRating(dealer,Object.fromEntries(raters.map(player=>[player,ratings[player]])));
       }
 
       function undoLastDealRating(){
@@ -808,9 +817,11 @@
 
           {nav==="austeilen"&&<DealRatingsView
             players={players} dealRatings={dealRatings} gameTypes={gameTypes}
+            legacyRating={legacyRating} onLegacySave={saveLegacyDealRating}
             onStart={startDealRating} onSave={saveDealRating} onUndo={undoLastDealRating}/>}
 
           {nav==="settings"&&<SettingsView
+            legacyRating={legacyRating} setLegacyRating={setLegacyRating}
             settingsTab={settingsTab} setSettingsTab={setSettingsTab}
             themeMode={themeMode} setThemeMode={setThemeMode} runeMode={runeMode} setRuneMode={setRuneMode}
             forcePflichtramsch={forcePflichtramsch} setForcePflichtramsch={setForcePflichtramsch}

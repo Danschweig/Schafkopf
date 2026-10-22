@@ -1,4 +1,5 @@
     function SettingsView({
+      legacyRating,setLegacyRating,
       settingsTab,setSettingsTab,themeMode,setThemeMode,runeMode,setRuneMode,
       forcePflichtramsch,setForcePflichtramsch,forcePflichtramschChance,setForcePflichtramschChance,
       bockMode,setBockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,updateBockAllowed,
@@ -15,6 +16,7 @@
         </div>
 
         {settingsTab==="allg"&&<GeneralSettings
+          legacyRating={legacyRating} setLegacyRating={setLegacyRating}
           themeMode={themeMode} setThemeMode={setThemeMode} runeMode={runeMode} setRuneMode={setRuneMode}
           forcePflichtramsch={forcePflichtramsch} setForcePflichtramsch={setForcePflichtramsch}
           forcePflichtramschChance={forcePflichtramschChance} setForcePflichtramschChance={setForcePflichtramschChance}
@@ -196,6 +198,7 @@
     }
 
     function GeneralSettings({
+      legacyRating,setLegacyRating,
       themeMode,setThemeMode,runeMode,setRuneMode,
       forcePflichtramsch,setForcePflichtramsch,forcePflichtramschChance,setForcePflichtramschChance,
       bockMode,setBockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,updateBockAllowed,
@@ -223,6 +226,19 @@
           <Toggle label="Nordische Runen" value={runeMode} onChange={setRuneMode}/>
           <div style={{fontSize:10,color:C.dim,lineHeight:1.35}}>
             {runeMode?"Sichtbare Texte werden als Runen dargestellt; gespeicherte Daten bleiben normal.":themeMode==="light"?"Heller Modus mit klaren Kontrasten fuer Tageslicht.":"Dunkler Modus fuer ruhige Runden am Tisch."}
+          </div>
+        </div>
+
+        <div style={s.card()}>
+          <div style={s.sec}>Austeil-Bewertung</div>
+          <button role="switch" aria-label="Legacy Bewertung" aria-checked={legacyRating}
+            onClick={()=>setLegacyRating(!legacyRating)}
+            style={{...s.btn(legacyRating,"#4ab8e8"),display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",minHeight:44,padding:10}}>
+            <span>Legacy Bewertung</span><span>{legacyRating?"An":"Aus"}</span>
+          </button>
+          <div style={{fontSize:11,color:C.dim,lineHeight:1.5,marginTop:8}}>
+            {legacyRating?"Alter Modus: Austeiler wählen, alle anderen Spieler mit 1–10 bewerten und gemeinsam speichern.":"Neuer Modus: gemeinsame Austeilung anlegen und pro Spieler manuell, mit Kartenauswahl oder Foto bewerten."}
+            {" "}Die Auswahl gilt für dieses Gerät. Gespeicherte Bewertungen und die Statistik bleiben erhalten.
           </div>
         </div>
 

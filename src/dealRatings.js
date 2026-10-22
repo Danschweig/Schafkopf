@@ -6,9 +6,12 @@
   function cleanMeta(meta){
     const method=meta?.method==="automatic"?"automatic":"manual";
     const rules=meta?.rules;
-    return {method,algorithmVersion:typeof meta?.algorithmVersion==="string"?meta.algorithmVersion:"legacy",
-      rules:rules&&typeof rules.deck==="string"&&typeof rules.hochzeit==="boolean"&&typeof rules.wenz==="boolean"
-        ?{deck:rules.deck,hochzeit:rules.hochzeit,wenz:rules.wenz}:null};
+    let cleanRules=null;
+    if(rules&&typeof rules.deck==="string"&&typeof rules.hochzeit==="boolean"&&typeof rules.wenz==="boolean"){
+      cleanRules={deck:rules.deck,hochzeit:rules.hochzeit,wenz:rules.wenz};
+      for(const key of ["sauspiel","farbwenz","geier","farbsolo","ramsch"])if(typeof rules[key]==="boolean")cleanRules[key]=rules[key];
+    }
+    return {method,algorithmVersion:typeof meta?.algorithmVersion==="string"?meta.algorithmVersion:"legacy",rules:cleanRules};
   }
   function normalizeDealRatings(entries){
     if(!Array.isArray(entries))return [];

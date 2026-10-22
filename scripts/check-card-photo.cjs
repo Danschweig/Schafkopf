@@ -24,7 +24,8 @@ async function main(){
   const metadata=JSON.parse(fs.readFileSync(modelPath.replace(/\.onnx$/,".metadata.json"),"utf8"));
   const reference=JSON.parse(fs.readFileSync(labelsPath,"utf8"));
   // Reject malformed references, including repeated cards and non-eight-card hands.
-  const referenceScore=evaluateHand(reference.cardIds,reference.rules).score;
+  const referenceEvaluation=evaluateHand(reference.cardIds,reference.rules);
+  const referenceScore=referenceEvaluation.score;
   const photo=fs.readFileSync(photoPath);
   const {data}=await sharp(photo).rotate()
     .resize(core.IMAGE_SIZE,core.IMAGE_SIZE,{fit:"contain",background:{r:114,g:114,b:114}})
@@ -51,6 +52,7 @@ async function main(){
       suggested:result.cardIds,
       matched,unexpected,missing,
       referenceScore,
+      scoringAlgorithmVersion:referenceEvaluation.algorithmVersion,
       suggestedScore:result.cardIds.length===8?evaluateHand(result.cardIds,reference.rules).score:null,
       detections:result.detections
     };

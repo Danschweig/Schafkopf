@@ -60,18 +60,76 @@ Weiterfuehrende Dokumentation:
 
 ## Automatische Handbewertung
 
+Unter **Einstellungen > Allgemein > Austeil-Bewertung** schaltet **Legacy
+Bewertung** zwischen zwei Eingabewegen um. Standard ist **aus**: Im neuen Modus
+legt man eine gemeinsame Austeilung an und bewertet pro Spieler. Nach der
+Spielerwahl ist **Karten auswählen** bereits geöffnet; der Fotobutton ist
+direkt sichtbar. **Manuell bewerten** bleibt verfügbar.
+
+Mit **Legacy Bewertung an** erscheint der ursprüngliche Ablauf: Austeiler
+wählen, alle anderen Spieler mit 1–10 bewerten und gemeinsam speichern. Erst
+wenn alle Bewertungen gewählt sind, wird eine vollständige Austeilung
+gespeichert. Es gibt dabei keine parallele neue Eingabeansicht. Beide Modi
+nutzen dieselben gespeicherten Bewertungen und dieselbe Statistik; ein
+Moduswechsel ändert keine bestehenden Werte. Die Einstellung bleibt nach dem
+Neuladen auf diesem Gerät erhalten und wird nicht zwischen Online-Geräten
+synchronisiert. Der Legacy-Modus unterstützt auch fünf Spieler.
+
 Unter **Austeilen** einmal pro Tisch eine neue Austeilung mit dem Austeiler anlegen. Auf den anderen Geräten dieselbe Austeilung auswählen, den eigenen Spieler wählen und entweder manuell bewerten oder **Karten auswählen** verwenden. Erst **Bewertung bestätigen und speichern** speichert den Wert. Eine erneute Bestätigung oder ein Wechsel zwischen manueller und automatischer Methode ersetzt die Bewertung dieses Spielers in dieser Austeilung.
 
-Die bisherige App legt keine Blattlänge fest und enthält keine Kartenbilder oder Karten-IDs. Die neue automatische Bewertung gilt ausdrücklich nur für **langes Blatt (8 aus 32 Karten)**; kurzes Blatt wird weiterhin manuell bewertet. Hochzeit und Wenz werden aus den vorhandenen Spielarten vorbelegt und können vor der Bestätigung angepasst werden. Bock und Pflichtramsch ändern diese Bewertung des Handpotenzials vor der Spielansage nicht.
+Die automatische Bewertung gilt für **langes Blatt (8 aus 32 Karten)**;
+kurzes Blatt wird weiterhin manuell bewertet. Sauspiel, Hochzeit, Wenz,
+Farb-Wenz, Geier und Farbsolo werden aus den vorhandenen Spielarten vorbelegt
+und können vor der Bestätigung einzeln angepasst werden. Farb-Wenz wird auch
+aus einer Wenz-Spielart mit aktivierter Farboption übernommen. Bock verändert
+die Kartenbewertung nicht. Für Ramsch muss der entsprechende Schalter in der
+Kartenbewertung gewählt werden; das ist unabhängig vom Zufallsschalter für
+Pflichtramsch in den Rundeneinstellungen.
 
 Die reine Funktion `SchafkopfHandEvaluation.evaluateHand(cardIds, rules)` in `src/handEvaluation.js` verwendet feste IDs wie `eichel-ober`, `gras-unter` oder `herz-ass`. Anzeigenamen sind davon getrennt. Die lokale Fotoerkennung übergibt dieselben IDs wie die Kartenauswahl. Die Funktion validiert Hand und Regeln, ist unabhängig von der Kartenreihenfolge und liefert:
 
-- `score`: den höheren Kandidatenwert, auf 1–10 begrenzt und erst danach auf eine Nachkommastelle gerundet;
-- `normal`: Grundwert, einzelne Zuschläge, Trumpfanzahl und ungerundete Sauspiel-/Hochzeitbewertung;
-- `wenz`: einen separaten Kandidaten ab zwei Unter bei aktivierter Wenzregel, sonst `null`;
-- `winningCandidate`, `algorithmVersion` (`hand-v1`) und die verwendeten `rules`.
+- `score`: den höchsten aktivierten Kandidatenwert, auf 1–10 begrenzt und erst
+  danach auf eine Nachkommastelle gerundet; `null`, wenn keine passende
+  Spielart gewählt ist;
+- `candidates`: Grundwerte, Zu-/Abschläge, Trumpfanzahl und ungerundete Werte
+  pro bewertbarer Spielart;
+- `bestCandidate` und `winningCandidate`: ausschlaggebende Spielart und bei
+  Farbspielen deren Trumpffarbe; `alternatives` zeigt dort alle vier Farben;
+- `algorithmVersion` (`hand-v2`) und die vollständigen gewählten `rules`.
 
-Alle Gewichte liegen zentral in `WEIGHTS` als Hundertstelpunkte, damit Zuschläge wie 0,25 bis zur Endrundung exakt bleiben. Bei Gleichstand ist die normale Bewertung ausschlaggebend. Diese Heuristik ist keine Gewinnwahrscheinlichkeit und enthält keine eigene Solo- oder Geierbewertung.
+Alle Gewichte liegen zentral in `WEIGHTS` und `VARIANT_WEIGHTS` als
+Hundertstelpunkte. Gleichstände werden nach einer festen Kandidatenreihenfolge
+aufgelöst. Diese Heuristik ist keine Gewinnwahrscheinlichkeit und keine
+Empfehlung für eine regelkonforme Spielansage; Spielposition, fremde Karten,
+Spielverhandlung und Stichverlauf werden nicht simuliert.
+
+Die Trumpfzuordnung folgt den beschriebenen
+[Schafkopf-Spielarten](https://www.sauspiel.de/schafkopf-lernen/die-spielarten):
+Wenz verwendet Unter, Geier Ober, Farb-Wenz Unter plus gewählte Farbe und
+Farbsolo Ober/Unter plus gewählte Farbe. Sauspiel und Ramsch verwenden
+Ober/Unter plus Herz. Die Zahlenwerte sind eigene, anpassbare Projektgewichte:
+
+| Spielart | Heuristik in `hand-v2` |
+| --- | --- |
+| Sauspiel | Bisherige Trumpf-Grundwerte, Trumpfqualität, Farb-Asse/Ass-Zehn und freie Farben; ohne Hochzeit-Aufwertung. |
+| Hochzeit | Genau ein Sauspiel-Trumpf; bisheriger Grundwert 3,0, ohne Qualität des abzugebenden Trumpfs. |
+| Wenz / Geier | Grundwerte nach Anzahl der Unter/Ober: 1,0 / 2,0 / 4,0 / 6,5 / 8,0 bei 0–4; Qualität 0,60 / 0,40 / 0,20 / 0,00 nach Eichel/Gras/Herz/Schellen, Asse +0,60 und Ass-Zehn +0,30. |
+| Farb-Wenz / Farbsolo | Alle vier Farben werden geprüft. Trumpf-Grundwerte wie bisher, −1,0 für das Alleinspiel; dazu Trumpfqualität, Farb-Asse/Ass-Zehn und freie Farben. Ober sind beim Farb-Wenz außerhalb der Trumpffarbe gewöhnliche Farbkarten. |
+| Ramsch | Ausgangswert 10,0; Abzüge für hohe Trümpfe, hohe Farbkarten, einzelne Farb-Asse/-Zehnen und zusätzliche Stichkontrolle ab fünf Trümpfen. Ein schwaches Blatt ohne hohe Karten ergibt einen hohen Wert. |
+
+**Ramsch ist exklusiv:** Aktivieren schaltet alle anderen Spielarten aus. Wer
+danach eine andere Spielart aktiviert, verlässt Ramsch. Ramsch ist beim
+normalen Vergleich nicht automatisch aktiv. Hier bedeutet eine hohe Zahl gute
+Voraussetzungen zum Vermeiden von Augen und Stichen; ein Durchmarsch wird
+entsprechend dem gewählten Ziel nicht belohnt. Die Oberfläche erklärt diese
+Richtung und zeigt die negativen Risikoanteile in der Berechnung.
+
+Ohne bewertbaren Kandidaten bleibt die Speicherbestätigung gesperrt. Ein
+Modus- oder Regelwechsel speichert keinen neuen Wert. Neue automatische
+Bestätigungen tragen `hand-v2` und alle sieben Spielart-Schalter. Historische
+Werte und ihre `hand-v1`-Regeln werden unverändert geladen, exportiert und
+synchronisiert. `evaluateHandV1()` und seine exakten Regressionstests bleiben
+für die bisherige Formel verfügbar.
 
 ### Karten fotografieren (Beta)
 
@@ -107,7 +165,7 @@ Karten können im bisherigen Wähler korrigiert werden. Erst bei acht ausgewähl
 Karten erscheint die Bewertung; gespeichert wird weiterhin ausschließlich nach
 ausdrücklicher Bestätigung.
 
-**Erkennungsgrenze des allgemeinen Modells:** Das urspr?ngliche allgemeine Modell ist eine experimentelle erste Version und fuer eng aufgefaecherte Handkarten derzeit unzuverlaessig. Im privaten Acht-Karten-Beispielfoto liefert das unveraenderte Modell zwei vorausgewaehlte Vorschlaege: Gras-Ass (richtig) und Gras-Zehn (falsch). Sieben der acht tatsaechlichen Karten fehlen. Ein engerer Ausschnitt und Drehungen um +/-15 Grad ergeben ebenfalls keine korrekte vollstaendige Hand. Bei identischen Eingabepixeln liefert das urspruengliche PyTorch-Modell dieselben Klassen wie das ONNX-Modell; die maximale Abweichung der Klassenausgaben liegt bei etwa 0,0000034. Der Export ist damit nicht die Ursache dieses Fehlers. Auch hohe Modellwerte garantieren keine richtige Zuordnung. Fuer die gewuenschte automatische Acht-Karten-Erkennung ist ein besser geeignetes oder gezielt nachtrainiertes Modell noetig; diese Anforderung ist noch nicht erfuellt.
+**Erkennungsgrenze des allgemeinen Modells:** Das ursprüngliche allgemeine Modell ist eine experimentelle erste Version und fuer eng aufgefaecherte Handkarten derzeit unzuverlaessig. Im privaten Acht-Karten-Beispielfoto liefert das unveraenderte Modell zwei vorausgewaehlte Vorschlaege: Gras-Ass (richtig) und Gras-Zehn (falsch). Sieben der acht tatsaechlichen Karten fehlen. Ein engerer Ausschnitt und Drehungen um +/-15 Grad ergeben ebenfalls keine korrekte vollstaendige Hand. Bei identischen Eingabepixeln liefert das urspruengliche PyTorch-Modell dieselben Klassen wie das ONNX-Modell; die maximale Abweichung der Klassenausgaben liegt bei etwa 0,0000034. Der Export ist damit nicht die Ursache dieses Fehlers. Auch hohe Modellwerte garantieren keine richtige Zuordnung. Fuer die gewuenschte automatische Acht-Karten-Erkennung ist ein besser geeignetes oder gezielt nachtrainiertes Modell noetig; diese Anforderung ist noch nicht erfuellt.
 
 Der Fototest laesst sich lokal wiederholen. Das private Originalfoto bleibt unter `.tools/` und wird nicht veroeffentlicht; die Referenzdatei enthaelt nur die acht von Hand abgelesenen Karten-IDs:
 
@@ -115,7 +173,7 @@ Der Fototest laesst sich lokal wiederholen. Das private Originalfoto bleibt unte
 npm run check:photo -- .tools/handkarten.jpg tests/fixtures/handkarten.expected.json --model models/bavarian-cards.onnx
 ```
 
-Der Befehl gibt richtige, falsche und fehlende Vorschlaege getrennt aus und endet bei jeder Abweichung mit Exitcode 1. Die Referenzkarten gehen ausschliesslich in den Vergleich und niemals in die Erkennung ein. Die daraus von Hand bestimmte Referenzbewertung betraegt 4,1/10. Die Bildverkleinerung im lokalen Test verwendet Sharp; die Smartphone-App verwendet Canvas, deshalb koennen einzelne Modellwerte abweichen. Ein zweites unabhaengiges Bild mit sechs eng gefaecherten Karten wird nur teilweise erkannt. Erfolgreiche technische Tests und Tests mit kontrollierten Erkennungsergebnissen belegen keine zuverlaessige Fotoerkennung.
+Der Befehl gibt richtige, falsche und fehlende Vorschlaege getrennt aus und endet bei jeder Abweichung mit Exitcode 1. Die Referenzkarten gehen ausschliesslich in den Vergleich und niemals in die Erkennung ein. Die historische Referenzbewertung mit hand-v1 betraegt 4,1/10; hand-v2 ergibt bei allen aktivierten normalen Spielarten 4,4/10. Die Bildverkleinerung im lokalen Test verwendet Sharp; die Smartphone-App verwendet Canvas, deshalb koennen einzelne Modellwerte abweichen. Ein zweites unabhaengiges Bild mit sechs eng gefaecherten Karten wird nur teilweise erkannt. Erfolgreiche technische Tests und Tests mit kontrollierten Erkennungsergebnissen belegen keine zuverlaessige Fotoerkennung.
 
 Quellen, Modellversion, Prüfsummen, Exportcode und Lizenzen sind in [THIRD_PARTY.md](THIRD_PARTY.md) dokumentiert. Der Modell-Checkpoint nennt AGPL-3.0; der Export übernimmt diese Lizenzangabe. ONNX Runtime Web steht unter MIT. Das Modell kann mit `scripts/export-card-model.py` aus dem verlinkten Quell-Checkpoint erneut exportiert werden; Python und die Exportabhängigkeiten sind zum Benutzen der App nicht erforderlich.
 
@@ -244,13 +302,13 @@ Seite. Es veröffentlicht den lokalen Arbeitsstand nicht.
 
 ### Daten und bisherige Statistik
 
-Die bisherigen numerischen Einträge in `dealRatings[].ratings[spieler]` bleiben erhalten. Zusätzlich enthält `ratingMeta[spieler]` Methode (`manual`/`automatic`), Algorithmusversion und bei automatischer Bewertung die Regeln (`deck`, `hochzeit`, `wenz`). Neue manuelle Bewertungen tragen `manual-v1`; historische Bewertungen werden als `manual`/`legacy` ohne nachträglich erfundene Regeln gekennzeichnet. Unterschiedliche Versionen bleiben beim Laden, Exportieren, Importieren und Umbenennen der Spieler erhalten.
+Die bisherigen numerischen Einträge in `dealRatings[].ratings[spieler]` bleiben erhalten. Zusätzlich enthält `ratingMeta[spieler]` Methode (`manual`/`automatic`), Algorithmusversion und bei automatischer Bewertung die Regeln (`deck` und die sieben Spielart-Schalter; bei historischen Werten weiterhin nur `hochzeit` und `wenz`). Neue manuelle Bewertungen tragen `manual-v1`; historische Bewertungen werden als `manual`/`legacy` ohne nachträglich erfundene Regeln gekennzeichnet. Unterschiedliche Versionen bleiben beim Laden, Exportieren, Importieren und Umbenennen der Spieler erhalten.
 
 Wie schon bisher ist eine Austeilung unabhängig von den nachträglich erfassten Spielen in `rounds`. Ihre dauerhafte `id` dient gleichzeitig als `roundId` der Austeilung. Es wird keine Zuordnung zu einem Spiel im Spielprotokoll geraten. Der Austeiler steht am Austeilungseintrag, der bewertende Spieler ist der Schlüssel in `ratings` und `ratingMeta`. Beim Anlegen wird zunächst nur eine leere Austeilung synchronisiert; erst die ausdrückliche Bestätigung fügt einen Bewertungswert hinzu. Auf mehreren Geräten dieselbe Austeilung verwenden, statt je Gerät eine neue anzulegen.
 
 Der Austeilerwert bleibt der ungewichtete Durchschnitt **aller Einzelbewertungen der aktuell geführten Mitspieler außer dem Austeiler** – kein Durchschnitt von Rundendurchschnitten und keine neue Gewichtung für automatische Werte. Gesamt- und Spielerwerte zeigen ihre Anzahl an Bewertungen. Leere Austeilungen zählen noch nicht zur Statistik. Methoden, Versionen und gespeicherte Regeln sind an den einzelnen Bewertungen sichtbar.
 
-Die bestehenden Firestore-Räume, anonymen Anmeldungen, Transaktionen und Zugriffsregeln werden weiterverwendet. Gleichzeitige Änderungen verschiedener Spieler derselben Austeilung werden zusammengeführt; bei demselben Spieler gewinnt die zuletzt erfolgreich synchronisierte Änderung mitsamt ihrer Methode und Version. Wiederholte Bestätigungen nutzen dieselbe Austeilungs-ID und denselben Spielerschlüssel. Handkarten bleiben nur im lokalen Eingabezustand und werden weder in Firestore noch in Sicherungen gespeichert. Es werden keine Fotos gespeichert und keine neuen Dienste benötigt. Der Service-Worker-Cache steht mit der Fotoerkennung auf `schafkopf-v26`.
+Die bestehenden Firestore-Räume, anonymen Anmeldungen, Transaktionen und Zugriffsregeln werden weiterverwendet. Gleichzeitige Änderungen verschiedener Spieler derselben Austeilung werden zusammengeführt; bei demselben Spieler gewinnt die zuletzt erfolgreich synchronisierte Änderung mitsamt ihrer Methode und Version. Wiederholte Bestätigungen nutzen dieselbe Austeilungs-ID und denselben Spielerschlüssel. Handkarten bleiben nur im lokalen Eingabezustand und werden weder in Firestore noch in Sicherungen gespeichert. Es werden keine Fotos gespeichert und keine neuen Dienste benötigt. Der Service-Worker-Cache steht mit der Fotoerkennung auf `schafkopf-v28`.
 
 ### Entwicklung und Prüfungen
 
@@ -264,4 +322,4 @@ npm run check
 
 Bei gesperrtem `npm.ps1` unter Windows kann stattdessen `npm.cmd` verwendet werden. `npm test` prüft Algorithmusfälle, 1.000 deterministisch ausgewählte Hände, historische Daten, Ersetzen, parallele Zusammenführung und den vollständigen React-Bedienablauf einschließlich Bestätigung und erneutem Laden. Die Online-Regressionstests simulieren zusätzlich parallele Geräte, verzögerte und doppelte Rückmeldungen, ausstehende Uploads sowie Raumbeitritt, Raumwechsel und Löschung. Die Firebase-Client-Tests prüfen Snapshot-Filter und Transaktionen mit einem simulierten SDK-Transport und kontrollieren, dass Raumoperationen ausschließlich `schafkopfRooms` ansprechen. Die Scanner-Tests prüfen Klassenzuordnung, Bildvorbereitung, Unsicherheit, Duplikate, Korrektur, Bestätigung, Abbruch und Ressourcenfreigabe. Zusätzlich läuft das echte gebündelte ONNX-Modell mit der gebündelten WASM-Laufzeit auf einem leeren Bild und dem unabhängigen Sechs-Karten-Testfoto. `npm run check` übersetzt sämtliche Produktionsskripte mit dem gleichen Babel-React-Preset wie die App, prüft gemeinsame Syntax und globale Deklarationen, die Worker-Syntax sowie die benötigten Scanner- und PWA-Dateien.
 
-Hier erfolgreich geprüft: 63 Tests sowie die Skript-/PWA-Prüfung. Die Tests verwenden lokalen Speicher, einen simulierten Firebase-Transport und die tatsächliche lokale Modellinferenz; sie sind kein Live-Test und keine Auswertung der Firestore-Regeln durch den Emulator. Ein Live-Abgleich zwischen Geräten, die Firebase-Zugriffsregeln im Emulator und eine visuelle Smartphone-/Browserprüfung wurden in dieser Umgebung nicht ausgeführt; die Browser-Verbindung meldete keinen verfügbaren Browser. Für die automatische Bewertung sind keine neuen Regelfreigaben nötig. Die lokale `firebase.rules` entspricht nach dem Merge bis auf Leerzeichen und Zeilenumbrüche dem vom Nutzer bereitgestellten gemeinsamen Regelwerk für Smash Bingo und Schafkopf. Bei der Merge-Nachprüfung und der Erweiterung um die Fotoerkennung wurden keine Regeln geändert oder veröffentlicht.
+Hier erfolgreich geprüft: 92 Tests sowie die Skript-/PWA-Prüfung. Die Tests verwenden lokalen Speicher, einen simulierten Firebase-Transport und die tatsächliche lokale Modellinferenz; sie sind kein Live-Test und keine Auswertung der Firestore-Regeln durch den Emulator. Ein Live-Abgleich zwischen Geräten, die Firebase-Zugriffsregeln im Emulator und eine visuelle Smartphone-/Browserprüfung wurden in dieser Umgebung nicht ausgeführt; die Browser-Verbindung meldete keinen verfügbaren Browser. Für die automatische Bewertung sind keine neuen Regelfreigaben nötig. Die lokale `firebase.rules` entspricht nach dem Merge bis auf Leerzeichen und Zeilenumbrüche dem vom Nutzer bereitgestellten gemeinsamen Regelwerk für Smash Bingo und Schafkopf. Bei der Merge-Nachprüfung und der Erweiterung um die Fotoerkennung wurden keine Regeln geändert oder veröffentlicht.

@@ -52,7 +52,8 @@ test("full app: pick eight cards, explicitly confirm, replace and reload without
   open(instance);
   assert.match(text(instance.rendered.root),/Manuell · Altbestand/);
   click(button(instance,/^Ben7,0/));
-  click(button(instance,"Karten auswählen"));
+  assert.equal(button(instance,"Karten auswählen").props["aria-pressed"],true);
+  assert.ok(button(instance,"Karten fotografieren"));
   assert.equal(confirmation(instance).props.disabled,true);
   const hand=["Eichel-Unter","Gras-Unter","Herz-Ass","Herz-Zehn","Eichel-Ass","Eichel-Zehn","Schellen-König","Gras-Neun"];
   for(const label of hand.slice(0,7))click(card(instance,label));
@@ -73,8 +74,8 @@ test("full app: pick eight cards, explicitly confirm, replace and reload without
   assert.equal(entries[0].ratings.Ben,6.8);
   assert.equal(entries[0].ratings.Clara,5);
   assert.equal(entries[0].ratingMeta.Ben.method,"automatic");
-  assert.equal(entries[0].ratingMeta.Ben.algorithmVersion,"hand-v1");
-  assert.deepEqual(entries[0].ratingMeta.Ben.rules,{deck:"long",hochzeit:true,wenz:true});
+  assert.equal(entries[0].ratingMeta.Ben.algorithmVersion,"hand-v2");
+  assert.deepEqual(entries[0].ratingMeta.Ben.rules,{deck:"long",sauspiel:true,hochzeit:true,wenz:true,farbwenz:true,geier:true,farbsolo:true,ramsch:false});
   assert.ok(!JSON.stringify(entries).includes("eichel-"));
   click(confirmation(instance));
   assert.deepEqual(instance.state().dealRatings,entries);
@@ -86,7 +87,7 @@ test("full app: pick eight cards, explicitly confirm, replace and reload without
   act(()=>instance.rendered.unmount());
   const restored=app(undefined,instance.storage);
   open(restored);
-  assert.match(text(restored.rendered.root),/Automatisch · hand-v1/);
+  assert.match(text(restored.rendered.root),/Automatisch · hand-v2/);
   click(button(restored,/^Ben6,8/));
   assert.match(text(restored.rendered.root),/0 von 8 Karten/);
   assert.equal(confirmation(restored).props.disabled,true);
@@ -116,11 +117,16 @@ test("full app: create shared empty dealing, choose players, keep each rating se
   assert.equal(entry.id,entry.roundId);
   assert.deepEqual(entry.ratings,{});
   click(button(instance,/^BenNoch/));
+  assert.equal(button(instance,"Karten auswählen").props["aria-pressed"],true);
+  click(button(instance,"Manuell bewerten"));
   click(card(instance,"Ben: 8 von 10"));
   assert.deepEqual(instance.state().dealRatings[0].ratings,{});
   click(confirmation(instance));
   click(button(instance,/^ClaraNoch/));
   assert.equal(confirmation(instance).props.disabled,true);
+  assert.equal(button(instance,"Karten auswählen").props["aria-pressed"],true);
+  assert.ok(button(instance,"Karten fotografieren"));
+  click(button(instance,"Manuell bewerten"));
   click(card(instance,"Clara: 3 von 10"));
   click(confirmation(instance));
   entry=instance.state().dealRatings[0];
@@ -134,6 +140,7 @@ test("full app: player rename preserves score, metadata and dealer reference",()
   const instance=app();
   open(instance);
   click(button(instance,/^Ben7,0/));
+  click(button(instance,"Manuell bewerten"));
   click(card(instance,"Ben: 9 von 10"));
   click(confirmation(instance));
   click(button(instance,/Einst\.$/));
@@ -213,6 +220,7 @@ async function onlineApp(local={players,dealRatings:[oldDeal]},server=local){
 function rateBen(instance,score=9){
   open(instance);
   click(button(instance,/^Ben7,0/));
+  click(button(instance,"Manuell bewerten"));
   click(card(instance,`Ben: ${score} von 10`));
   click(confirmation(instance));
 }
@@ -359,6 +367,127 @@ for(const laterLocal of [false,true])test(`online: late transaction acknowledgem
 });
 
 const photographedHand=["eichel-unter","gras-unter","herz-ass","herz-zehn","eichel-ass","eichel-zehn","schellen-koenig","gras-neun"];
+function legacyToggle(instance){
+  return instance.rendered.root.findByProps({role:"switch","aria-label":"Legacy Bewertung"});
+}
+
+test("game variants: Ramsch exclusively previews weak cards, persists its rules and supports leaving the mode",()=>{
+  const instance=app();let restored;
+  const low=["eichel-sieben","eichel-acht","eichel-neun","gras-sieben","gras-acht","gras-neun","schellen-sieben","schellen-acht"];
+  try{
+    open(instance);click(button(instance,/^Ben7,0/));
+    for(const id of low)click(card(instance,instance.context.SchafkopfHandEvaluation.CARDS.find(item=>item.id===id).label));
+    for(const label of ["Sauspiel","Hochzeit","Wenz","Farb-Wenz","Geier","Farbsolo"])assert.equal(button(instance,`${label} berücksichtigen: an`).props["aria-checked"],true);
+    click(button(instance,"Ramsch berücksichtigen: aus"));
+    for(const label of ["Sauspiel","Hochzeit","Wenz","Farb-Wenz","Geier","Farbsolo"])assert.equal(button(instance,`${label} berücksichtigen: aus`).props["aria-checked"],false);
+    assert.match(text(instance.rendered.root),/10,0 \/ 10/);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,7);
+    click(confirmation(instance));
+    const entry=instance.state().dealRatings[0];
+    assert.equal(entry.ratings.Ben,10);assert.equal(entry.ratingMeta.Ben.algorithmVersion,"hand-v2");
+    assert.deepEqual(entry.ratingMeta.Ben.rules,{deck:"long",hochzeit:false,wenz:false,sauspiel:false,farbwenz:false,geier:false,farbsolo:false,ramsch:true});
+    act(()=>instance.rendered.unmount());
+    restored=app(undefined,instance.storage);
+    open(restored);click(button(restored,/^Ben10,0/));
+    assert.equal(button(restored,"Ramsch berücksichtigen: an").props["aria-checked"],true);
+    for(const id of low)click(card(restored,restored.context.SchafkopfHandEvaluation.CARDS.find(item=>item.id===id).label));
+    click(button(restored,"Ramsch berücksichtigen: an"));
+    assert.equal(confirmation(restored).props.disabled,true);
+    assert.match(text(restored.rendered.root),/Kein bewertbarer Kandidat/);
+    assert.equal(restored.state().dealRatings[0].ratings.Ben,10);
+    click(button(restored,"Ramsch berücksichtigen: aus"));
+    click(button(restored,"Geier berücksichtigen: aus"));
+    assert.equal(button(restored,"Ramsch berücksichtigen: aus").props["aria-checked"],false);
+    assert.equal(button(restored,"Geier berücksichtigen: an").props["aria-checked"],true);
+    assert.equal(confirmation(restored).props.disabled,false);
+    assert.equal(restored.state().dealRatings[0].ratings.Ben,10);
+  }finally{act(()=>{if(restored)restored.rendered.unmount();else instance.rendered.unmount();});}
+});
+
+test("rating modes: legacy batches save once, persist across reload and share unchanged history with the photo mode",()=>{
+  const original={...oldDeal,ratingMeta:{Ben:{method:"automatic",algorithmVersion:"hand-v1",rules:{deck:"long",hochzeit:true,wenz:true}}}};
+  const instance=app({players,dealRatings:[original]});
+  let restored;
+  try{
+    click(button(instance,/Einst\.$/));
+    assert.equal(legacyToggle(instance).props["aria-checked"],false);
+    click(legacyToggle(instance));
+    open(instance);
+    assert.doesNotMatch(text(instance.rendered.root),/Austeilung bewerten/);
+    assert.equal(instance.rendered.root.findAllByType("button").some(node=>text(node)==="Neue Austeilung anlegen"),false);
+    click(button(instance,"Anna"));
+    assert.equal(card(instance,"Anna: 1 von 10"),undefined);
+    click(card(instance,"Ben: 8 von 10"));
+    click(card(instance,"Clara: 4 von 10"));
+    assert.equal(instance.state().dealRatings.length,1);
+    assert.equal(button(instance,"2 von 3 Bewertungen ausgewählt").props.disabled,true);
+    click(card(instance,"David: 6 von 10"));
+    assert.equal(instance.state().dealRatings.length,1);
+    click(button(instance,"Bewertung speichern"));
+    const entries=instance.state().dealRatings;
+    assert.equal(entries.length,2);
+    assert.deepEqual(entries[1].ratings,{Ben:8,Clara:4,David:6});
+    assert.equal(entries[1].id,entries[1].roundId);
+    for(const meta of Object.values(entries[1].ratingMeta))assert.deepEqual(meta,{method:"manual",algorithmVersion:"manual-v1",rules:null});
+    assert.deepEqual(entries[0].ratingMeta.Ben,original.ratingMeta.Ben);
+    assert.equal(instance.context.SchafkopfDealRatings.dealerStats(players,entries).Anna.count,5);
+    assert.equal(instance.context.SchafkopfDealRatings.dealerStats(players,entries).Anna.average,6);
+    act(()=>instance.rendered.unmount());
+    restored=app(undefined,instance.storage);
+    click(button(restored,/Einst\.$/));
+    assert.equal(legacyToggle(restored).props["aria-checked"],true);
+    click(legacyToggle(restored));
+    open(restored);
+    assert.equal(restored.rendered.root.findAllByType(restored.context.LegacyDealRatingForm).length,0);
+    assert.match(text(restored.rendered.root),/Austeilung bewerten/);
+    assert.deepEqual(restored.state().dealRatings,entries);
+    click(button(restored,/^Ben8,0/));
+    assert.equal(button(restored,"Karten auswählen").props["aria-pressed"],true);
+    assert.ok(button(restored,"Karten fotografieren"));
+    assert.deepEqual(restored.state().dealRatings,entries);
+  }finally{act(()=>{if(restored)restored.rendered.unmount();else instance.rendered.unmount();});}
+});
+
+test("legacy mode: five players need four ratings and changing dealer discards only the unsaved form",()=>{
+  const fivePlayers=[...players,"Eva"];
+  const instance=app({players:fivePlayers,fivePlayerMode:true,legacyRating:true,dealRatings:[oldDeal]});
+  try{
+    open(instance);click(button(instance,"Anna"));
+    for(const name of ["Ben","Clara","David"])click(card(instance,`${name}: 7 von 10`));
+    assert.equal(button(instance,"3 von 4 Bewertungen ausgewählt").props.disabled,true);
+    assert.equal(instance.state().dealRatings.length,1);
+    click(button(instance,"Ben"));
+    assert.equal(button(instance,"0 von 4 Bewertungen ausgewählt").props.disabled,true);
+    for(const name of ["Anna","Clara","David","Eva"])click(card(instance,`${name}: 5 von 10`));
+    click(button(instance,"Bewertung speichern"));
+    assert.equal(instance.state().dealRatings.length,2);
+    assert.deepEqual(instance.state().dealRatings[1].ratings,{Anna:5,Clara:5,David:5,Eva:5});
+    assert.equal(instance.state().dealRatings[1].dealer,"Ben");
+    assert.deepEqual(instance.state().dealRatings[0].ratings,oldDeal.ratings);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("online: rating mode stays local and a legacy batch synchronizes as one complete deal",async()=>{
+  const instance=await onlineApp();
+  try{
+    await instance.flush();assert.equal(instance.writes.length,0);
+    click(button(instance,/Einst\.$/));click(legacyToggle(instance));
+    await instance.flush();assert.equal(instance.writes.length,0);
+    open(instance);click(button(instance,"Anna"));
+    for(const name of ["Ben","Clara","David"])click(card(instance,`${name}: 6 von 10`));
+    await instance.flush();assert.equal(instance.writes.length,0);
+    click(button(instance,"Bewertung speichern"));
+    await instance.flush();assert.equal(instance.writes.length,1);
+    const shared=instance.writes[0].state;
+    assert.equal(Object.hasOwn(shared,"legacyRating"),false);
+    assert.equal(shared.dealRatings.length,2);
+    assert.deepEqual(shared.dealRatings[1].ratings,{Ben:6,Clara:6,David:6});
+    await instance.emit(shared,3);
+    assert.equal(instance.state().legacyRating,true);
+    await instance.flush();assert.equal(instance.writes.length,1);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
 const photoInput=instance=>instance.rendered.root.findAllByType("input").find(node=>node.props.type==="file"&&node.props.capture==="environment");
 const scanResult=cardIds=>({cardIds,detections:cardIds.map((cardId,index)=>({cardId,box:[index*30,20,index*30+25,80],uncertain:false,confidence:.9})),warnings:[],previewUrl:"blob:local-preview"});
 
@@ -367,7 +496,8 @@ test("photo flow: camera recognition previews eight cards and saves only the con
   try{
     let usedModel;
     instance.context.SchafkopfCardScanner.scanPhoto=async(file,options)=>{usedModel=options.model;return {...scanResult(photographedHand),modelVersion:instance.context.SchafkopfCardScannerCore.MODELS.personal.version};};
-    open(instance);click(button(instance,/^Ben7,0/));click(button(instance,"Karten auswählen"));
+    open(instance);click(button(instance,/^Ben7,0/));
+    assert.equal(button(instance,"Karten auswählen").props["aria-pressed"],true);
     const modelSelect=instance.rendered.root.findAllByType("select").find(node=>node.findAllByType("option").some(option=>option.props.value==="personal"));
     act(()=>modelSelect.props.onChange({target:{value:"personal"}}));
     assert.equal(photoInput(instance).props.accept,"image/*");
@@ -378,7 +508,7 @@ test("photo flow: camera recognition previews eight cards and saves only the con
     assert.equal(instance.state().dealRatings[0].ratings.Ben,7);
     click(confirmation(instance));
     assert.equal(instance.state().dealRatings[0].ratings.Ben,6.8);
-    assert.equal(instance.state().dealRatings[0].ratingMeta.Ben.algorithmVersion,"hand-v1");
+    assert.equal(instance.state().dealRatings[0].ratingMeta.Ben.algorithmVersion,"hand-v2");
     assert.ok(!JSON.stringify(instance.state()).includes("blob:"));
     assert.ok(!JSON.stringify(instance.state()).includes("eichel-unter"));
   }finally{act(()=>instance.rendered.unmount());}
@@ -434,10 +564,10 @@ test("photo flow: incorrect suggestion from the real-photo failure can be replac
       const label=instance.context.SchafkopfHandEvaluation.CARDS.find(item=>item.id===id).label;
       click(card(instance,label));
     }
-    assert.match(text(instance.rendered.root),/4,1 \/ 10/);
+    assert.match(text(instance.rendered.root),/4,4 \/ 10/);
     assert.equal(card(instance,"Gras-Zehn").props["aria-pressed"],false);
     assert.equal(instance.state().dealRatings[0].ratings.Ben,7);
     click(confirmation(instance));
-    assert.equal(instance.state().dealRatings[0].ratings.Ben,4.1);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,4.4);
   }finally{act(()=>instance.rendered.unmount());}
 });

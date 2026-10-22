@@ -1,6 +1,7 @@
 const {test}=require("node:test");
 const assert=require("node:assert/strict");
-const {evaluateHand,CARDS,SUITS,WEIGHTS}=require("../src/handEvaluation.js");
+// Keep the exact hand-v1 regression cases alongside the new variant suite.
+const {evaluateHandV1:evaluateHand,CARDS,SUITS,WEIGHTS}=require("../src/handEvaluation.js");
 const rules={deck:"long",hochzeit:true,wenz:false};
 const quiet=["eichel-koenig","eichel-neun","eichel-acht","gras-koenig","gras-neun","schellen-koenig","schellen-neun"];
 const trumps=CARDS.filter(card=>card.suit==="herz"||["ober","unter"].includes(card.rank)).map(card=>card.id);

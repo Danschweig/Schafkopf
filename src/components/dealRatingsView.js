@@ -4,20 +4,26 @@
       if(!meta||meta.algorithmVersion==="legacy")return "Manuell · Altbestand";
       return `${meta.method==="automatic"?"Automatisch":"Manuell"} · ${meta.algorithmVersion}`;
     }
+    function ratingRulesLabel(rules){
+      if(!rules)return "";
+      const options=window.SchafkopfHandEvaluation.GAME_OPTIONS;
+      const selected=options.filter(({id})=>rules[id]||(id==="sauspiel"&&!Object.hasOwn(rules,"sauspiel"))).map(({label})=>label);
+      return `Langes Blatt · ${selected.join(", ")||"keine Spielart"}`;
+    }
 
     function HandRatingEditor({player,deal,onSave,gameTypes}){
       const savedMeta=deal.ratingMeta?.[player];
       const savedScore=deal.ratings?.[player];
-      const [method,setMethod]=useState(savedMeta?.method==="automatic"?"automatic":"manual");
+      const [method,setMethod]=useState("automatic");
       const [manual,setManual]=useState(savedMeta?.method!=="automatic"?savedScore:null);
       const [cards,setCards]=useState([]);
       const [scanning,setScanning]=useState(false);
-      const [rules,setRules]=useState(()=>savedMeta?.rules?.deck==="long"?{...savedMeta.rules}:{
-        deck:"long",hochzeit:gameTypes.some(type=>type.id==="hochzeit"),wenz:gameTypes.some(type=>type.id==="wenz")
-      });
+      const [rules,setRules]=useState(()=>window.SchafkopfHandEvaluation.normalizeRules({
+        ...window.SchafkopfHandEvaluation.rulesForGameTypes(gameTypes),...(savedMeta?.rules?.deck==="long"?savedMeta.rules:{})
+      }));
       const [notice,setNotice]=useState("");
       const evaluation=useMemo(()=>cards.length===8?window.SchafkopfHandEvaluation.evaluateHand(cards,rules):null,[cards,rules]);
-      const complete=!scanning&&(method==="manual"?window.SchafkopfDealRatings.validScore(manual):!!evaluation);
+      const complete=!scanning&&(method==="manual"?window.SchafkopfDealRatings.validScore(manual):Number.isFinite(evaluation?.score));
       function toggleCard(id){
         setCards(current=>current.includes(id)?current.filter(card=>card!==id):current.length<8?[...current,id]:current);
         setNotice("");
@@ -36,7 +42,7 @@
         return <div style={{marginTop:8}}>
           <strong>{label}: {formatDealScore(candidate.value,1,2)} (vor Begrenzung)</strong>
           <div>Grundwert: {formatDealScore(candidate.base)}</div>
-          {candidate.bonuses.map(bonus=><div key={bonus.code}>{bonus.label}: +{formatDealScore(bonus.value,0,2)}</div>)}
+          {candidate.bonuses.map(bonus=><div key={bonus.code}>{bonus.label}: {bonus.value<0?"−":"+"}{formatDealScore(Math.abs(bonus.value),0,2)}</div>)}
           {candidate.bonuses.length===0&&<div>Keine Zuschläge</div>}
         </div>;
       }
@@ -54,13 +60,16 @@
         </div>:<>
           <div style={{fontSize:11,color:C.text,lineHeight:1.5,marginBottom:10}}>
             Langes Blatt: 8 aus 32 Karten. Wähle deine Hand vor Spielansage und Kartentausch.
-            Feste Heuristik für Sauspiel/Hochzeit und optional Wenz; keine Gewinnwahrscheinlichkeit und keine eigene Solo- oder Geierbewertung.
+            Die Bewertung vergleicht die aktivierten Spielarten. Sie schätzt dein Handpotenzial und ist keine Gewinnwahrscheinlichkeit.
           </div>
           <PhotoCardScanner onScanStart={()=>{setCards([]);setNotice("");}} onCards={ids=>{setCards(ids);setNotice("");}} onBusyChange={setScanning}/>
           <div style={{display:"grid",gap:6}}>
-            {[["hochzeit","Hochzeit berücksichtigen"],["wenz","Wenz berücksichtigen"]].map(([key,label])=><button key={key}
-              role="switch" aria-checked={rules[key]} onClick={()=>{setRules(current=>({...current,[key]:!current[key]}));setNotice("");}}
-              style={{...s.btn(rules[key],"#4ab8e8"),minHeight:44,textAlign:"left"}}>{label}: {rules[key]?"an":"aus"}</button>)}
+            {window.SchafkopfHandEvaluation.GAME_OPTIONS.map(({id,label})=><button key={id}
+              role="switch" aria-checked={rules[id]} onClick={()=>{setRules(current=>window.SchafkopfHandEvaluation.toggleGame(current,id));setNotice("");}}
+              style={{...s.btn(rules[id],"#4ab8e8"),minHeight:44,textAlign:"left"}}>{label} berücksichtigen: {rules[id]?"an":"aus"}</button>)}
+          </div>
+          <div style={{fontSize:11,lineHeight:1.5,marginTop:8}}>
+            {rules.ramsch?"Ramsch: Je besser du mit deinem Blatt Augen und Stiche vermeiden kannst, desto höher die Bewertung. Alle anderen Spielarten sind abgewählt. Ein Durchmarsch wird hier nicht als Ziel bewertet.":"Der höchste Kandidat der aktivierten Spielarten zählt. Farb-Wenz und Farbsolo prüfen alle vier Trumpffarben. Ramsch wird separat und exklusiv bewertet."}
           </div>
           <div style={{fontSize:10,color:C.dim,margin:"6px 0 10px",lineHeight:1.4}}>Voreinstellung aus den vorhandenen Spielarten; für diese Hand anpassbar. Für kurzes Blatt bitte manuell bewerten.</div>
           <div role="status" aria-live="polite" style={{fontSize:13,fontWeight:"bold",color:C.title,marginBottom:10}}>{cards.length} von 8 Karten</div>
@@ -79,17 +88,22 @@
             </div>
           </fieldset>)}
           <button disabled={scanning||cards.length===0} onClick={()=>{setCards([]);setNotice("");}} style={{...s.btn(false),marginBottom:10}}>Auswahl leeren</button>
-          {evaluation&&<div aria-live="polite" style={s.card("#4ab8e855",C.bg2)}>
+          {evaluation&&evaluation.score===null&&<div role="status" style={{fontSize:11,lineHeight:1.5,marginBottom:10}}>Kein bewertbarer Kandidat. Bitte eine passende Spielart aktivieren. Hochzeit setzt genau einen Trumpf voraus.</div>}
+          {Number.isFinite(evaluation?.score)&&<div aria-live="polite" style={s.card("#4ab8e855",C.bg2)}>
             <div style={{fontSize:22,fontWeight:"bold",color:dealScoreColor(evaluation.score)}}>{formatDealScore(evaluation.score)} / 10</div>
             <div style={{fontSize:11,lineHeight:1.5,marginTop:6}}>
-              {evaluation.normal.trumpCount} Trümpfe im Sauspiel. {evaluation.winningCandidate==="wenz"?"Der Wenz-Kandidat ist höher.":"Die normale Bewertung ist ausschlaggebend (bei Gleichstand ebenfalls)."}
-              {evaluation.normal.hochzeitExchange&&" Ein Trumpf: Hochzeit-Grundwert ohne Trumpfqualitätsbonus, da der Trumpf abgegeben wird. Annahme und Sieg sind offen."}
+              {evaluation.bestCandidate.label}: {evaluation.bestCandidate.trumpCount} Trümpfe. {rules.ramsch?"Hohe Werte bedeuten gute Voraussetzungen für Ramsch.":"Dieser Kandidat ergibt den höchsten Wert der gewählten Spielarten."}
+              {evaluation.bestCandidate.hochzeitExchange&&" Ein Trumpf: Hochzeit-Grundwert ohne Trumpfqualitätsbonus, da der Trumpf abgegeben wird. Annahme und Sieg sind offen."}
             </div>
             <details style={{fontSize:11,lineHeight:1.5,marginTop:8}}>
               <summary style={{cursor:"pointer"}}>Berechnung ansehen · {evaluation.algorithmVersion}</summary>
-              {breakdown("Sauspiel/Hochzeit",evaluation.normal)}
-              {evaluation.wenz?breakdown("Wenz",evaluation.wenz):<div style={{marginTop:8}}>Kein Wenz-Kandidat: {rules.wenz?"weniger als 2 Unter":"Regel deaktiviert"}.</div>}
-              <div style={{marginTop:8}}>Der höhere Kandidat wird auf 1–10 begrenzt und erst dann auf eine Nachkommastelle gerundet.</div>
+              {evaluation.candidates.map(candidate=><div key={candidate.id}>
+                {breakdown(candidate.label,candidate)}
+                {candidate.alternatives&&<details style={{marginTop:6}}><summary>Alle Trumpffarben vergleichen</summary>
+                  {candidate.alternatives.map(alternative=><div key={alternative.id}>{alternative.label}: {formatDealScore(alternative.value,1,2)} vor Begrenzung</div>)}
+                </details>}
+              </div>)}
+              <div style={{marginTop:8}}>Der höchste Kandidat wird auf 1–10 begrenzt und erst dann auf eine Nachkommastelle gerundet.</div>
             </details>
           </div>}
           <div style={{fontSize:10,color:C.dim,lineHeight:1.4}}>Deine Karten bleiben auf diesem Gerät. Nur der bestätigte Wert und seine Bewertungsmethode und Regeln werden gespeichert.</div>
@@ -101,7 +115,50 @@
       </div>;
     }
 
-    function DealRatingsView({players,dealRatings,gameTypes,onStart,onSave,onUndo}){
+    function LegacyDealRatingForm({players,onSave}){
+      const [dealer,setDealer]=useState(null);
+      const [ratings,setRatings]=useState({});
+      const [notice,setNotice]=useState("");
+      useEffect(()=>{
+        setDealer(current=>players.includes(current)?current:null);
+        setRatings(current=>Object.fromEntries(Object.entries(current).filter(([player,score])=>players.includes(player)&&window.SchafkopfDealRatings.validScore(score))));
+      },[players]);
+      const raters=dealer?players.filter(player=>player!==dealer):[];
+      const complete=!!dealer&&raters.length>0&&raters.every(player=>window.SchafkopfDealRatings.validScore(ratings[player]));
+      function save(){
+        if(!complete)return;
+        try{
+          onSave(dealer,Object.fromEntries(raters.map(player=>[player,ratings[player]])));
+          setNotice(`Bewertung für ${dealer} gespeichert.`);
+          setDealer(null);setRatings({});
+        }catch(error){setNotice(error.message);}
+      }
+      return <div style={s.card("#4ab8e855",C.bg1)}>
+        <div style={s.sec}>Neue Austeilung</div>
+        <div style={{fontSize:11,color:C.dim,lineHeight:1.5,marginBottom:10}}>Wer hat ausgeteilt? Danach bewertet jeder andere Spieler seine Karten von 1 bis 10. Alle Bewertungen werden gemeinsam gespeichert.</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:6}}>
+          {players.map((name,index)=><button key={name} aria-pressed={dealer===name} onClick={()=>{setDealer(name);setRatings({});setNotice("");}}
+            style={{...s.pBtn(dealer===name,PCOLORS[index]),minHeight:44,overflowWrap:"anywhere"}}>{name}</button>)}
+        </div>
+        {dealer&&<>
+          <div style={{fontSize:11,color:C.dim,margin:"12px 0"}}>{dealer} hat ausgeteilt.</div>
+          {raters.map(player=><div key={player} style={{...s.card(),marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:"bold",marginBottom:8}}>{player} · {ratings[player]?`${ratings[player]} / 10`:"noch offen"}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:5}}>
+              {Array.from({length:10},(_,index)=>index+1).map(score=><button key={score} aria-label={`${player}: ${score} von 10`} aria-pressed={ratings[player]===score}
+                onClick={()=>{setRatings(current=>({...current,[player]:score}));setNotice("");}}
+                style={{...s.btn(ratings[player]===score,dealScoreColor(score)),minHeight:44,padding:"8px 0"}}>{score}</button>)}
+            </div>
+          </div>)}
+          <button disabled={!complete} onClick={save} style={{...s.btn(complete,"#7de87a"),width:"100%",minHeight:44,padding:11,marginTop:4,opacity:complete?1:.45}}>
+            {complete?"Bewertung speichern":`${raters.filter(player=>ratings[player]).length} von ${raters.length} Bewertungen ausgewählt`}
+          </button>
+        </>}
+        {notice&&<div role="status" style={{fontSize:11,marginTop:10}}>{notice}</div>}
+      </div>;
+    }
+
+    function DealRatingsView({players,dealRatings,gameTypes,legacyRating,onLegacySave,onStart,onSave,onUndo}){
       const [newDealer,setNewDealer]=useState(null);
       const [selectedId,setSelectedId]=useState(()=>dealRatings[dealRatings.length-1]?.id||"");
       const [player,setPlayer]=useState("");
@@ -122,10 +179,18 @@
         if(id){setSelectedId(id);setPlayer("");setNewDealer(null);}
       }
       return <>
-        <div style={s.card("#4ab8e855",C.bg1)}>
+        {legacyRating?<LegacyDealRatingForm players={players} onSave={onLegacySave}/>:<div style={s.card("#4ab8e855",C.bg1)}>
           <div style={s.sec}>Austeilung bewerten</div>
           <div style={{fontSize:11,color:C.text,lineHeight:1.5,marginBottom:10}}>
             Pro Austeilung und Spieler zählt genau eine bestätigte Bewertung. Auf mehreren Geräten dieselbe Austeilung auswählen. Sie wird wie bisher unabhängig vom Spielprotokoll erfasst.
+          </div>
+          <div style={{border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginBottom:12}}>
+            <div style={{fontSize:11,color:C.dim,marginBottom:8}}>Für eine neue Austeilung den Austeiler wählen. Nur einmal pro Tisch anlegen.</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:6}}>
+              {players.map((name,index)=><button key={name} title={name} aria-pressed={newDealer===name} onClick={()=>setNewDealer(name)}
+                style={{...s.pBtn(newDealer===name,PCOLORS[index]),overflowWrap:"anywhere",minHeight:44}}>{name}</button>)}
+            </div>
+            <button disabled={!newDealer} onClick={start} style={{...s.btn(!!newDealer,"#4ab8e8"),width:"100%",marginTop:10,opacity:newDealer?1:0.45}}>Neue Austeilung anlegen</button>
           </div>
           <label style={{fontSize:11,color:C.dim}}>Austeilung auswählen
             <select aria-label="Austeilung auswählen" style={{...s.input,marginTop:5}} value={deal?selectedId:""} onChange={event=>{setSelectedId(event.target.value);setPlayer("");}}>
@@ -140,22 +205,12 @@
                 style={{...s.btn(player===name,PCOLORS[players.indexOf(name)]),textAlign:"left",minHeight:48}}>
                 <span style={{fontWeight:"bold"}}>{name}</span>
                 <span style={{display:"block",fontSize:10,marginTop:4}}>{deal.ratings?.[name]!=null?`${formatDealScore(deal.ratings[name])} / 10 · ${ratingMethodLabel(deal.ratingMeta?.[name])}`:"Noch nicht bestätigt"}</span>
-                {deal.ratingMeta?.[name]?.rules&&<span style={{display:"block",fontSize:10,marginTop:4}}>Langes Blatt · Hochzeit {deal.ratingMeta[name].rules.hochzeit?"an":"aus"} · Wenz {deal.ratingMeta[name].rules.wenz?"an":"aus"}</span>}
+                {deal.ratingMeta?.[name]?.rules&&<span style={{display:"block",fontSize:10,marginTop:4}}>{ratingRulesLabel(deal.ratingMeta[name].rules)}</span>}
               </button>)}
             </div>
             {player&&raters.includes(player)&&<HandRatingEditor key={`${deal.id}:${player}`} player={player} deal={deal} onSave={onSave} gameTypes={gameTypes}/>}
           </>}
-        </div>
-
-        <div style={s.card()}>
-          <div style={s.sec}>Neue Austeilung</div>
-          <div style={{fontSize:11,color:C.dim,lineHeight:1.5,marginBottom:8}}>Einmal pro Tisch anlegen, dann auf allen Geräten auswählen. Wer hat ausgeteilt?</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:6}}>
-            {players.map((name,index)=><button key={name} title={name} aria-pressed={newDealer===name} onClick={()=>setNewDealer(name)}
-              style={{...s.pBtn(newDealer===name,PCOLORS[index]),overflowWrap:"anywhere",minHeight:44}}>{name}</button>)}
-          </div>
-          <button disabled={!newDealer} onClick={start} style={{...s.btn(!!newDealer,"#4ab8e8"),width:"100%",marginTop:10,opacity:newDealer?1:0.45}}>Neue Austeilung anlegen</button>
-        </div>
+        </div>}
 
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,margin:"18px 0 9px"}}>
           <div style={{...s.sec,marginBottom:0}}>Austeil-Statistik</div>

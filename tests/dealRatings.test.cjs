@@ -45,6 +45,22 @@ test("reject invalid scores, dealer self-rating and missing dealing",()=>{
   assert.throws(()=>upsertRating(original(),"round-1","Anna",5,manual));
   assert.throws(()=>upsertRating(original(),"missing","Ben",5,manual));
 });
+
+test("v2 game settings survive reload and JSON export without rewriting historical v1 settings",()=>{
+  const modern={method:"automatic",algorithmVersion:"hand-v2",rules:{deck:"long",sauspiel:false,hochzeit:false,wenz:false,farbwenz:false,geier:false,farbsolo:false,ramsch:true}};
+  const historical=upsertRating(original(),"round-1","Ben",8.3,automatic);
+  const both=upsertRating(historical,"round-1","Clara",9.4,{...modern,cardIds:["private"],photo:"private"});
+  const loaded=normalizeDealRatings(JSON.parse(JSON.stringify(both)));
+  assert.deepEqual(loaded[0].ratingMeta.Ben,automatic);
+  assert.deepEqual(loaded[0].ratingMeta.Clara,modern);
+  assert.deepEqual(loaded[0].ratings,{Ben:8.3,Clara:9.4});
+  assert.ok(!JSON.stringify(loaded).includes("private"));
+  const remote=upsertRating(historical,"round-1","Ben",6,{...modern,rules:{...modern.rules,ramsch:false,farbwenz:true}});
+  const merged=normalizeDealRatings(merge(historical,both,remote));
+  assert.deepEqual(merged[0].ratingMeta.Clara,modern);
+  assert.equal(merged[0].ratingMeta.Ben.rules.farbwenz,true);
+  assert.equal(merged[0].ratingMeta.Ben.rules.ramsch,false);
+});
 test("dealer average still weights all individual ratings equally, with counts",()=>{
   const entries=original().concat(normalizeDealRatings([
     {id:"round-2",dealer:"Anna",ratings:{Ben:10}},

@@ -51,7 +51,7 @@ async function main(){
     }
     const blank=await infer(new Float32Array(3*640*640).fill(114/255));
     results.push({group:"blank",variant:"original",expected:[],suggested:blank.cardIds,matched:[],unexpected:blank.cardIds,missing:[],exactMatch:blank.cardIds.length===0,inferenceMs:blank.inferenceMs});
-    const report={modelVersion:metadata.version,modelSha256:modelHash,loadMs,device:"Windows desktop; Node ONNX-WASM, one thread. Not a phone measurement.",
+    const report={modelVersion:metadata.version,modelSha256:modelHash,loadMs,scoringAlgorithmVersion:require("../src/handEvaluation.js").ALGORITHM_VERSION,device:"Windows desktop; Node ONNX-WASM, one thread. Not a phone measurement.",
       preparation:"Sharp; smartphone Canvas resampling may produce different values.",
       limitation:"Known photos, including training photos. Augmented copies are not independent photos. Do not use this report to choose checkpoints or thresholds.",results};
     fs.mkdirSync(path.dirname(path.resolve(outputArg)),{recursive:true});fs.writeFileSync(outputArg,JSON.stringify(report,null,2)+"\n");
