@@ -80,7 +80,22 @@
 
           if(!localChanged)selected=remoteEntry;
           else if(!remoteChanged)selected=localEntry;
-          else selected=localEntry;
+          else if(localEntry&&remoteEntry){
+            // Merge by player; score and provenance form one indivisible value.
+            // Concurrent edits of different players must both survive.
+            const ratings={};
+            const ratingMeta={};
+            const players=new Set([...Object.keys(baseEntry?.ratings||{}),...Object.keys(localEntry.ratings||{}),...Object.keys(remoteEntry.ratings||{})]);
+            players.forEach(player=>{
+              const pair=entry=>({score:entry?.ratings?.[player],meta:entry?.ratingMeta?.[player]});
+              const source=jsonEqual(pair(localEntry),pair(baseEntry))?remoteEntry:localEntry;
+              if(source.ratings?.[player]!==undefined){
+                ratings[player]=source.ratings[player];
+                if(source.ratingMeta?.[player]!==undefined)ratingMeta[player]=source.ratingMeta[player];
+              }
+            });
+            selected={...remoteEntry,...localEntry,ratings,ratingMeta};
+          }else selected=localEntry;
 
           if(selected)merged.push(cloneJson(selected));
         });

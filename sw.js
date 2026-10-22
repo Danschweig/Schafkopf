@@ -5,7 +5,7 @@
 // ändere die Versionsnummer in CACHE_NAME (z.B. v2, v3 ...).
 // Das erzwingt dass alle Nutzer die neue Version laden.
 // ─────────────────────────────────────────────────────────────────
-const CACHE_NAME = 'schafkopf-v19';
+const CACHE_NAME = 'schafkopf-v20';
 
 // Lokale Dateien – werden beim ersten Start gecacht
 const LOCAL_FILES = [
@@ -15,6 +15,8 @@ const LOCAL_FILES = [
   './icon.svg',
   './styles/app.css',
   './src/firebaseConfig.js',
+  './src/handEvaluation.js',
+  './src/dealRatings.js',
   './src/firebaseSync.js',
   './src/core.js',
   './src/components/common.js',

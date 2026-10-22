@@ -2,54 +2,120 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
+    // Gemeinsamer Bingo-Pool inklusive optionalem Bonus-Pool.
+    match /smashBingo/sharedPool {
+      allow get: if true;
+      allow list, delete: if false;
+
+      allow create: if validPool();
+      allow update: if validPool()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['fields', 'bonusFields', 'updatedAt']);
+
+      function validPool() {
+        return request.resource.data.keys().hasOnly(['fields', 'bonusFields', 'updatedAt'])
+          && request.resource.data.fields is list
+          && request.resource.data.fields.size() <= 200
+          && (!request.resource.data.keys().hasAny(['bonusFields'])
+            || (request.resource.data.bonusFields is list
+              && request.resource.data.bonusFields.size() <= 100))
+          && request.resource.data.updatedAt is timestamp;
+      }
     }
 
-    function validRoomCode(roomId) {
-      return roomId.matches('^[A-Z2-9]{5}$');
+    // Unveränderliche Rundenergebnisse für Daniel, Fabian und Tim.
+    match /smashBingoRounds/{roundId} {
+      allow get, list: if true;
+      allow update, delete: if false;
+      allow create: if roundId.matches('^[a-zA-Z0-9_-]{20,80}$')
+        && request.resource.data.keys().hasAll(['player', 'boardSize', 'bingos', 'bonusBingo', 'completedAt'])
+        && request.resource.data.keys().hasOnly(['player', 'boardSize', 'bingos', 'bonusBingo', 'completedAt'])
+        && request.resource.data.player in ['Daniel', 'Fabian', 'Tim']
+        && request.resource.data.boardSize in [4, 5]
+        && request.resource.data.bingos is int
+        && request.resource.data.bingos >= 0
+        && request.resource.data.bingos <= 2 * request.resource.data.boardSize + 2
+        && request.resource.data.bonusBingo is bool
+        && request.resource.data.completedAt == request.time;
     }
 
-    function validRoomDocument() {
-      return request.resource.data.keys().hasOnly([
-        'schemaVersion',
-        'ownerId',
-        'state',
-        'revision',
-        'createdAt',
-        'updatedAt',
-        'updatedBy'
-      ])
-      && request.resource.data.schemaVersion == 1
-      && request.resource.data.state is map
-      && request.resource.data.revision is int
-      && request.resource.data.revision > 0
-      && request.resource.data.ownerId is string
-      && request.resource.data.updatedBy == request.auth.uid;
+    // Manuelle Bingo-Korrekturen; getrennt von Rundenergebnissen und Schafkopf.
+    // Die Passwortabfrage in der statischen App ist nur eine Bedienungssperre.
+    match /smashBingo/leaderboardAdjustments {
+      allow get: if true;
+      allow list, delete: if false;
+      allow create: if validAdjustments() && request.resource.data.revision == 1;
+      allow update: if validAdjustments()
+        && request.resource.data.revision == resource.data.revision + 1;
+
+      function validAdjustments() {
+        return request.resource.data.keys().hasAll(['Daniel', 'Fabian', 'Tim', 'revision', 'updatedAt'])
+          && request.resource.data.keys().hasOnly(['Daniel', 'Fabian', 'Tim', 'revision', 'updatedAt'])
+          && request.resource.data.Daniel is int
+          && request.resource.data.Daniel >= -1000000000 && request.resource.data.Daniel <= 1000000000
+          && request.resource.data.Fabian is int
+          && request.resource.data.Fabian >= -1000000000 && request.resource.data.Fabian <= 1000000000
+          && request.resource.data.Tim is int
+          && request.resource.data.Tim >= -1000000000 && request.resource.data.Tim <= 1000000000
+          && request.resource.data.revision is int && request.resource.data.revision > 0
+          && request.resource.data.updatedAt == request.time;
+      }
     }
 
+    // Gemeinsame Schafkopf-Räume.
     match /schafkopfRooms/{roomId} {
+      function signedIn() {
+        return request.auth != null;
+      }
+
+      function validRoomCode() {
+        return roomId.matches('^([A-Z2-9]{5}|[A-Z2-9]{10})$');
+      }
+
+      function validRoomDocument() {
+        return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'ownerId',
+          'state',
+          'revision',
+          'createdAt',
+          'updatedAt',
+          'updatedBy'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.state is map
+        && request.resource.data.revision is int
+        && request.resource.data.revision > 0
+        && request.resource.data.ownerId is string
+        && request.resource.data.updatedBy == request.auth.uid;
+      }
+
       allow create: if signedIn()
-        && validRoomCode(roomId)
+        && validRoomCode()
         && validRoomDocument()
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
 
-      // Der Raumcode ist die Einladung. Listen aller Raeume bleiben gesperrt,
-      // ein bekannter einzelner Raum darf gelesen werden.
-      allow get: if signedIn() && validRoomCode(roomId);
-      allow list: if false;
+      // Angemeldete App-Geraete koennen alle offenen Raeume finden und beitreten.
+      allow get: if signedIn() && validRoomCode();
+      allow list: if signedIn();
 
       allow update: if signedIn()
-        && validRoomCode(roomId)
+        && validRoomCode()
         && validRoomDocument()
         && request.resource.data.ownerId == resource.data.ownerId
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.revision == resource.data.revision + 1
         && request.resource.data.updatedAt == request.time;
 
-      allow delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+      allow delete: if signedIn()
+        && validRoomCode();
+    }
+
+    // Alles andere bleibt gesperrt.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

@@ -58,15 +58,7 @@
     }
 
     function normalizeDealRatings(entries){
-      if(!Array.isArray(entries))return[];
-      return entries.map((entry,index)=>({
-        id:entry?.id||`deal-${entry?.createdAt||index}`,
-        createdAt:Number(entry?.createdAt)||0,
-        dealer:String(entry?.dealer||""),
-        ratings:Object.fromEntries(Object.entries(entry?.ratings||{})
-          .map(([player,score])=>[player,Number(score)])
-          .filter(([,score])=>score>=1&&score<=10))
-      })).filter(entry=>entry.dealer);
+      return window.SchafkopfDealRatings.normalizeDealRatings(entries);
     }
 
     function migrateDealRatingPlayerRefs(entry,renameMap){
@@ -74,7 +66,8 @@
       return {
         ...entry,
         dealer:renamePlayerRefs(entry.dealer,renameMap),
-        ratings:Object.fromEntries(Object.entries(entry.ratings||{}).map(([player,score])=>[renameMap.get(player)||player,score]))
+        ratings:Object.fromEntries(Object.entries(entry.ratings||{}).map(([player,score])=>[renameMap.get(player)||player,score])),
+        ratingMeta:Object.fromEntries(Object.entries(entry.ratingMeta||{}).map(([player,meta])=>[renameMap.get(player)||player,meta]))
       };
     }
 
@@ -558,14 +551,24 @@
         });
       }
 
-      function saveDealRating(dealer,ratings){
+      function startDealRating(dealer){
+        if(!players.includes(dealer))return null;
         const createdAt=Date.now();
+        const id=`deal-${window.crypto?.randomUUID?.()||`${createdAt}-${Math.random().toString(36).slice(2)}`}`;
         setDealRatings(entries=>[...entries,{
-          id:`deal-${createdAt}-${Math.random().toString(36).slice(2,8)}`,
+          id,roundId:id,
           createdAt,
           dealer,
-          ratings
+          ratings:{},ratingMeta:{}
         }]);
+        return id;
+      }
+
+      function saveDealRating(dealId,player,score,meta){
+        if(!players.includes(player))throw new Error("Der Spieler ist nicht mehr in dieser Runde.");
+        // Validate before reporting success; a functional update preserves other players' saves.
+        window.SchafkopfDealRatings.upsertRating(dealRatings,dealId,player,score,meta);
+        setDealRatings(entries=>window.SchafkopfDealRatings.upsertRating(entries,dealId,player,score,meta));
       }
 
       function undoLastDealRating(){
@@ -718,8 +721,8 @@
           {nav==="chart"&&<ChartTab rounds={rounds} players={players} startkapital={startkapital} gameTypes={gameTypes}/>} 
 
           {nav==="austeilen"&&<DealRatingsView
-            players={players} dealRatings={dealRatings}
-            onSave={saveDealRating} onUndo={undoLastDealRating}/>}
+            players={players} dealRatings={dealRatings} gameTypes={gameTypes}
+            onStart={startDealRating} onSave={saveDealRating} onUndo={undoLastDealRating}/>}
 
           {nav==="settings"&&<SettingsView
             settingsTab={settingsTab} setSettingsTab={setSettingsTab}
