@@ -35,7 +35,11 @@ def main():
     provenance=json.loads(provenance_path.read_text(encoding="utf-8"))
     assert not any(item["file"].startswith("test/") for item in provenance["sources"])
     image_counts={split:len(list((dataset_path.parent/"images"/split).glob("*.jpg"))) for split in ["train","val"]}
-    real_hands=sum(item["file"].startswith("training/") for item in provenance["sources"])
+    real_hands=sum(item["file"].startswith("training/") and item["split"]=="train" and item.get("role")!="background-only" for item in provenance["sources"])
+    real_validation_hands=sum(item["file"].startswith("training/") and item["split"]=="val" and item.get("role")=="annotated-hand" for item in provenance["sources"])
+    target=provenance["target"]
+    if target not in ("card","rank-and-suit-index"):
+        raise ValueError("Unknown training target")
     parent_checkpoint=Path(model.args.get("model",""))
     parent_hash=hashlib.sha256(parent_checkpoint.read_bytes()).hexdigest() if parent_checkpoint.is_file() else None
     expected=[f"{s}_{r}" for s in ["Eichel","Gras","Herz","Schellen"]
@@ -55,17 +59,17 @@ def main():
     # Do not embed local paths or training args in an artifact that may be published.
     props={item.key:item.value for item in artifact.metadata_props
            if item.key in {"description","author","date","version","license","task","stride","batch","imgsz","names"}}
-    props["description"]="Schafkopf: rank and suit indices of 32 Bavarian playing cards"
+    props["description"]=("Schafkopf: visible surfaces of 32 Bavarian playing cards" if target=="card" else "Schafkopf: rank and suit indices of 32 Bavarian playing cards")
     onnx.helper.set_model_props(artifact,props)
     onnx.save(artifact,str(destination))
-    metadata={"version":args.version,"target":"rank-and-suit-index",
+    metadata={"version":args.version,"target":target,
         "license":"AGPL-3.0", "classNames":expected,
         "inputShape":[1,3,640,640],"outputShape":[1,36,8400],
         "source":"https://github.com/Nikiki95/schafkopf-engine/blob/d4e4efc04973416b1aa98e2d13cd268c8fcf0f6d/schafkopf_yolo.pt",
         "sourceSha256":"2c96ad125f098e5dc6d7ce0c363ee704f212f337633395b023a8e0d512203802",
         "checkpointSha256":hashlib.sha256(source.read_bytes()).hexdigest(),
         "onnxSha256":hashlib.sha256(destination.read_bytes()).hexdigest(),
-        "training":{"seed":20261022,"target":"rank-and-suit-index","realTrainingHands":real_hands,
+        "training":{"seed":20261022,"target":target,"realTrainingHands":real_hands,"realValidationHands":real_validation_hands,
                     "datasetSeed":provenance["seed"],"datasetGenerator":provenance.get("generator"),
                     "parentCheckpointSha256":parent_hash,
                     "images":image_counts,"requestedEpochs":model.args.get("epochs"),

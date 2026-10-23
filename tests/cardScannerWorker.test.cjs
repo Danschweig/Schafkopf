@@ -55,8 +55,8 @@ test("worker releases input when inference fails and does not produce a result",
 test("service-worker activation preserves other apps' caches",async()=>{
   const deleted=[],listeners={};
   const context={self:{addEventListener:(name,callback)=>listeners[name]=callback,clients:{claim:async()=>{}}},
-    caches:{keys:async()=>["smash-bingo-v1","other-app","schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28","schafkopf-v29","schafkopf-v30"],delete:async key=>deleted.push(key)}};
+    caches:{keys:async()=>["smash-bingo-v1","other-app","schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28","schafkopf-v29","schafkopf-v30","schafkopf-v31"],delete:async key=>deleted.push(key)}};
   vm.runInNewContext(fs.readFileSync(require.resolve("../sw.js"),"utf8"),context);
   let done;listeners.activate({waitUntil:promise=>{done=promise;}});await done;
-  assert.deepEqual(deleted,["schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28","schafkopf-v29"]);
+  assert.deepEqual(deleted,["schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28","schafkopf-v29","schafkopf-v30"]);
 });

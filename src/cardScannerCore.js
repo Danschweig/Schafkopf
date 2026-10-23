@@ -90,14 +90,23 @@
       }
     }
     const kept=detections.filter((item,index)=>!suppressed.has(index));
-    let cardIds=[...new Set(kept.filter(item=>!item.uncertain).map(item=>item.cardId))];
-    if(kept.some(item=>item.uncertain))warnings.push("Unsichere oder widersprüchliche Erkennungen bitte von Hand prüfen.");
-    if(cardIds.length>LIMITS.maxCards){
-      cardIds=[];
-      kept.forEach(item=>{item.uncertain=true;});
-      warnings.push("Mehr als acht Karten erkannt. Bitte nur deine acht Handkarten fotografieren.");
+    const selected=[];
+    const conflictIou=target==="rank-and-suit-index"?LIMITS.indexConflictIou:LIMITS.conflictIou;
+    // Confidence ranks editable suggestions; uncertainty must not leave fields empty.
+    // One physical region contributes at most one identity, even if its classes tie.
+    for(const item of kept){
+      item.selected=false;
+      if(selected.some(other=>intersectionOverUnion(item.box,other.box)>conflictIou))continue;
+      if(selected.some(other=>other.cardId===item.cardId))continue;
+      if(selected.length<LIMITS.maxCards){item.selected=true;selected.push(item);}
     }
-    if(cardIds.length<LIMITS.maxCards)warnings.push("Fehlende Karten bitte von Hand ergänzen; unsichere Vorschläge wurden nicht automatisch übernommen.");
+    const cardIds=selected.map(item=>item.cardId);
+    if(kept.some(item=>item.uncertain))warnings.push("Unsichere oder widersprüchliche Erkennungen bitte von Hand prüfen.");
+    if(kept.some(item=>!item.selected&&!cardIds.includes(item.cardId)&&
+      !selected.some(other=>intersectionOverUnion(item.box,other.box)>conflictIou))){
+      warnings.push("Mehr als acht Kartenvorschläge erkannt. Die acht stärksten wurden vorausgewählt; bitte die Auswahl prüfen.");
+    }
+    if(cardIds.length<LIMITS.maxCards)warnings.push("Für acht verschiedene Karten reichen die Erkennungen nicht aus. Unsichere Vorschläge wurden vorausgewählt; fehlende Karten bitte von Hand ergänzen.");
     return {cardIds,detections:kept,warnings,modelVersion:MODEL_VERSION};
   }
   const api={IMAGE_SIZE,MODEL_VERSION,DETECTION_TARGET,MODELS,DEFAULT_MODEL,CLASS_IDS,LIMITS,letterbox,rgbaToTensor,intersectionOverUnion,decodeOutput};

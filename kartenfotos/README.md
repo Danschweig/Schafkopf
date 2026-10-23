@@ -157,3 +157,151 @@ sieben. Ein anderes Kartenmotiv zeigt weiterhin Verwechslungen. Der private
 Bericht liegt unter `aufbereitung/trainingsbericht-v3.md`. Die zwei neuen
 Testfotos sind nach dieser Prüfung bekannte Vergleichsfälle. Fotos und erzeugte
 Varianten bleiben lokal.
+
+## Training auf sichtbare Kartenflächen mit Verdeckungen
+
+`scripts/prepare-card-surface-training.py` erstellt einen separaten Datensatz
+unter `.tools/card-training/surfaces-v1/`: 768 Trainingsbilder und 128
+Validierungsbilder. Die 32 fotografierten Einzelkarten werden mit verschiedenen
+Drehungen, Perspektiven, Lichtverhältnissen und Hintergründen zusammengesetzt.
+Es gibt einzelne Karten, aufgefächerte Hände, lose Anordnungen und leere Bilder.
+Andere Karten und zusätzliche Abdeckungen verdecken gezielt Kanten, alle vier
+Eckzeichen oder den oberen und unteren Kartenrand. Originalfotos bleiben erhalten.
+
+Die Zielrechtecke beschreiben die tatsächlich sichtbaren Kartenflächen statt
+einzelner Eckzeichen. Sehr kleine, weitgehend verdeckte Reste erhalten kein
+positives Kartenlabel. Die Datei `scenes.json` dokumentiert Sichtbarkeit,
+Karten-ID und Art der Abdeckung für jeden Zielbereich. `audit.json` bestätigt
+die Prüfung von Quellen, Trennung, Klassenabdeckung und Markierungen.
+Eine beschriftete Kontrollübersicht liegt unter `preview.jpg`.
+
+Die Trainingskarten stammen aus `karten2.png`, die Validierung aus `karten1.png`.
+Die 13 echten Trainingshände liefern ausschließlich Hintergrundbereiche;
+ihre bisherigen Eckzeichen-Markierungen sind keine Kartenflächen-Markierungen.
+Testfotos werden nicht gelesen. Diese synthetischen Zusammensetzungen ersetzen
+keine unabhängigen echten Handfotos mit verdeckten Ecken. Bei starker Verdeckung
+können unterschiedliche Karten dasselbe sichtbare Motiv haben.
+
+Der Hintergrundlauf wird mit der vorhandenen lokalen Python-Umgebung gestartet:
+
+```powershell
+.tools/model-export/Scripts/python.exe scripts/run-card-surface-training.py --name surfaces-v1 --epochs 24
+```
+
+Er trainiert ausgehend von Version 3 mit allen Netzschichten und exportiert den
+anhand der internen Validierung besten Checkpoint anschließend nach
+`.tools/card-training/candidate-surfaces-v1/bavarian-surfaces.onnx`.
+Der Kandidat ersetzt das App-Modell noch nicht. Vor einer Übernahme müssen die
+bekannten Handfotos und Varianten mit verdeckten Eckzeichen verglichen werden.
+
+Fortschritt anzeigen (aus dem Projektordner, beendet die Anzeige mit Strg+C):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\watch-card-training.ps1
+```
+
+Die Anzeige liest alle fünf Sekunden die lokal geschriebene `status.json` und
+zeigt Epoche, Batch, Prozent und geschätzte Restzeit. Protokolle und Prozess-ID
+liegen unter `.tools/card-training/jobs/surfaces-v1/`; dort schreibt ein im
+Hintergrund gestarteter Lauf `stdout.log` und `stderr.log`. Der Export erfolgt
+automatisch. Die Anzeige endet nach Abschluss oder bei einem Fehler. Das
+Schließen der Anzeige beendet den separaten Hintergrundprozess nicht.
+
+### Ergebnis des Kartenflächen-Trainings vom 23.10.2026
+
+Der neu gestartete Lauf `surfaces-v1-20261023` hat 24 Epochen und den ONNX-Export
+in rund 59 Minuten abgeschlossen. Nach der internen Validierung wurde der
+Checkpoint aus Epoche 22 exportiert. Der Kandidat liegt unter
+`.tools/card-training/candidate-surfaces-v1-20261023/bavarian-surfaces.onnx`.
+
+Der Vergleich mit identischen Bildern und unveränderter Auswahlschwelle zeigt:
+Auf den drei bekannten echten Testfotos übernimmt das bisherige Modell 24 von
+24 Karten richtig, ohne falschen Vorschlag. Der Kandidat übernimmt sechs
+richtige und drei falsche Karten. Werden die markierten oberen Eckzeichen
+verdeckt, findet der Kandidat sechs richtige und drei falsche Karten, das
+bisherige Modell drei richtige ohne falsche. Untere gespiegelte Eckzeichen
+können bei diesem Test sichtbar bleiben. Auf der internen synthetischen
+Validierung findet der Kandidat mehr Karten, macht aber ebenfalls mehr Fehler.
+
+Der Kandidat ersetzt das App-Modell deshalb nicht. Die Übertragung der
+synthetischen Kartenflächen auf echte Handfotos reicht noch nicht aus.
+Für einen weiteren Versuch sollten die sichtbaren Kartenflächen in den echten
+Trainingshänden markiert werden; diese dienten bisher nur als Hintergrundquelle.
+Es wurde kein weiterer Trainingslauf gestartet. Vergleichsskript:
+`scripts/compare-card-surface-model.cjs`. Der private Bericht mit allen Zahlen
+liegt neben dem Kandidaten unter `comparison.md`, die Einzelvorhersagen unter
+`comparison.json`. Die bekannten Testfotos bleiben Vergleichsfälle und ersetzen
+keine neue unabhängige Prüfung.
+
+### Echte Kartenflächen und zweiter Kartenflächen-Datensatz
+
+Alle 13 echten Trainingsfotos besitzen nun eine zusätzliche `*.surfaces.json`:
+insgesamt 104 explizit eingezeichnete und visuell geprüfte Polygone der
+sichtbaren Kartenflächen. Die Karten-IDs stammen aus den bestehenden geprüften
+Eckzeichen-Markierungen. Finger und verdeckte Bereiche wurden nach den
+Originalfotos ausgespart; es wurden keine Modellvorhersagen als Wahrheit
+übernommen. Die Polygone sind grobe Flächenmarkierungen für die daraus
+abgeleiteten Detektionsrechtecke, keine pixelgenauen Segmentierungsmasken.
+Originalfotos und frühere Markierungen bleiben erhalten.
+
+`scripts/annotate-card-surfaces.py` erstellt Kontrollansichten und überträgt
+die eingezeichneten Polygone zurück in Originalkoordinaten. Die lokale
+Annotation und farbige Kontrollbilder liegen unter
+`.tools/card-training/surface-review-v2/`. Alle 104 Zuordnungen wurden zusätzlich
+anhand eines sichtbaren Eckzeichens auf der zugehörigen Fläche geprüft.
+
+`scripts/prepare-real-card-surface-training.py` erstellt `surfaces-v2` mit
+864 Trainingsbildern und 116 Validierungsbildern. 480 Trainingsbilder sind
+Varianten von zehn echten Handfotos; 384 sind synthetische Szenen. Die
+Validierung enthält 36 Varianten von drei vollständig reservierten Fotos und
+80 synthetische Kontrollbilder. `Handkarten2`, `IMG_7933` und `IMG_7941` werden
+vor jeder Variantenbildung ausschließlich der Validierung zugeordnet. Ihre
+Hintergrundbereiche gelangen ebenfalls nicht in die neue Trainingsgruppe.
+Alle 32 Karten kommen in beiden Gruppen vor und auch in den zehn echten
+Trainingshänden. Die Prüfung steht unter `surfaces-v2/audit.json`.
+
+Die echten Varianten enthalten das ganze Foto und engere Ausschnitte sowie
+Drehungen, Lichtänderungen, verdeckte markierte Eckzeichen und zusätzliche
+Vordergrund-Abdeckungen. Sichtbarkeit und Zielrechtecke werden nach jeder
+Verdeckung neu berechnet. Vollständig verdeckte Karten werden nicht durch
+positive Labels erzwungen. Bei den echten Fotos sind nur die markierten
+Eckzeichen gezielt abgedeckt; die synthetischen Varianten enthalten zusätzlich
+Abdeckungen aller vier Eckzeichen.
+
+Das Nachtraining verwendet den besten Checkpoint des ersten Kartenflächenlaufs,
+16 Epochen, alle Netzschichten und Lernrate 0,0003. Startrezept:
+
+```powershell
+.tools/model-export/Scripts/python.exe scripts/run-card-surface-training.py --name surfaces-v2-real-20261023 --epochs 16 --data .tools/card-training/surfaces-v2/dataset.yaml --weights .tools/card-training/runs/surfaces-v1-20261023/weights/best.pt --lr 0.0003 --warmup 1 --compare
+```
+
+Danach werden der beste Checkpoint exportiert und der Kandidat automatisch mit
+dem bisherigen Modell auf den bekannten Testfotos und den ursprünglichen
+synthetischen Kontrollbildern verglichen. Ergebnisse und Modell landen unter
+`.tools/card-training/candidate-surfaces-v2-real-20261023/`. Das App-Modell wird
+dabei nicht ersetzt. Die neue interne Validierung trennt zwar ganze
+Quellfotos, der frühere Eckzeichen-Ausgangscheckpoint kannte diese Fotos aber
+bereits. Sie ist deshalb keine unabhängige Prüfung. Die drei Testfotos werden
+weiterhin erst nach abgeschlossenem Training für den Vergleich gelesen.
+
+Überwachung des Hintergrundlaufs:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\watch-card-training.ps1 -Name surfaces-v2-real-20261023
+```
+
+Der Lauf ist am 23.10.2026 nach 16 Epochen einschließlich Export und Vergleich
+in rund 50 Minuten abgeschlossen worden. Auf den drei bekannten Original-
+Testfotos steigt die Trefferzahl gegenüber dem ersten Kartenflächenmodell von
+sechs auf elf richtige Vorschläge; zugleich steigt die Zahl falscher Vorschläge
+von drei auf sieben. Das bisherige Eckzeichenmodell erkennt dort weiterhin
+24 richtige Karten ohne falschen Vorschlag. Mit verdeckten markierten oberen
+Eckzeichen findet der neue Kandidat elf richtige und fünf falsche Karten,
+das bisherige Modell drei richtige ohne falsche Vorschläge.
+
+Der Kandidat ersetzt das App-Modell deshalb weiterhin nicht. Die höhere
+Trefferzahl belegt noch keine verlässliche Verbesserung vollständiger Hände.
+Der lokale Bericht `comparison.md` und alle Einzelvorhersagen in
+`comparison.json` liegen unter
+`.tools/card-training/candidate-surfaces-v2-real-20261023/`. Ein weiterer
+Trainingslauf wurde nicht gestartet.

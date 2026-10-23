@@ -189,6 +189,13 @@ Die App führt YOLOv8n mit ONNX Runtime Web lokal in einem eigenen Worker aus.
 Unter **Kartenscan (Beta)** verwendet die App ausschließlich das eigene Modell:
 `models/bavarian-corners.onnx`, Version `bavarian-corners-pilot-2026-10-22-v3`.
 Dieses Modell erkennt die kleinen Eckzeichen der vorhandenen 32 Karten.
+Es bekommt das gesamte Foto als Eingabe, keinen vorab ausgeschnittenen
+Eckbereich. Die Trainingsziele sind aber Eckzeichen; die echten Trainingsfotos
+werden in der Aufbereitung auf deren Bereich zugeschnitten. Für eine gezielte
+Nutzung der übrigen sichtbaren Kartenmotive wäre ein erneutes Training mit
+markierten sichtbaren Kartenbereichen und teilweise verdeckten Karten nötig.
+Eckzeichen und Kartenmotive gemeinsam auszuwerten ist ein sinnvoller nächster
+Versuch; die Erkennungsqualität müsste an unabhängigen Handfotos geprüft werden.
 Das ursprüngliche allgemeine Modell unter `models/bavarian-cards.onnx`
 bleibt als historische Vergleichsdatei erhalten und ist im Scanner nicht
 verfügbar. Die Browser-Laufzeit liegt unter
@@ -206,12 +213,15 @@ ignoriert.
 
 Vor der Auswertung wird das Foto unter Beachtung seiner Orientierung auf 640 × 640 Pixel mit proportionaler Skalierung und Randflächen verkleinert. Nur diese Pixel gehen an den lokalen Worker. Die App lädt keine Fotos hoch und speichert sie weder in Firebase noch in Sitzungsdaten oder Sicherungen. Die Vorschau bleibt vorübergehend im Arbeitsspeicher und wird beim Wechseln oder Schließen der Eingabe freigegeben. Die Firestore-Regeln ergänzen den Schutz der privaten Zahlenwerte; die Smash-Bingo-Regeln bleiben unverändert.
 
-Das Ergebnis markiert vorgeschlagene Karten im Foto. Nur ausreichend eindeutige,
-unterschiedliche Karten werden in die Auswahl übernommen. Mehrere Eckzeichen
-derselben Karte ergeben im trainierten Eckzeichenmodell eine einzelne ID.
-Widersprüchliche Vorschläge und mehr als acht erkannte
-Karten werden nicht zu einer vollständigen Hand ergänzt. Fehlende oder falsche
-Karten können im bisherigen Wähler korrigiert werden. Erst bei acht ausgewählten
+Das Ergebnis markiert vorgeschlagene Karten im Foto. Auch unsichere Vorschläge
+ab dem bisherigen Mindest-Modellwert von 0,35 werden vorausgewählt. Am selben
+Ort zählt nur der stärkste Vorschlag; mehrere Eckzeichen derselben Karte ergeben
+eine einzelne ID. Bei mehr als acht unterschiedlichen Vorschlägen bleiben die
+acht stärksten ausgewählt. Die Prüfliste zeigt die Modellunsicherheit getrennt
+von der aktuellen Auswahl und folgt auch manuellen Korrekturen.
+Gibt es weniger als acht unterschiedliche, räumlich getrennte Vorschläge,
+bleiben Plätze frei. Fehlende oder falsche Karten können im bisherigen Wähler
+korrigiert werden. Erst bei acht ausgewählten
 Karten erscheint die Bewertung; gespeichert wird weiterhin ausschließlich nach
 ausdrücklicher Bestätigung.
 

@@ -1,4 +1,4 @@
-    function PhotoCardScanner({onScanStart,onCards,onBusyChange}){
+    function PhotoCardScanner({onScanStart,onCards,onBusyChange,selectedCardIds}){
       const fileRef=useRef(null);
       const abortRef=useRef(null);
       const requestRef=useRef(0);
@@ -84,9 +84,9 @@
           <div style={{fontSize:10,color:C.dim,marginTop:8}}>Verwendetes Modell: {result.modelVersion}</div>
           {result.detections.length>0&&<details style={{fontSize:11,lineHeight:1.5,marginTop:8}}>
             <summary style={{cursor:"pointer"}}>Erkannte Karten prüfen</summary>
-            {result.detections.map((item,index)=><div key={index}>{cardLabel(item.cardId)} · {item.uncertain?"unsicher, nicht übernommen":"ausgewählt"}</div>)}
+            {result.detections.map((item,index)=><div key={index}>{cardLabel(item.cardId)} · {item.uncertain?"unsicher":"eindeutig"} · {selectedCardIds.includes(item.cardId)?"ausgewählt":"nicht ausgewählt"}</div>)}
           </details>}
-          <div style={{fontSize:11,lineHeight:1.5,marginTop:8}}>Die Auswahl unten kannst du korrigieren. Erst bei acht ausgewählten Karten entsteht eine Bewertung; gespeichert wird erst nach deiner Bestätigung.</div>
+          <div style={{fontSize:11,lineHeight:1.5,marginTop:8}}>Auch unsichere Vorschläge werden vorausgewählt. Die Auswahl unten kannst du korrigieren: falsche Karte abwählen und die richtige auswählen. Erst bei acht ausgewählten Karten entsteht eine Bewertung; gespeichert wird erst nach deiner Bestätigung.</div>
         </>}
       </div>;
     }

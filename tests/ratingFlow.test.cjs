@@ -596,6 +596,37 @@ test("photo flow: incomplete recognition never creates a rating and can be corre
   }finally{act(()=>instance.rendered.unmount());}
 });
 
+test("photo flow: uncertain model output fills the eighth card and the inspection list follows corrections",async()=>{
+  const instance=app();
+  try{
+    const core=instance.context.SchafkopfCardScannerCore;
+    const data=new Float32Array(8*36);
+    photographedHand.forEach((id,index)=>{
+      const offset=index*36;
+      data.set([70+(index%4)*150,150+Math.floor(index/4)*300,30,50],offset);
+      data[offset+4+core.CLASS_IDS.indexOf(id)]=index===7?.5:.95;
+    });
+    instance.context.SchafkopfCardScanner.scanPhoto=async()=>({
+      ...core.decodeOutput({dims:[1,8,36],data},{target:core.MODELS.personal.target}),previewUrl:"blob:local-preview"
+    });
+    open(instance);click(button(instance,/^Ben7,0/));
+    await act(async()=>photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}}));
+    const label=instance.context.SchafkopfHandEvaluation.CARDS.find(item=>item.id===photographedHand[7]).label;
+    const line=()=>instance.rendered.root.findAllByType("div").find(node=>node.children[0]===label&&node.children.includes("unsicher"));
+    assert.equal(card(instance,label).props["aria-pressed"],true);
+    assert.match(text(line()),/unsicher · ausgewählt/);
+    assert.equal(confirmation(instance).props.disabled,false);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,7);
+    click(card(instance,label));
+    assert.match(text(line()),/unsicher · nicht ausgewählt/);
+    assert.equal(confirmation(instance).props.disabled,true);
+    click(card(instance,label));
+    assert.match(text(line()),/unsicher · ausgewählt/);
+    click(confirmation(instance));
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,6.8);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
 test("photo flow: abort prevents a late recognition result from replacing a manual correction",async()=>{
   const instance=app();
   let finish;

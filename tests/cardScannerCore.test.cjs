@@ -36,11 +36,12 @@ test("eight decoded class IDs feed the existing evaluator without depending on o
   assert.deepEqual(decodeOutput(tensor(rows,false)),result);
   assert.ok(evaluateHand(result.cardIds).score>=1);
 });
-test("uncertain and close competing classes never fill missing cards",()=>{
+test("uncertain and close competing classes are preselected for manual correction",()=>{
   const result=decodeOutput(tensor([{...row(0),confidence:.5},{...row(8,300),confidence:.8,second:.75}]));
-  assert.equal(result.cardIds.length,0);
+  assert.deepEqual(result.cardIds,["gras-sieben","eichel-sieben"]);
   assert.equal(result.detections.length,2);
   assert.ok(result.detections.every(item=>item.uncertain));
+  assert.ok(result.detections.every(item=>item.selected));
 });
 test("overlapping detections of the same card are suppressed once",()=>{
   const result=decodeOutput(tensor([row(4),{...row(4,102,102),confidence:.8}]));
@@ -51,25 +52,29 @@ test("different overlapping cards survive unless their boxes conflict almost com
   const result=decodeOutput(tensor([row(4),row(12,120)]));
   assert.equal(result.cardIds.length,2);
   const conflict=decodeOutput(tensor([row(4),row(12)]));
-  assert.equal(conflict.cardIds.length,0);
+  assert.equal(conflict.cardIds.length,1);
   assert.ok(conflict.detections.every(item=>item.uncertain));
+  assert.equal(conflict.detections.filter(item=>item.selected).length,1);
 });
 test("a weak alternative class at the same position does not veto a clearly stronger prediction",()=>{
   const result=decodeOutput(tensor([{...row(4),confidence:.9},{...row(12),confidence:.4}]));
   assert.deepEqual(result.cardIds,["eichel-unter"]);
   assert.equal(result.detections.length,1);
 });
-test("duplicate identities in separate positions are flagged instead of creating an invalid hand",()=>{
+test("duplicate identities are uncertain but preselect the card only once",()=>{
   const result=decodeOutput(tensor([row(4),row(4,400)]));
-  assert.equal(result.cardIds.length,0);
+  assert.deepEqual(result.cardIds,["eichel-unter"]);
   assert.ok(result.detections.every(item=>item.uncertain));
+  assert.equal(result.detections.filter(item=>item.selected).length,1);
 });
-test("more than eight confident cards never silently chooses the top eight",()=>{
-  const rows=Array.from({length:9},(_,index)=>row(index,70+(index%3)*200,100+Math.floor(index/3)*200));
+test("more than eight confident cards keep the strongest eight and explain the limit",()=>{
+  const rows=Array.from({length:9},(_,index)=>({...row(index,70+(index%3)*200,100+Math.floor(index/3)*200),confidence:.99-index*.02})).reverse();
   const result=decodeOutput(tensor(rows));
-  assert.deepEqual(result.cardIds,[]);
+  assert.deepEqual(result.cardIds,CLASS_IDS.slice(0,8));
   assert.ok(result.warnings.some(text=>text.includes("Mehr als acht")));
-  assert.ok(result.detections.every(item=>item.uncertain));
+  assert.ok(result.detections.every(item=>!item.uncertain));
+  assert.equal(result.detections.filter(item=>item.selected).length,8);
+  assert.equal(result.detections.find(item=>item.cardId===CLASS_IDS[8]).selected,false);
 });
 test("blank, malformed and non-finite model outputs do not invent cards",()=>{
   assert.deepEqual(decodeOutput(tensor([])).cardIds,[]);
@@ -104,5 +109,25 @@ test("alternative classes on the same corner are resolved without suppressing se
   const result=decodeOutput(tensor([row(0),{...row(1,120),confidence:.4},row(2,300)]),{target:"rank-and-suit-index"});
   assert.deepEqual([...result.cardIds].sort(),["eichel-neun","eichel-sieben"]);
   const ambiguous=decodeOutput(tensor([row(0),{...row(1,120),confidence:.9}]),{target:"rank-and-suit-index"});
-  assert.deepEqual(ambiguous.cardIds,[]);
+  assert.deepEqual(ambiguous.cardIds,["eichel-sieben"]);
+  assert.ok(ambiguous.detections.every(item=>item.uncertain));
+  assert.equal(ambiguous.detections.filter(item=>item.selected).length,1);
+});
+
+test("seven confident cards plus one uncertain card form an editable eight-card hand",()=>{
+  const rows=Array.from({length:8},(_,index)=>({...row(index,70+(index%4)*150,100+Math.floor(index/4)*250),confidence:index===7?.4:.9}));
+  const result=decodeOutput(tensor(rows),{target:"rank-and-suit-index"});
+  assert.deepEqual([...result.cardIds].sort(),CLASS_IDS.slice(0,8).sort());
+  assert.equal(result.detections.filter(item=>item.selected&&item.uncertain).length,1);
+  assert.ok(evaluateHand(result.cardIds).score>=1);
+  assert.ok(result.warnings.some(text=>text.includes("Unsichere")));
+  assert.ok(!result.warnings.some(text=>text.includes("ergänzen")));
+});
+
+test("repeated corners and competing classes do not consume places needed by other cards",()=>{
+  const rows=[{...row(0),confidence:.6},{...row(1,105),confidence:.59},
+    {...row(0,400,500),confidence:.55},{...row(2,300),confidence:.5}];
+  const result=decodeOutput(tensor(rows),{target:"rank-and-suit-index"});
+  assert.deepEqual(result.cardIds,["eichel-sieben","eichel-neun"]);
+  assert.equal(result.detections.filter(item=>item.selected).length,2);
 });

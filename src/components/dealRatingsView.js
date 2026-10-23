@@ -68,7 +68,7 @@
             Langes Blatt: 8 aus 32 Karten. Wähle deine Hand vor Spielansage und Kartentausch.
             Die Bewertung vergleicht die aktivierten Spielarten. Sie schätzt dein Handpotenzial und ist keine Gewinnwahrscheinlichkeit.
           </div>
-          <PhotoCardScanner onScanStart={()=>{setCards([]);setNotice("");}} onCards={ids=>{setCards(ids);setNotice("");}} onBusyChange={setScanning}/>
+          <PhotoCardScanner selectedCardIds={cards} onScanStart={()=>{setCards([]);setNotice("");}} onCards={ids=>{setCards(ids);setNotice("");}} onBusyChange={setScanning}/>
           <div style={{display:"grid",gap:6}}>
             {window.SchafkopfHandEvaluation.GAME_OPTIONS.map(({id,label})=><button key={id}
               role="switch" aria-checked={rules[id]} onClick={()=>{setRules(current=>window.SchafkopfHandEvaluation.toggleGame(current,id));setNotice("");}}
