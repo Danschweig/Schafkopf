@@ -3,27 +3,39 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const vm=require("node:vm");
 const core=require("../src/cardScannerCore.js");
+const readerCore=require("../src/cardIndexReaderCore.js");
 function worker(model="personal",changeMetadata=()=>{},runError=false){
   const profile=core.MODELS[model],messages=[],fetches=[],loads=[];
   let disposed=0;
   const metadata=JSON.parse(fs.readFileSync(require.resolve("../models/bavarian-cards.metadata.json"),"utf8"));
-  metadata.version=profile.version;metadata.target=profile.target;changeMetadata(metadata);
+  const detectorProfile=core.MODELS[profile.localizer]||profile;
+  metadata.version=detectorProfile.version;metadata.target=detectorProfile.target;
+  const readerMetadata=JSON.parse(fs.readFileSync(require.resolve("../models/card-index-reader.metadata.json"),"utf8"));
+  changeMetadata(profile.localizer?readerMetadata:metadata);
   // Two ends of the same physical card: only the corner profile deduplicates them.
   const data=new Float32Array(36*2);
   for(let i=0;i<2;i++){data[i]=100+i*300;data[2+i]=100;data[4+i]=40;data[6+i]=60;data[(4+5)*2+i]=.95;}
-  const ort={env:{wasm:{}},Tensor:class{dispose(){disposed++;}},InferenceSession:{create:async(url,options)=>{
+  const ort={env:{wasm:{}},Tensor:class{constructor(type,data,dims){this.data=data;this.dims=dims;}dispose(){disposed++;}},InferenceSession:{create:async(url,options)=>{
+    if(url.includes("card-index-reader.onnx")){
+      loads.push({url,options});return {run:async({indices})=>{
+        if(runError)throw new Error("Reader failed");
+        const count=indices.dims[0],ranks=new Float32Array(count*9).fill(-8),suits=new Float32Array(count*5).fill(-8);
+        for(let index=0;index<count;index++){ranks[index*9+7]=8;suits[index*5+1]=8;}
+        return {rank_logits:{dims:[count,9],data:ranks,dispose:()=>disposed++},suit_logits:{dims:[count,5],data:suits,dispose:()=>disposed++}};
+      }};
+    }
     loads.push({url,options});return {inputNames:["images"],outputNames:["output"],run:async()=>{
       if(runError)throw new Error("WASM failed");
       return {output:{dims:[1,36,2],data,dispose:()=>disposed++}};
     }};
   }}};
-  const context={SchafkopfCardScannerCore:core,ort,URL,ArrayBuffer,Float32Array,performance,
+  const context={SchafkopfCardScannerCore:core,SchafkopfCardIndexReaderCore:readerCore,ort,URL,ArrayBuffer,Float32Array,performance,
     self:{location:{href:"https://example.test/Schafkopf/src/cardScannerWorker.js"},postMessage:message=>messages.push(message)},
-    importScripts:file=>{assert.ok(["cardScannerCore.js","../vendor/onnxruntime/ort.wasm.min.js"].includes(file));},
-    fetch:async url=>{fetches.push(String(url));return {ok:true,json:async()=>metadata};}
+    importScripts:file=>{assert.ok(["cardScannerCore.js","cardIndexReaderCore.js","../vendor/onnxruntime/ort.wasm.min.js"].includes(file));},
+    fetch:async url=>{fetches.push(String(url));return {ok:true,json:async()=>String(url).includes("card-index-reader")?readerMetadata:metadata};}
   };
   vm.runInNewContext(fs.readFileSync(require.resolve("../src/cardScannerWorker.js"),"utf8"),context);
-  const scan=async(options={})=>{await context.self.onmessage({data:{type:"scan",model,pixels:new ArrayBuffer(3*640*640*4),...options}});return messages.at(-1);};
+  const scan=async(options={})=>{await context.self.onmessage({data:{type:"scan",model,pixels:new ArrayBuffer(3*640*640*4),...(profile.localizer?{source:{width:640,height:640,pixels:new ArrayBuffer(640*640*4)}}:{}),...options}});return messages.at(-1);};
   return {scan,messages,fetches,loads,ort,disposed:()=>disposed};
 }
 for(const model of ["personal"])test(`worker ${model}: correct model, target, Pages paths and version`,async()=>{
@@ -38,6 +50,26 @@ for(const model of ["personal"])test(`worker ${model}: correct model, target, Pa
   assert.equal(w.ort.env.wasm.wasmPaths,"https://example.test/Schafkopf/vendor/onnxruntime/");
   assert.equal(w.disposed(),2);
   assert.ok(message.result.timings.inferenceMs>=0);
+});
+
+test("optional reader loads both models, reads indices and identifies its own version",async()=>{
+  const w=worker("indexReader"),message=await w.scan();
+  assert.equal(message.type,"result");
+  assert.equal(message.result.modelVersion,core.MODELS.indexReader.version);
+  assert.equal(message.result.modelId,"indexReader");
+  assert.deepEqual(message.result.cardIds,["gras-ass"],"Use reader classification, not the detector's Eichel-Ober class");
+  assert.equal(w.loads.length,2);
+  assert.match(w.loads[0].url,/bavarian-corners.onnx/);
+  assert.match(w.loads[1].url,/Schafkopf\/models\/card-index-reader.onnx\?v=bavarian-index-reader-v2-recovery/);
+  assert.equal(w.disposed(),5);
+});
+for(const mutate of [meta=>meta.version="stale",meta=>meta.ranks.reverse(),meta=>meta.suits.reverse(),meta=>meta.inputShape=[1,3,640,640]])test("optional reader rejects incompatible reader metadata",async()=>{
+  const w=worker("indexReader",mutate);assert.equal((await w.scan()).type,"error");assert.equal(w.loads.length,1);
+});
+test("optional reader rejects missing or oversized source pixels before loading models",async()=>{
+  for(const source of [undefined,{width:2001,height:2,pixels:new ArrayBuffer(2001*2*4)},{width:640,height:640,pixels:new ArrayBuffer(4)}]){
+    const w=worker("indexReader");assert.equal((await w.scan({source})).type,"error");assert.equal(w.fetches.length,0);
+  }
 });
 for(const mutate of [meta=>meta.version="stale",meta=>meta.target="wrong",meta=>meta.classNames.reverse()])test("worker rejects incompatible metadata before model loading",async()=>{
   const w=worker("personal",mutate);
@@ -55,8 +87,8 @@ test("worker releases input when inference fails and does not produce a result",
 test("service-worker activation preserves other apps' caches",async()=>{
   const deleted=[],listeners={};
   const context={self:{addEventListener:(name,callback)=>listeners[name]=callback,clients:{claim:async()=>{}}},
-    caches:{keys:async()=>["smash-bingo-v1","other-app","schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28","schafkopf-v29","schafkopf-v30","schafkopf-v31","schafkopf-v32","schafkopf-v33","schafkopf-v34","schafkopf-v35","schafkopf-v36"],delete:async key=>deleted.push(key)}};
+    caches:{keys:async()=>["smash-bingo-v1","other-app","schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28","schafkopf-v29","schafkopf-v30","schafkopf-v31","schafkopf-v32","schafkopf-v33","schafkopf-v34","schafkopf-v35","schafkopf-v36","schafkopf-v37"],delete:async key=>deleted.push(key)}};
   vm.runInNewContext(fs.readFileSync(require.resolve("../sw.js"),"utf8"),context);
   let done;listeners.activate({waitUntil:promise=>{done=promise;}});await done;
-  assert.deepEqual(deleted,["schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28","schafkopf-v29","schafkopf-v30","schafkopf-v31","schafkopf-v32","schafkopf-v33","schafkopf-v34","schafkopf-v35"]);
+  assert.deepEqual(deleted,["schafkopf-v24","schafkopf-v25","schafkopf-v26","schafkopf-v27","schafkopf-v28","schafkopf-v29","schafkopf-v30","schafkopf-v31","schafkopf-v32","schafkopf-v33","schafkopf-v34","schafkopf-v35","schafkopf-v36"]);
 });

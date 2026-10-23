@@ -42,14 +42,27 @@
       // A nominal 48 MP phone photo can contain 48.8 million pixels.
       if(image.width*image.height>50000000)throw new Error("Bitte ein Foto mit höchstens 50 Megapixeln verwenden.");
       const core=root.SchafkopfCardScannerCore;
-      const fit=core.letterbox(image.width,image.height);
+      let sourceCanvas=null,source=null;
+      if(core.MODELS[model].localizer){
+        // Keep only a bounded, resized copy for the 96px index reader.
+        const scale=Math.min(1,2000/Math.max(image.width,image.height));
+        sourceCanvas=document.createElement("canvas");
+        sourceCanvas.width=Math.max(2,Math.round(image.width*scale));sourceCanvas.height=Math.max(2,Math.round(image.height*scale));
+        const sourceContext=sourceCanvas.getContext("2d",{willReadFrequently:true});
+        if(!sourceContext)throw new Error("Das Foto konnte nicht verarbeitet werden.");
+        sourceContext.fillStyle="white";sourceContext.fillRect(0,0,sourceCanvas.width,sourceCanvas.height);
+        sourceContext.drawImage(image,0,0,sourceCanvas.width,sourceCanvas.height);
+        source={width:sourceCanvas.width,height:sourceCanvas.height,pixels:sourceContext.getImageData(0,0,sourceCanvas.width,sourceCanvas.height).data.buffer};
+      }
+      const fit=core.letterbox(source?.width||image.width,source?.height||image.height);
       const canvas=document.createElement("canvas");
       canvas.width=core.IMAGE_SIZE;canvas.height=core.IMAGE_SIZE;
       const ctx=canvas.getContext("2d",{willReadFrequently:true});
       if(!ctx)throw new Error("Das Foto konnte nicht verarbeitet werden.");
       ctx.fillStyle="rgb(114,114,114)";
       ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.drawImage(image,fit.x,fit.y,fit.width,fit.height);
+      ctx.drawImage(sourceCanvas||image,fit.x,fit.y,fit.width,fit.height);
+      if(sourceCanvas){sourceCanvas.width=0;sourceCanvas.height=0;sourceCanvas=null;}
       // Release the full camera image before model loading/inference on phones.
       releaseImage(image);imageClosed=true;
       const pixels=core.rgbaToTensor(ctx.getImageData(0,0,canvas.width,canvas.height).data);
@@ -75,7 +88,7 @@
           if(event.data?.type==="error")finish(reject,new Error(event.data.message));
         };
         worker.onerror=()=>finish(reject,new Error("Die Erkennungsdateien konnten nicht geladen werden. Bitte erneut versuchen oder Karten auswählen."));
-        try{worker.postMessage({type:"scan",model,pixels:pixels.buffer},[pixels.buffer]);}
+        try{worker.postMessage({type:"scan",model,pixels:pixels.buffer,...(source?{source}:{})},source?[pixels.buffer,source.pixels]:[pixels.buffer]);}
         catch(error){finish(reject,error);}
       });
       return {...result,previewUrl,timings:{...result.timings,totalMs:Math.round(performance.now()-started)}};

@@ -18,6 +18,15 @@ test("archive: off by default; capture and unconfirmed scans never enter storage
   const enabled=fixture();enabled.enable();await enabled.client.flush();const photo=await enabled.capture();
   assert.ok(photo);assert.equal(enabled.records.size,0);assert.equal(enabled.calls(),0);
 });
+
+test("archive: optional reader retains its model version and never archives unreadable card identities",async()=>{
+  const f=fixture();f.enable();await f.client.flush();
+  const capture=await f.client.capture({type:"image/jpeg"},{cardIds:cards,modelVersion:core.MODELS.indexReader.version,detectionTarget:"rank-and-suit-index",
+    detections:[{cardId:null,confidence:.9,uncertain:true,box:[1,2,3,4]},{cardId:cards[0],confidence:.7,uncertain:true,box:[5,6,7,8]}]});
+  assert.equal(capture.metadata.modelVersion,core.MODELS.indexReader.version);
+  assert.equal(capture.metadata.detectionTarget,"rank-and-suit-index");
+  assert.equal(capture.metadata.detections.length,1);assert.equal(capture.metadata.detections[0].cardId,cards[0]);
+});
 test("archive: HTTPS and token validation prevent accidental or insecure destinations",()=>{
   const f=fixture();
   for(const endpoint of ["http://archive.test","https://user:password@archive.test","https://archive.test/upload","https://archive.test/?token=secret"]){assert.throws(()=>f.client.configure({enabled:true,endpoint,token}));}

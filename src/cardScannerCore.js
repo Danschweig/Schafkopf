@@ -5,7 +5,8 @@
   const MODEL_VERSION="bavarian-yolov8n-2026-03-13";
   const DETECTION_TARGET="card";
   const MODELS=Object.freeze({
-    personal:Object.freeze({file:"bavarian-corners",version:"bavarian-corners-pilot-2026-10-22-v3",target:"rank-and-suit-index",label:"Kartenscan (Beta)"})
+    personal:Object.freeze({file:"bavarian-corners",version:"bavarian-corners-pilot-2026-10-22-v3",target:"rank-and-suit-index",label:"Standard (bisherig)"}),
+    indexReader:Object.freeze({file:"card-index-reader",version:"bavarian-index-reader-v2-recovery",target:"separate-rank-suit-reader",label:"Zeichenleser",localizer:"personal"})
   });
   // Camera default; direct decodeOutput() defaults remain the legacy model.
   const DEFAULT_MODEL="personal";

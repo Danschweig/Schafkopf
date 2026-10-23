@@ -108,8 +108,8 @@
       const photo=await compressPhoto(file);
       if(!settings.enabled||version!==generation)return null;
       return {id,...photo,endpoint:config.endpoint,metadata:{schemaVersion:1,id,sessionId:config.evening||eveningId(at),capturedAt:new Date(at).toISOString(),
-        modelVersion:String(result.modelVersion||"unknown").slice(0,120),detectionTarget:scannerCore?.MODELS[scannerCore.DEFAULT_MODEL]?.target||"unknown",
-        suggestedCardIds:[...(result.cardIds||[])],detections:(result.detections||[]).slice(0,64).map(item=>({cardId:item.cardId,confidence:item.confidence,uncertain:!!item.uncertain,box:[...item.box]})),
+        modelVersion:String(result.modelVersion||"unknown").slice(0,120),detectionTarget:result.detectionTarget||scannerCore?.MODELS[scannerCore.DEFAULT_MODEL]?.target||"unknown",
+        suggestedCardIds:[...(result.cardIds||[])],detections:(result.detections||[]).filter(item=>scannerCore.CLASS_IDS.includes(item.cardId)).slice(0,64).map(item=>({cardId:item.cardId,confidence:item.confidence,uncertain:!!item.uncertain,box:[...item.box]})),
         detectorSpace:{width:640,height:640,letterbox:scannerCore.letterbox(photo.originalWidth,photo.originalHeight)},
         image:{width:photo.width,height:photo.height,originalWidth:photo.originalWidth,originalHeight:photo.originalHeight},labelStatus:"hand-confirmed-needs-regions"}};
     }

@@ -14,11 +14,27 @@ $statusPath = Join-Path $jobDirectory 'status.json'
 $processPath = Join-Path $jobDirectory 'process.json'
 $previousPhase = ''
 
+function Read-TrainingJson([string]$Path) {
+    # Get-Content can deny file deletion/replacement while its handle is open.
+    # Explicitly permit atomic status replacement by the Python writer.
+    $stream = $null
+    $reader = $null
+    try {
+        $sharing = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+        $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $sharing)
+        $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::UTF8)
+        return ($reader.ReadToEnd() | ConvertFrom-Json)
+    } finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+        elseif ($null -ne $stream) { $stream.Dispose() }
+    }
+}
+
 do {
     $trainingStatus = $null
     try {
         if (Test-Path -LiteralPath $statusPath) {
-            $trainingStatus = Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
+            $trainingStatus = Read-TrainingJson $statusPath
         }
     } catch {
         # A status update can overlap this read; the next poll will be complete.
@@ -52,7 +68,7 @@ do {
         break
     }
     if (Test-Path -LiteralPath $processPath) {
-        $trainingProcess = Get-Content -LiteralPath $processPath -Raw | ConvertFrom-Json
+        $trainingProcess = Read-TrainingJson $processPath
         if (-not (Get-Process -Id $trainingProcess.processId -ErrorAction SilentlyContinue)) {
             Write-Progress -Activity 'Kartentraining' -Completed
             Write-Output "Der Trainingsprozess laeuft nicht mehr. Details: $jobDirectory/stderr.log"

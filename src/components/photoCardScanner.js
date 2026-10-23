@@ -8,8 +8,8 @@
       const [status,setStatus]=useState("");
       const [error,setError]=useState("");
       const [result,setResult]=useState(null);
-      const model=window.SchafkopfCardScannerCore.DEFAULT_MODEL;
-      const cardLabel=id=>window.SchafkopfHandEvaluation.CARDS.find(card=>card.id===id)?.label||id;
+      const [model,setModel]=useState(window.SchafkopfCardScannerCore.DEFAULT_MODEL);
+      const cardLabel=id=>id?(window.SchafkopfHandEvaluation.CARDS.find(card=>card.id===id)?.label||id):"Nicht lesbar";
       useEffect(()=>()=>{
         requestRef.current++;
         captureRequestRef.current++;
@@ -69,6 +69,13 @@
       }
       return <div style={{...s.card("#4ab8e855",C.bg2),marginBottom:12}}>
         <div style={{fontSize:14,fontWeight:"bold",color:C.title,marginBottom:8}}>Kartenscan (Beta)</div>
+        <label style={{display:"block",fontSize:13,color:C.text,marginBottom:10}}>
+          Erkennungsmodell
+          <select aria-label="Erkennungsmodell" value={model} disabled={busy} onChange={event=>setModel(event.target.value)} style={{...s.input,width:"100%",fontSize:16,minHeight:48,marginTop:5}}>
+            {Object.entries(window.SchafkopfCardScannerCore.MODELS).map(([id,profile])=><option key={id} value={id}>{profile.label}</option>)}
+          </select>
+        </label>
+        {model==="indexReader"&&<div style={{fontSize:12,lineHeight:1.5,color:C.dim,marginBottom:10}}>Experimentell: Liest Zahlen und Buchstaben getrennt vom Farbsymbol. Diese Variante macht derzeit häufiger Fehler. Bitte alle acht Karten kontrollieren.</div>}
         <input ref={fileRef} type="file" accept="image/*" capture="environment" aria-label="Foto der acht Handkarten" style={{display:"none"}} onChange={photograph}/>
         <button className={C.legacyDesign?undefined:"primary-action"} disabled={busy} onClick={()=>fileRef.current?.click()} style={{...s.btn(!busy,"#4ab8e8"),width:"100%",minHeight:48}}>
           Karten fotografieren

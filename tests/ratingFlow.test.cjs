@@ -651,6 +651,28 @@ test("online: a failed private upload never falls back to publishing a score",as
 const photoInput=instance=>instance.rendered.root.findAllByType("input").find(node=>node.props.type==="file"&&node.props.capture==="environment");
 const scanResult=cardIds=>({cardIds,detections:cardIds.map((cardId,index)=>({cardId,box:[index*30,20,index*30+25,80],uncertain:false,confidence:.9})),warnings:[],previewUrl:"blob:local-preview"});
 
+test("photo flow: experimental model is opt-in, locked during scans and resets to the old default on reopening",async()=>{
+  const instance=app();let finish,pending;
+  try{
+    const models=[];
+    instance.context.SchafkopfCardScanner.scanPhoto=(file,options)=>{models.push(options.model);return new Promise(resolve=>{finish=resolve;});};
+    open(instance);click(button(instance,/^Ben7,0/));
+    const choice=()=>instance.rendered.root.findByProps({"aria-label":"Erkennungsmodell"});
+    assert.equal(choice().props.value,"personal");
+    act(()=>choice().props.onChange({target:{value:"indexReader"}}));
+    assert.match(text(instance.rendered.root),/Diese Variante macht derzeit häufiger Fehler/);
+    act(()=>{pending=photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}});});
+    assert.equal(choice().props.disabled,true);assert.deepEqual(models,["indexReader"]);
+    finish({...scanResult(photographedHand),modelVersion:instance.context.SchafkopfCardScannerCore.MODELS.indexReader.version});
+    await act(async()=>{await pending;});
+    assert.equal(choice().props.disabled,false);assert.equal(choice().props.value,"indexReader");
+    assert.match(text(instance.rendered.root),/bavarian-index-reader-v2-recovery/);
+    assert.equal(instance.state().dealRatings[0].ratings.Ben,7,"Scanning doesn't save a rating");
+    click(button(instance,"Manuell bewerten"));click(button(instance,"Karten auswählen"));
+    assert.equal(choice().props.value,"personal");
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
 test("photo flow: camera recognition previews eight cards and saves only the confirmed numeric result",async()=>{
   const instance=app();
   try{
@@ -658,7 +680,7 @@ test("photo flow: camera recognition previews eight cards and saves only the con
     instance.context.SchafkopfCardScanner.scanPhoto=async(file,options)=>{usedModel=options.model;return {...scanResult(photographedHand),modelVersion:instance.context.SchafkopfCardScannerCore.MODELS.personal.version};};
     open(instance);click(button(instance,/^Ben7,0/));
     assert.equal(button(instance,"Karten auswählen").props["aria-pressed"],true);
-    assert.equal(instance.rendered.root.findAllByType("select").filter(node=>node.findAllByType("option").some(option=>["personal","standard"].includes(option.props.value))).length,0);
+    assert.equal(instance.rendered.root.findByProps({"aria-label":"Erkennungsmodell"}).props.value,"personal");
     assert.match(text(instance.rendered.root),/Kartenscan \(Beta\)/);
     assert.doesNotMatch(text(instance.rendered.root),/Allgemeines Kartenmodell/);
     assert.equal(photoInput(instance).props.accept,"image/*");

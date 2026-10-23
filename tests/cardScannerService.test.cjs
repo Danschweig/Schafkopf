@@ -30,7 +30,7 @@ function service(mode="result"){
     createImageBitmap:async()=>({width:1200,height:1600,close:()=>events.closed++}),
     document:{currentScript:{src:"https://example.test/Schafkopf/src/cardScanner.js"},createElement:type=>{
       assert.equal(type,"canvas");
-      return {getContext:()=>({fillRect(){},drawImage(){},getImageData:()=>({data:new Uint8Array(640*640*4)})}),toBlob:callback=>callback({type:"image/jpeg"})};
+      return {getContext:()=>({fillRect(){},drawImage(){},getImageData:(x,y,width,height)=>({data:new Uint8Array(width*height*4)})}),toBlob:callback=>callback({type:"image/jpeg"})};
     }},
     // If any photo upload is added to this boundary, the test must fail.
     fetch:()=>assert.fail("Photo service must never upload or fetch image data"),
@@ -50,12 +50,26 @@ test("photo service uses a local worker URL, transfers only resized pixels, and 
   assert.equal(events.workers[0].url,"https://example.test/Schafkopf/src/cardScannerWorker.js");
   assert.equal(events.messages[0].message.pixels.byteLength,3*640*640*4);
   assert.equal(events.messages[0].message.model,"personal");
-  assert.deepEqual(Object.keys(core.MODELS),["personal"]);
+  assert.deepEqual(Object.keys(core.MODELS),["personal","indexReader"]);
+  assert.equal(core.DEFAULT_MODEL,"personal");
+  assert.equal(events.messages[0].message.source,undefined);
   assert.equal(events.messages[0].transfers[0],events.messages[0].message.pixels);
   assert.equal(events.workers[0].terminated,true);
   assert.equal(events.closed,1);
   assert.deepEqual(events.revoked,[]); // Ownership of the preview passes to the UI.
   assert.ok(progress.includes("local inference"));
+});
+
+test("optional reader transfers a bounded larger image and releases the camera bitmap before inference",async()=>{
+  const {api,events,context}=service();
+  context.createImageBitmap=async()=>({width:8064,height:6048,close:()=>events.closed++});
+  await api.scanPhoto(photo,{model:"indexReader"});
+  const {message,transfers}=events.messages[0];
+  assert.equal(message.model,"indexReader");
+  assert.equal(message.source.width,2000);assert.equal(message.source.height,1500);
+  assert.equal(message.source.pixels.byteLength,2000*1500*4);
+  assert.equal(transfers.length,2);assert.equal(transfers[1],message.source.pixels);
+  assert.equal(events.closed,1);assert.equal(events.workers[0].terminated,true);
 });
 test("photo service abort terminates inference, revokes the preview and closes the decoded photo",async()=>{
   const {api,events,workerReady}=service("pending");

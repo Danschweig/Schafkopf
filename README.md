@@ -220,7 +220,7 @@ für die bisherige Formel verfügbar.
 Unter **Austeilen > Spieler > Karten auswählen > Karten fotografieren** lässt sich auf dem Handy die Kamera öffnen. Der Browser kann stattdessen eine Bildauswahl anbieten; am Computer öffnet sich die Dateiauswahl. Alle acht Karten breit auffächern und möglichst viel von jedem Motiv zeigen. Zahlen, Ober-/Unterzeichen und Farben sollen scharf und gut beleuchtet sichtbar sein. Ein neues Foto ersetzt die aktuelle, noch nicht gespeicherte Kartenauswahl.
 
 Die App führt YOLOv8n mit ONNX Runtime Web lokal in einem eigenen Worker aus.
-Unter **Kartenscan (Beta)** verwendet die App ausschließlich das eigene Modell:
+Unter **Kartenscan (Beta)** verwendet die App standardmäßig das bisherige eigene Modell:
 `models/bavarian-corners.onnx`, Version `bavarian-corners-pilot-2026-10-22-v3`.
 Dieses Modell erkennt die kleinen Eckzeichen der vorhandenen 32 Karten.
 Es bekommt das gesamte Foto als Eingabe, keinen vorab ausgeschnittenen
@@ -245,7 +245,25 @@ Scanner-Skripte und `scanner-check.html` enthalten sein. `.tools/` und
 `node_modules/` sind ausschließlich lokale Entwicklungshilfen und werden
 ignoriert.
 
-Vor der Auswertung wird das Foto unter Beachtung seiner Orientierung auf 640 × 640 Pixel mit proportionaler Skalierung und Randflächen verkleinert. Nur diese Pixel gehen an den lokalen Worker. Ohne aktivierte Bildspende lädt die App keine Fotos hoch. Fotos werden niemals in Firebase, Sitzungsdaten oder App-Sicherungsexporten gespeichert. Für die freiwillige Bildspende wird nach dem Scan eine eigene JPEG-Kopie bis 2.000 Pixel aus dem Original erstellt und erst nach Bestätigung der Karten lokal vorgemerkt und an das private Archiv übertragen. Die Scanvorschau bleibt vorübergehend im Arbeitsspeicher und wird beim Wechseln oder Schließen der Eingabe freigegeben. Die Firestore-Regeln ergänzen den Schutz der privaten Zahlenwerte; die Smash-Bingo-Regeln bleiben unverändert.
+Im Feld **Erkennungsmodell** kann alternativ **Zeichenleser** gewählt werden.
+Diese experimentelle Option verwendet `models/card-index-reader.onnx`, Version
+`bavarian-index-reader-v2-recovery`. Der bisherige Detektor findet die Ecken;
+der neue Leser bestimmt Zahlen/Buchstaben und Farbsymbole getrennt. In den
+vorhandenen vollständigen Fotovergleichen ist diese Variante noch ungenauer.
+Sie wird deshalb nur nach ausdrücklicher Auswahl genutzt. Beim erneuten Öffnen
+der Karteneingabe steht wieder das bisherige Modell auf **Standard (bisherig)**.
+Die Auswahl ist während eines Scans gesperrt und verändert vorhandene Karten
+erst beim nächsten Foto. Vorschläge lassen sich wie bisher korrigieren.
+
+Nur für den Zeichenleser erhält der Worker zusätzlich eine Bildkopie mit
+maximal 2.000 Pixeln Kantenlänge. Er berechnet daraus 96 × 96 große Ausschnitte
+in Stapeln von höchstens vier Ecken. Das zusätzliche Modell wird erst bei
+Verwendung geladen und enthält keine privaten Trainingsbilder. Bereinigte
+Metadaten und der Modellcode werden mitgeliefert; private Prüfausschnitte bleiben
+unter `.tools/`. Details zur Datenaufbereitung und Einschränkungen:
+[scripts/INDEX_READER.md](scripts/INDEX_READER.md).
+
+Vor der Auswertung wird das Foto unter Beachtung seiner Orientierung auf 640 × 640 Pixel mit proportionaler Skalierung und Randflächen verkleinert. Beim Standardmodell gehen nur diese Pixel an den lokalen Worker; beim Zeichenleser kommt die oben beschriebene Bildkopie hinzu. Ohne aktivierte Bildspende lädt die App keine Fotos hoch. Fotos werden niemals in Firebase, Sitzungsdaten oder App-Sicherungsexporten gespeichert. Für die freiwillige Bildspende wird nach dem Scan eine eigene JPEG-Kopie bis 2.000 Pixel aus dem Original erstellt und erst nach Bestätigung der Karten lokal vorgemerkt und an das private Archiv übertragen. Die Scanvorschau bleibt vorübergehend im Arbeitsspeicher und wird beim Wechseln oder Schließen der Eingabe freigegeben. Die Firestore-Regeln ergänzen den Schutz der privaten Zahlenwerte; die Smash-Bingo-Regeln bleiben unverändert.
 
 Das Ergebnis markiert vorgeschlagene Karten im Foto. Auch unsichere Vorschläge
 ab dem bisherigen Mindest-Modellwert von 0,35 werden vorausgewählt. Am selben
@@ -373,7 +391,8 @@ keine allgemeine Zuverlässigkeit auf anderen Geräten oder bei anderem Licht.
 Der Median der 19 bekannten Vergleichsauswertungen liegt bei etwa 310 ms auf
 dem Windows-Rechner; das ist keine Messung auf einem Handy.
 
-Version 3 ist unter **Kartenscan (Beta)** das einzige verfügbare App-Modell.
+Version 3 bleibt unter **Kartenscan (Beta)** das Standardmodell. Zusätzlich kann
+der experimentelle Zeichenleser ausgewählt werden.
 Der private Bericht liegt unter `kartenfotos/aufbereitung/trainingsbericht-v3.md`,
 die ausführlichen Auswertungen unter `.tools/card-training/candidate-v3/`.
 
@@ -403,8 +422,10 @@ Nach Veröffentlichung des vollständigen Arbeitsstands:
 5. In der App fehlende/falsche Karten korrigieren und erst danach die Bewertung
    bestätigen. Eine unvollständige Auswahl erzeugt keine Bewertung.
 
-Der Fotodialog zeigt **Kartenscan (Beta)** und lädt stets das lokal
-nachtrainierte Modell für das vorhandene Kartenblatt. Das Ergebnis nennt die tatsächlich verwendete
+Der Fotodialog zeigt **Kartenscan (Beta)** und verwendet standardmäßig das lokal
+nachtrainierte Modell für das vorhandene Kartenblatt. Der Zeichenleser ist dort
+optional auswählbar; die separate Geräteprüfseite verwendet das Standardmodell.
+Das Ergebnis nennt die tatsächlich verwendete
 Version. Vor dem Laden kontrolliert der Worker Version, Zieltyp und
 Klassenreihenfolge der Metadaten; versionierte Modelladressen vermeiden die
 Vermischung mit älteren Cache-Einträgen.

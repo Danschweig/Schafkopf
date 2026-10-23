@@ -1,5 +1,10 @@
 # Lokales Training der Karteneckzeichen
 
+Eine zusätzliche Rangzeichen-Variante mit getrenntem Graustufen-Rangleser und
+RGB-Farbsymbol-Leser ist unter [INDEX_READER.md](INDEX_READER.md) beschrieben.
+Sie ergänzt Schriftarten-Beispiele und gewichtet den Rangfehler stärker.
+Sie wird als eigener Kandidat trainiert und ersetzt das App-Modell nicht automatisch.
+
 Die Python-Skripte sind Entwicklungshilfen. Die statische App braucht weiterhin
 weder Python noch einen Build. Sie laden keine Nutzerfotos hoch.
 

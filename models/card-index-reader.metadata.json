@@ -1,0 +1,45 @@
+{
+  "version": "bavarian-index-reader-v2-recovery",
+  "target": "separate-rank-suit-reader",
+  "ranks": [
+    "sieben",
+    "acht",
+    "neun",
+    "zehn",
+    "unter",
+    "ober",
+    "koenig",
+    "ass",
+    "unlesbar"
+  ],
+  "suits": [
+    "eichel",
+    "gras",
+    "herz",
+    "schellen",
+    "unlesbar"
+  ],
+  "inputShape": [
+    "batch",
+    3,
+    96,
+    96
+  ],
+  "outputShapes": [
+    [
+      "batch",
+      9
+    ],
+    [
+      "batch",
+      5
+    ]
+  ],
+  "onnxSha256": "7ecae4daa11e335e68583091ba109c5036960dbcf3b153a39b7fc7d909e69311",
+  "architecture": "index-reader-v2-detail",
+  "rankInput": "luminance only, contrast normalized inside model",
+  "license": "AGPL-3.0",
+  "localizer": "bavarian-corners-pilot-2026-10-22-v3",
+  "experimental": true,
+  "default": false
+}

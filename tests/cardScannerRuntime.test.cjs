@@ -68,3 +68,27 @@ test("trained corner model matches its profile and executes actual WASM without 
     assert.deepEqual(core.decodeOutput(tensor,{target:profile.target}).cardIds,[]);
   }finally{input.dispose();if(output)Object.values(output).forEach(tensor=>tensor.dispose());await detector.release();}
 });
+
+test("optional reader artifact matches its metadata and executes a real dynamic batch in WASM",async()=>{
+  const profile=core.MODELS.indexReader,helpers=require("../src/cardIndexReaderCore.js");
+  const file=path.join(root,"models",profile.file+".onnx"),meta=JSON.parse(fs.readFileSync(file.replace(/\.onnx$/,".metadata.json"),"utf8"));
+  assert.equal(crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"),meta.onnxSha256);
+  assert.equal(meta.version,profile.version);assert.equal(meta.target,profile.target);
+  assert.deepEqual(meta.ranks,helpers.RANKS);assert.deepEqual(meta.suits,helpers.SUITS);
+  const reader=await ort.InferenceSession.create(file,{executionProviders:["wasm"]}),plane=96*96,stride=plane*3,pixels=new Float32Array(2*stride);
+  for(let channel=0;channel<3;channel++)for(let index=0;index<plane;index++){
+    const value=index%96<48?.2:.5;pixels[channel*plane+index]=value;pixels[stride+channel*plane+index]=value+.1;
+  }
+  const input=new ort.Tensor("float32",pixels,[2,3,96,96]);let output;
+  try{
+    output=await reader.run({indices:input});
+    assert.deepEqual(output.rank_logits.dims,[2,9]);assert.deepEqual(output.suit_logits.dims,[2,5]);
+    assert.ok(Array.from(output.rank_logits.data).every(Number.isFinite));
+    // Float32 spatial reductions can slightly shift logits under a lighting
+    // offset. Compare the actual decision/confidence, not bit-identical logits.
+    const first=helpers.decodeReader(output.rank_logits.data.slice(0,9),output.suit_logits.data.slice(0,5));
+    const brighter=helpers.decodeReader(output.rank_logits.data.slice(9,18),output.suit_logits.data.slice(5,10));
+    assert.equal(first.rank.label,brighter.rank.label);
+    assert.ok(Math.abs(first.rank.confidence-brighter.rank.confidence)<.001);
+  }finally{input.dispose();if(output)Object.values(output).forEach(tensor=>tensor.dispose());await reader.release();}
+});

@@ -19,7 +19,7 @@ const serviceWorker=fs.readFileSync(path.join(root,"sw.js"),"utf8");
 new vm.Script(serviceWorker,{filename:"sw.js"});
 new vm.Script(fs.readFileSync(path.join(root,"src/cardScannerWorker.js"),"utf8"),{filename:"cardScannerWorker.js"});
 new vm.Script(fs.readFileSync(path.join(root,"src/scannerCheck.js"),"utf8"),{filename:"scannerCheck.js"});
-for(const asset of ["models/bavarian-cards.onnx","models/bavarian-cards.metadata.json","models/bavarian-corners.onnx","models/bavarian-corners.metadata.json","vendor/onnxruntime/ort.wasm.min.js","vendor/onnxruntime/ort-wasm-simd-threaded.mjs","vendor/onnxruntime/ort-wasm-simd-threaded.wasm"]){
+for(const asset of ["models/bavarian-cards.onnx","models/bavarian-cards.metadata.json","models/bavarian-corners.onnx","models/bavarian-corners.metadata.json","models/card-index-reader.onnx","models/card-index-reader.metadata.json","vendor/onnxruntime/ort.wasm.min.js","vendor/onnxruntime/ort-wasm-simd-threaded.mjs","vendor/onnxruntime/ort-wasm-simd-threaded.wasm"]){
   assert.ok(fs.existsSync(path.join(root,asset)),`Missing scanner asset: ${asset}`);
 }
 const cacheFiles=[...serviceWorker.matchAll(/'\.\/([^']+)'/g)].map(match=>match[1]);
