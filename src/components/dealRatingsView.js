@@ -23,8 +23,11 @@
       }));
       const [notice,setNotice]=useState("");
       const [saving,setSaving]=useState(false);
+      const [trainingCapture,setTrainingCapture]=useState(null);
+      const [trainingPreparing,setTrainingPreparing]=useState(false);
+      const [trainingNotice,setTrainingNotice]=useState("");
       const evaluation=useMemo(()=>cards.length===8?window.SchafkopfHandEvaluation.evaluateHand(cards,rules):null,[cards,rules]);
-      const complete=!scanning&&!saving&&(method==="manual"?window.SchafkopfDealRatings.validScore(manual):Number.isFinite(evaluation?.score));
+      const complete=!scanning&&!saving&&!(method==="automatic"&&trainingPreparing)&&(method==="manual"?window.SchafkopfDealRatings.validScore(manual):Number.isFinite(evaluation?.score));
       function toggleCard(id){
         setCards(current=>current.includes(id)?current.filter(card=>card!==id):current.length<8?[...current,id]:current);
         setNotice("");
@@ -35,9 +38,14 @@
         const meta=method==="automatic"?{method,algorithmVersion:evaluation.algorithmVersion,rules:evaluation.rules}
           :{method,algorithmVersion:"manual-v1",rules:null};
         try{
+          const captureToSave=method==="automatic"?trainingCapture:null;
+          const confirmedCards=[...cards];
           const finish=result=>{
             setSaving(false);
             setNotice(result?.private?`Verdeckt ${result.uploaded?"hochgeladen":"auf diesem Gerät gespeichert"}: ${formatDealScore(score)} / 10. Für andere erst nach dem Rundeneintrag sichtbar.`:`Bestätigt: ${formatDealScore(score)} / 10. Ein vorheriger Wert wird ersetzt.`);
+            if(captureToSave)void window.SchafkopfTrainingArchive.enqueue(captureToSave,confirmedCards).then(queued=>{
+              setTrainingNotice(queued?"Trainingsbild vorgemerkt. Der Upload läuft unabhängig von deiner Bewertung.":"Bildspende ausgeschaltet; kein Trainingsbild vorgemerkt.");
+            }).catch(error=>setTrainingNotice(`Bewertung gespeichert. Trainingsbild nicht vorgemerkt: ${error.message}`));
           };
           const result=onSave(deal.id,player,score,meta);
           if(result?.then){setSaving(true);setNotice("Wird verdeckt hochgeladen …");result.then(finish,error=>{setSaving(false);setNotice(error.code==="permission-denied"?"Hochladen verweigert: Bitte die neuen Firebase-Regeln veröffentlichen und prüfen, ob dieser Spieler bereits auf einem anderen Gerät bestätigt wurde.":error.message);});}
@@ -55,7 +63,7 @@
       return <div style={{...s.card(),marginTop:12}}>
         <div style={s.sec}>Kartenbewertung für {player}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
-          <button aria-pressed={method==="manual"} onClick={()=>{setMethod("manual");setScanning(false);setNotice("");}} style={s.btn(method==="manual","#4ab8e8")}>Manuell bewerten</button>
+          <button aria-pressed={method==="manual"} onClick={()=>{setMethod("manual");setScanning(false);setTrainingPreparing(false);setTrainingCapture(null);setNotice("");}} style={s.btn(method==="manual","#4ab8e8")}>Manuell bewerten</button>
           <button aria-pressed={method==="automatic"} onClick={()=>{setMethod("automatic");setNotice("");}} style={s.btn(method==="automatic","#4ab8e8")}>Karten auswählen</button>
         </div>
         {method==="manual"?<div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:5}}>
@@ -68,7 +76,10 @@
             Langes Blatt: 8 aus 32 Karten. Wähle deine Hand vor Spielansage und Kartentausch.
             Die Bewertung vergleicht die aktivierten Spielarten. Sie schätzt dein Handpotenzial und ist keine Gewinnwahrscheinlichkeit.
           </div>
-          <PhotoCardScanner selectedCardIds={cards} onScanStart={()=>{setCards([]);setNotice("");}} onCards={ids=>{setCards(ids);setNotice("");}} onBusyChange={setScanning}/>
+          <PhotoCardScanner selectedCardIds={cards} onScanStart={()=>{setCards([]);setNotice("");setTrainingCapture(null);setTrainingNotice("");}}
+            onCards={ids=>{setCards(ids);setNotice("");}} onBusyChange={setScanning}
+            onTrainingCapture={(capture,preparing)=>{setTrainingCapture(capture);setTrainingPreparing(preparing);}}
+            onTrainingError={message=>setTrainingNotice(`Bildspende nicht vorbereitet: ${message}`)}/>
           <DesignSection title={<>Spielarten & Bewertungsregeln</>} legacyBare>
           <div style={{display:"grid",gap:6}}>
             {window.SchafkopfHandEvaluation.GAME_OPTIONS.map(({id,label})=><button key={id}
@@ -98,6 +109,9 @@
           <button disabled={scanning||cards.length===0} onClick={()=>{setCards([]);setNotice("");}} style={{...s.btn(false),marginBottom:10}}>Auswahl leeren</button>
           {evaluation&&evaluation.score===null&&<div role="status" style={{fontSize:13,lineHeight:1.5,marginBottom:10}}>Kein bewertbarer Kandidat. Bitte eine passende Spielart aktivieren. Hochzeit setzt genau einen Trumpf voraus.</div>}
           {Number.isFinite(evaluation?.score)&&<div aria-live="polite" style={s.card("#4ab8e855",C.bg2)}>
+            <div aria-label="Tatsächlich bewertete Karten" style={{fontSize:12,lineHeight:1.5,color:C.dim,marginBottom:10}}>
+              <strong>Bewertete Karten:</strong>{" "}{window.SchafkopfHandEvaluation.CARDS.filter(card=>cards.includes(card.id)).map(card=>card.label).join(" · ")}
+            </div>
             <div style={{fontSize:22,fontWeight:"bold",color:dealScoreColor(evaluation.score)}}>{formatDealScore(evaluation.score)} / 10</div>
             <div style={{fontSize:13,lineHeight:1.5,marginTop:6}}>
               {evaluation.bestCandidate.label}: {evaluation.bestCandidate.trumpCount} Trümpfe. {rules.ramsch?"Hohe Werte bedeuten gute Voraussetzungen für Ramsch.":"Dieser Kandidat ergibt den höchsten Wert der gewählten Spielarten."}
@@ -114,12 +128,14 @@
               <div style={{marginTop:8}}>Der höchste Kandidat wird auf 1–10 begrenzt und erst dann auf eine Nachkommastelle gerundet.</div>
             </details>
           </div>}
-          <div style={{fontSize:12,color:C.dim,lineHeight:1.4}}>Deine Karten bleiben auf diesem Gerät. Nur der bestätigte Wert und seine Bewertungsmethode und Regeln werden gespeichert.</div>
+          <div style={{fontSize:12,color:C.dim,lineHeight:1.4}}>Im Spielstand werden nur der bestätigte Wert, die Bewertungsmethode und Regeln gespeichert. Bei aktivierter Bildspende erhält dein privates Trainingsarchiv zusätzlich Foto und bestätigte Karten.</div>
         </>}
         <button className={C.legacyDesign?undefined:"primary-action"} disabled={!complete} onClick={confirm} style={{...s.btn(complete,"#7de87a"),width:"100%",padding:12,marginTop:12,opacity:complete?1:0.45}}>
           {savedScore!=null?"Bewertung bestätigen und ersetzen":"Bewertung bestätigen und speichern"}
         </button>
         {notice&&<div role="status" style={{fontSize:13,color:C.text,lineHeight:1.5,marginTop:8}}>{notice}</div>}
+        {trainingPreparing&&<div role="status" style={{fontSize:13,marginTop:8}}>Trainingskopie wird vorbereitet …</div>}
+        {trainingNotice&&<div role="status" style={{fontSize:13,marginTop:8}}>{trainingNotice}</div>}
       </div>;
     }
 

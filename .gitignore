@@ -9,3 +9,8 @@ kartenfotos/**
 !kartenfotos/**/
 !kartenfotos/**/.gitkeep
 !kartenfotos/README.md
+
+# Private archive data/configuration must remain outside source control.
+/training-archive-data/
+/server/training-archive/config.json
+/server/training-archive/Handy-Zugang.txt

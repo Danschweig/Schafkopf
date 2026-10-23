@@ -1,8 +1,9 @@
-    function PhotoCardScanner({onScanStart,onCards,onBusyChange,selectedCardIds}){
+    function PhotoCardScanner({onScanStart,onCards,onBusyChange,selectedCardIds,onTrainingCapture=()=>{},onTrainingError=()=>{}}){
       const fileRef=useRef(null);
       const abortRef=useRef(null);
       const requestRef=useRef(0);
       const previewRef=useRef(null);
+      const captureRequestRef=useRef(0);
       const [busy,setBusy]=useState(false);
       const [status,setStatus]=useState("");
       const [error,setError]=useState("");
@@ -11,11 +12,14 @@
       const cardLabel=id=>window.SchafkopfHandEvaluation.CARDS.find(card=>card.id===id)?.label||id;
       useEffect(()=>()=>{
         requestRef.current++;
+        captureRequestRef.current++;
         abortRef.current?.abort();
         if(previewRef.current)URL.revokeObjectURL(previewRef.current);
       },[]);
       function cancel(){
         requestRef.current++;
+        captureRequestRef.current++;
+        onTrainingCapture(null,false);
         abortRef.current?.abort();
         setBusy(false);
         onBusyChange(false);
@@ -27,6 +31,8 @@
         if(!file)return;
         abortRef.current?.abort();
         const request=++requestRef.current;
+        const captureRequest=++captureRequestRef.current;
+        onTrainingCapture(null,false);
         const controller=new AbortController();
         abortRef.current=controller;
         setError("");
@@ -46,6 +52,14 @@
           previewRef.current=scanned.previewUrl;
           setResult(scanned);
           onCards(scanned.cardIds);
+          if(window.SchafkopfTrainingArchive.getSettings().enabled){
+            onTrainingCapture(null,true);
+            void window.SchafkopfTrainingArchive.capture(file,scanned).then(capture=>{
+              if(captureRequest===captureRequestRef.current)onTrainingCapture(capture,false);
+            }).catch(error=>{
+              if(captureRequest===captureRequestRef.current){onTrainingCapture(null,false);onTrainingError(error.message);}
+            });
+          }
           setStatus(`${scanned.cardIds.length} von 8 Karten vorgeschlagen und vorausgewählt. Bitte jede Karte mit deinem Foto vergleichen; auch eindeutige Vorschläge können falsch sein.`);
         }catch(err){
           if(request!==requestRef.current||err.name==="AbortError")return;
@@ -67,7 +81,7 @@
         </div>
         <div style={{fontSize:12,lineHeight:1.5,color:C.dim,marginTop:8}}>
           Die Fotoerkennung läuft lokal auf deinem Gerät. Beim ersten Scan werden Modell und Erkennungsprogramm geladen.
-          Die App lädt dein Foto nicht hoch und speichert es nicht dauerhaft. Ein neues Foto ersetzt deine aktuelle Kartenauswahl.
+          Ohne aktivierte Bildspende wird dein Foto weder hochgeladen noch dauerhaft gespeichert. Mit „Trainingsbilder beitragen“ wird nach deiner Bestätigung eine Kopie samt Kartenauswahl für das private Archiv vorgemerkt. Ein neues Foto ersetzt deine aktuelle Kartenauswahl.
           {" "}<a href="scanner-check.html" target="_blank" rel="noopener" style={{color:C.title}}>Fotoerkennung auf diesem Handy prüfen</a>
         </div>
         </DesignSection>

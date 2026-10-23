@@ -120,6 +120,35 @@ test("design preference: unavailable preference storage still permits switching"
   act(()=>instance.rendered.unmount());
 });
 
+test("training upload settings: off and setup hidden by default; disabling works despite unfinished server edits and persists",async()=>{
+  const instance=app();
+  try{
+    click(button(instance,/Einst\.$/));
+    assert.equal(card(instance,"Trainingsbilder beitragen").props["aria-checked"],false);
+    const address=()=>instance.rendered.root.findAllByType("input").find(node=>node.props["aria-label"]==="HTTPS-Adresse des Trainingsarchivs");
+    assert.equal(address(),undefined);
+    click(button(instance,"Archiv einrichten"));
+    act(()=>address().props.onChange({target:{value:"https://archive.example.test"}}));
+    const token=instance.rendered.root.findAllByType("input").find(node=>node.props["aria-label"]==="Trainingsarchiv-Zugangsschlüssel");
+    act(()=>token.props.onChange({target:{value:"x".repeat(43)}}));
+    await act(async()=>{card(instance,"Trainingsbilder beitragen").props.onClick();});
+    assert.equal(card(instance,"Trainingsbilder beitragen").props["aria-checked"],true);
+    act(()=>address().props.onChange({target:{value:"unfinished address"}}));
+    await act(async()=>{card(instance,"Trainingsbilder beitragen").props.onClick();});
+    assert.equal(card(instance,"Trainingsbilder beitragen").props["aria-checked"],false);
+    assert.equal(address(),undefined);
+    assert.equal(JSON.parse(instance.storage.get("schafkopf-training-images-v1")).enabled,false);
+    assert.equal(JSON.parse(instance.storage.get("schafkopf-training-images-v1")).endpoint,"https://archive.example.test");
+  }finally{act(()=>instance.rendered.unmount());}
+  const restored=app(undefined,instance.storage);
+  try{
+    click(button(restored,/Einst\.$/));
+    assert.equal(card(restored,"Trainingsbilder beitragen").props["aria-checked"],false);
+    assert.ok(button(restored,"Archiv einrichten"));
+    assert.equal(restored.rendered.root.findAllByType("input").some(node=>node.props["aria-label"]==="HTTPS-Adresse des Trainingsarchivs"),false);
+  }finally{act(()=>restored.rendered.unmount());}
+});
+
 test("full app: pick eight cards, explicitly confirm, replace and reload without exposing cards",()=>{
   const instance=app();
   open(instance);
@@ -732,5 +761,53 @@ test("photo flow: incorrect suggestion from the real-photo failure can be replac
     assert.equal(instance.state().dealRatings[0].ratings.Ben,7);
     click(confirmation(instance));
     assert.equal(instance.state().dealRatings[0].ratings.Ben,4.4);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("photo rating report: identical eight cards and rules give both players 6.7; replacing Eichel-Ober explains 4.6",async()=>{
+  const instance=app({players,dealRatings:[]});
+  // Cards read from the reported photograph. This tests scoring and UI, not model inference.
+  const hand=["gras-koenig","herz-neun","schellen-unter","gras-ober","schellen-zehn","eichel-ober","schellen-koenig","eichel-unter"];
+  try{
+    open(instance);click(button(instance,"David"));click(button(instance,"Neue Austeilung anlegen"));
+    const dealId=instance.state().dealRatings[0].id;
+    for(const player of ["Anna","Ben"]){
+      click(button(instance,new RegExp("^"+player+"Verdeckt")));
+      instance.context.SchafkopfCardScanner.scanPhoto=async()=>scanResult(player==="Ben"?[...hand].reverse():hand);
+      await act(async()=>photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}}));
+      assert.match(text(instance.rendered.root),/6,7 \/ 10/);
+      const summary=instance.rendered.root.find(node=>node.props["aria-label"]==="Tatsächlich bewertete Karten");
+      assert.match(text(summary),/Eichel-Ober/);
+      assert.match(text(instance.rendered.root),/Farbsolo \(Schellen\)/);
+      click(confirmation(instance));
+    }
+    assert.deepEqual(Object.fromEntries(privateState(instance)[dealId].map(item=>[item.player,item.score])),{Anna:6.7,Ben:6.7});
+    click(card(instance,"Eichel-Ober"));click(card(instance,"Eichel-König"));
+    assert.match(text(instance.rendered.root),/4,6 \/ 10/);
+    const summary=instance.rendered.root.find(node=>node.props["aria-label"]==="Tatsächlich bewertete Karten");
+    assert.match(text(summary),/Eichel-König/);assert.doesNotMatch(text(summary),/Eichel-Ober/);
+    assert.equal(privateState(instance)[dealId].find(item=>item.player==="Ben").score,6.7);
+    click(card(instance,"Eichel-König"));click(card(instance,"Eichel-Ober"));
+    assert.match(text(instance.rendered.root),/6,7 \/ 10/);
+  }finally{act(()=>instance.rendered.unmount());}
+});
+
+test("photo donation: only successful confirmation enqueues corrected cards; archive failure never undoes a rating",async()=>{
+  const instance=app();const contributions=[];
+  try{
+    const archive=instance.context.SchafkopfTrainingArchive;
+    archive.getSettings=()=>({enabled:true});
+    archive.capture=async()=>({id:"private-capture"});
+    archive.enqueue=async(capture,cards)=>{contributions.push({capture,cards:[...cards]});throw Error("Archive offline");};
+    instance.context.SchafkopfCardScanner.scanPhoto=async()=>scanResult(photographedHand);
+    open(instance);click(button(instance,/^Ben7,0/));
+    await act(async()=>photoInput(instance).props.onChange({target:{files:[{type:"image/jpeg",size:1234}],value:"photo.jpg"}}));
+    assert.equal(contributions.length,0);
+    click(card(instance,"Gras-Neun"));click(card(instance,"Gras-Acht"));
+    await act(async()=>{confirmation(instance).props.onClick();});
+    assert.equal(contributions.length,1);assert.ok(contributions[0].cards.includes("gras-acht"));assert.ok(!contributions[0].cards.includes("gras-neun"));
+    assert.match(text(instance.rendered.root),/Bewertung gespeichert\. Trainingsbild nicht vorgemerkt/);
+    assert.equal(instance.state().dealRatings[0].ratingMeta.Ben.method,"automatic");
+    assert.ok(!JSON.stringify(instance.state()).includes("private-capture"));assert.ok(!JSON.stringify(instance.state()).includes("gras-acht"));
   }finally{act(()=>instance.rendered.unmount());}
 });

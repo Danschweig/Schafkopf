@@ -1,0 +1,8 @@
+{
+  "name": "schafkopf-training-archive",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {"node": ">=22"},
+  "scripts": {"start": "node server.cjs"},
+  "dependencies": {"sharp": "0.35.5"}
+}

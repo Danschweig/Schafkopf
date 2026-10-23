@@ -200,6 +200,7 @@
       useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,completedDeals,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,completedDeals,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
       useEffect(()=>{try{localStorage.setItem("schafkopf-private-ratings-v1",JSON.stringify(localPrivateRatings));}catch{}},[localPrivateRatings]);
       useEffect(()=>{try{localStorage.setItem(DESIGN_PREFERENCE_KEY,legacyDesign?"legacy":"modern");}catch{}},[legacyDesign]);
+      useEffect(()=>window.SchafkopfTrainingArchive.start(),[]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);

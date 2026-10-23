@@ -15,7 +15,7 @@ Die Rundeneingabe hält ihre Aktionen oberhalb der Navigation erreichbar.
 Eingabefelder verwenden mindestens 16 Pixel Schrift; Bildschirmränder und die
 untere iPhone-Sicherheitszone werden berücksichtigt. Browser-Zoom bleibt erlaubt.
 Gemeinsame Designwerte liegen in `src/core.js`, die mobilen Layoutregeln in
-`styles/app.css`. Die PWA-Cache-Version wurde für das Redesign auf v34 erhöht.
+`styles/app.css`. Die aktuelle PWA-Cache-Version ist v36.
 
 Unter **Einstellungen > Allgemein > Darstellung > Legacy Design** lässt sich
 zwischen der klassischen Oberfläche und dem neuen mobilen Design wechseln.
@@ -28,6 +28,14 @@ auch nach einem Neustart. Hell-/Dunkelmodus, Spielstände und Bewertungen bleibe
 erhalten. Der separate Schalter **Legacy Bewertung** bleibt unabhängig davon.
 
 ## Online-Modus mit Firebase einrichten
+
+Das optionale private Fotoarchiv ist unter
+[Trainingsarchiv auf Windows 11 einrichten](server/training-archive/README.md)
+beschrieben. **Trainingsbilder beitragen** ist standardmäßig aus.
+Die Server-Konfiguration bleibt bis zum Öffnen von **Archiv einrichten** ausgeblendet.
+Bei aktivierter Bildspende können bestätigte Foto-Kartenhände separat per HTTPS an den Heimserver übertragen werden.
+Fotos, Kartenlisten und Archiv-Zugangsschlüssel werden nicht mit Firebase,
+Spielständen oder Sicherungsexporten der App geteilt.
 
 Der Online-Modus ist standardmaessig deaktiviert. Ohne Firebase-Konfiguration arbeitet die App wie bisher ausschliesslich lokal.
 
@@ -125,8 +133,9 @@ Spielart und Ergebnis im Spielprotokoll gibt die Werte für alle frei.
    geben die aktuelle Austeilung nicht frei.
 
 Bis zur Freigabe berücksichtigen auch Durchschnitte, Zähler, Sicherungen und
-Teilen-Links keine verdeckten Werte. Fotos und Karten-IDs verlassen das Gerät
-weiterhin nicht. Offline werden bestätigte Werte getrennt vom gemeinsamen
+Teilen-Links keine verdeckten Werte. Ohne ausdrücklich aktivierte Bildspende
+verlassen Fotos und Karten-IDs das Gerät nicht. Mit Bildspende erhält ausschließlich
+das konfigurierte private Archiv Foto und Kartenliste. Offline werden bestätigte Werte getrennt vom gemeinsamen
 Spielstand lokal aufbewahrt und ebenfalls erst nach dem Rundeneintrag gezählt.
 Historische Bewertungen aus älteren Versionen bleiben unverändert sichtbar.
 
@@ -236,7 +245,7 @@ Scanner-Skripte und `scanner-check.html` enthalten sein. `.tools/` und
 `node_modules/` sind ausschließlich lokale Entwicklungshilfen und werden
 ignoriert.
 
-Vor der Auswertung wird das Foto unter Beachtung seiner Orientierung auf 640 × 640 Pixel mit proportionaler Skalierung und Randflächen verkleinert. Nur diese Pixel gehen an den lokalen Worker. Die App lädt keine Fotos hoch und speichert sie weder in Firebase noch in Sitzungsdaten oder Sicherungen. Die Vorschau bleibt vorübergehend im Arbeitsspeicher und wird beim Wechseln oder Schließen der Eingabe freigegeben. Die Firestore-Regeln ergänzen den Schutz der privaten Zahlenwerte; die Smash-Bingo-Regeln bleiben unverändert.
+Vor der Auswertung wird das Foto unter Beachtung seiner Orientierung auf 640 × 640 Pixel mit proportionaler Skalierung und Randflächen verkleinert. Nur diese Pixel gehen an den lokalen Worker. Ohne aktivierte Bildspende lädt die App keine Fotos hoch. Fotos werden niemals in Firebase, Sitzungsdaten oder App-Sicherungsexporten gespeichert. Für die freiwillige Bildspende wird nach dem Scan eine eigene JPEG-Kopie bis 2.000 Pixel aus dem Original erstellt und erst nach Bestätigung der Karten lokal vorgemerkt und an das private Archiv übertragen. Die Scanvorschau bleibt vorübergehend im Arbeitsspeicher und wird beim Wechseln oder Schließen der Eingabe freigegeben. Die Firestore-Regeln ergänzen den Schutz der privaten Zahlenwerte; die Smash-Bingo-Regeln bleiben unverändert.
 
 Das Ergebnis markiert vorgeschlagene Karten im Foto. Auch unsichere Vorschläge
 ab dem bisherigen Mindest-Modellwert von 0,35 werden vorausgewählt. Am selben

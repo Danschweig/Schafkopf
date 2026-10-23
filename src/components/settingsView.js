@@ -235,6 +235,8 @@
           </div>
         </DesignSection>
 
+        <TrainingArchiveSettings/>
+
 <DesignSection title={<>Austeil-Bewertung</>}>
           <button role="switch" aria-label="Legacy Bewertung" aria-checked={legacyRating}
             onClick={()=>setLegacyRating(!legacyRating)}

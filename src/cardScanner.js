@@ -84,5 +84,5 @@
       throw error;
     }finally{if(!imageClosed)releaseImage(image);}
   }
-  root.SchafkopfCardScanner={scanPhoto,validatePhoto};
+  root.SchafkopfCardScanner={scanPhoto,validatePhoto,decodeImage};
 })(window);
