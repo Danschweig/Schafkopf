@@ -59,9 +59,12 @@ test("design preference: switch both layouts, retain the session and reload the 
   const instance=app();
   const page=app=>app.rendered.root.find(node=>node.props.className==="app-page");
   const designSwitch=app=>card(app,"Legacy Design");
-  assert.equal(page(instance).props["data-design"],"modern");
+  assert.equal(page(instance).props["data-design"],"legacy");
   click(button(instance,/Einst\.$/));
   const before=instance.state();
+  assert.equal(designSwitch(instance).props["aria-checked"],true);
+  click(designSwitch(instance));
+  assert.equal(page(instance).props["data-design"],"modern");
   assert.equal(designSwitch(instance).props["aria-checked"],false);
   click(designSwitch(instance));
   assert.equal(page(instance).props["data-design"],"legacy");
@@ -109,10 +112,11 @@ test("design preference: unavailable preference storage still permits switching"
     };
   });
   click(button(instance,/Einst\.$/));
-  click(card(instance,"Legacy Design"));
   assert.equal(card(instance,"Legacy Design").props["aria-checked"],true);
   click(card(instance,"Legacy Design"));
   assert.equal(card(instance,"Legacy Design").props["aria-checked"],false);
+  click(card(instance,"Legacy Design"));
+  assert.equal(card(instance,"Legacy Design").props["aria-checked"],true);
   act(()=>instance.rendered.unmount());
 });
 

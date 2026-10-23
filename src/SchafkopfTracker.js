@@ -109,7 +109,7 @@
       const [settingsTab,setSettingsTab]=useState("allg"); // 0=wer, 1=spieltyp
       const [themeMode,setThemeMode]=useState(sv?.themeMode||"dark");
       const [legacyDesign,setLegacyDesign]=useState(()=>{
-        try{return localStorage.getItem(DESIGN_PREFERENCE_KEY)==="legacy";}catch{return false;}
+        try{return localStorage.getItem(DESIGN_PREFERENCE_KEY)!=="modern";}catch{return true;}
       });
       const [runeMode,setRuneMode]=useState(!!sv?.runeMode);
       const [legacyRating,setLegacyRating]=useState(sv?.legacyRating===true);

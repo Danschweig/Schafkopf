@@ -15,10 +15,12 @@ Die Rundeneingabe hält ihre Aktionen oberhalb der Navigation erreichbar.
 Eingabefelder verwenden mindestens 16 Pixel Schrift; Bildschirmränder und die
 untere iPhone-Sicherheitszone werden berücksichtigt. Browser-Zoom bleibt erlaubt.
 Gemeinsame Designwerte liegen in `src/core.js`, die mobilen Layoutregeln in
-`styles/app.css`. Die PWA-Cache-Version wurde für das Redesign auf v33 erhöht.
+`styles/app.css`. Die PWA-Cache-Version wurde für das Redesign auf v34 erhöht.
 
 Unter **Einstellungen > Allgemein > Darstellung > Legacy Design** lässt sich
 zwischen der klassischen Oberfläche und dem neuen mobilen Design wechseln.
+Ohne gespeicherte Designauswahl startet die App zunächst im klassischen Design
+(Legacy-Schalter an). Eine ausdrücklich gespeicherte Auswahl bleibt erhalten.
 Die klassische Ansicht verwendet die früheren Farben, Schrift, Kopfzeile,
 Navigation und Anordnung der Spielseite; Einstellungen und Zusatzoptionen
 bleiben direkt sichtbar. Die Auswahl wird nur auf diesem Gerät gespeichert,
