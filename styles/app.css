@@ -1,7 +1,72 @@
-    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    body{background:#0b160b;overscroll-behavior:none}
-    #root{min-height:100vh}
-    .join-room-dialog::backdrop{background:rgba(0,0,0,0.7);backdrop-filter:blur(4px)}
-    .join-room-dialog button:focus-visible{outline:2px solid currentColor;outline-offset:3px}
-    #loading{display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:#4a7a4a;font-size:13px;letter-spacing:2px}
-    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0b160b}::-webkit-scrollbar-thumb{background:#2a4a2a;border-radius:2px}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:#10221d;scroll-padding-top:90px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overscroll-behavior-y:none}
+button,input,select,textarea{font-family:inherit!important}
+button{touch-action:manipulation;min-height:44px;line-height:1.35}
+button:disabled{cursor:default;opacity:.45}
+button:focus-visible,summary:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #96b87a;outline-offset:3px}
+button:active:not(:disabled){transform:translateY(1px)}
+input,textarea,select{font-size:16px!important;max-width:100%}
+#root{min-height:100dvh}
+.app-page{line-height:1.5;font-size:14px;overflow-wrap:anywhere}
+.app-page div,.app-page fieldset{min-width:0}
+.app-content{max-width:600px;margin:0 auto;padding:24px 18px 20px}
+.app-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.header-identity{display:flex;align-items:center;gap:11px}
+.brand-mark{display:grid;place-items:center;width:40px;height:40px;border-radius:13px;color:var(--accent);background:var(--surface-soft)}
+.header-eyebrow{font-size:9px;letter-spacing:1.8px;color:var(--secondary);font-weight:600}
+.header-title{font-size:20px;font-weight:700;color:var(--ink);letter-spacing:-.6px;line-height:1.3}
+.round-pill{border:1px solid var(--line);border-radius:20px;padding:7px 12px;font-size:12px;color:var(--secondary);white-space:nowrap}
+.round-pill strong{margin-left:4px;color:var(--ink);font-variant-numeric:tabular-nums}
+.scoreboard{display:grid;max-width:564px;margin:16px auto 0;padding:16px 4px;background:var(--surface);border:1px solid var(--line);border-radius:18px;width:calc(100% - 36px)}
+.score-player{text-align:center;padding:0 5px;border-right:1px solid var(--line)}
+.score-player:last-child{border:0}
+.score-name{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--secondary)}
+.score-name span{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.score-value{font-size:21px;letter-spacing:-.7px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink);margin:3px 0}
+.score-diff{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:20;display:flex;padding:7px max(8px,calc((100% - 600px)/2)) calc(7px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 28px #00000012}
+.nav-item{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:transparent;color:var(--secondary);padding:3px 0;font-size:10px;font-weight:600}
+.nav-icon{display:grid;place-items:center;width:48px;height:30px;border-radius:12px}
+.is-active{color:var(--accent)}
+.is-active .nav-icon{background:var(--surface-soft)}
+.page-intro{margin-bottom:22px}
+.page-intro h1{font-size:27px;line-height:1.2;letter-spacing:-1px;color:var(--ink);margin-bottom:7px;font-weight:700}
+.page-intro p{font-size:14px;color:var(--secondary)}
+.section-caption{font-size:12px;color:var(--secondary);font-weight:600;margin:24px 0 12px}
+.game-tabs{display:flex;gap:5px;padding:5px;border-radius:15px;background:var(--surface);border:1px solid var(--line);margin-bottom:16px}
+.game-tabs button{flex:1;border:0!important;border-radius:10px!important;min-width:0;padding:10px 6px!important;font-size:13px!important}
+.game-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.game-tile{display:flex;flex-direction:column;align-items:flex-start;text-align:left;justify-content:flex-start;gap:16px;min-height:142px;padding:18px;border-radius:18px;border:1px solid var(--line);color:var(--ink);background:var(--surface);position:relative}
+.game-tabs button{color:var(--secondary)!important}
+.game-tabs button[aria-pressed="true"]{color:var(--ink)!important;font-weight:700}
+.game-symbol{color:var(--accent);font-size:25px;line-height:1}
+.game-tile strong{display:block;font-size:19px;letter-spacing:-.4px;margin-bottom:3px}
+.game-tile small{display:block;color:var(--secondary);font-size:12px;font-weight:400;line-height:1.45}
+.game-arrow{position:absolute;right:17px;top:18px;color:var(--secondary)}
+.secondary-actions{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.secondary-actions>button{width:100%;text-align:left}
+.disclosure{border:1px solid var(--line);border-radius:15px;background:var(--surface);padding:0 15px;margin:12px 0 16px}
+.disclosure>summary{padding:14px 0;min-height:48px;font-weight:600;font-size:13px;color:var(--ink);cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.disclosure>summary::after{content:"+";font-size:19px;font-weight:400;color:var(--secondary)}
+.disclosure[open]>summary::after{content:"−"}
+.disclosure>summary::-webkit-details-marker{display:none}
+.disclosure[open]{padding-bottom:15px}
+.disclosure .disclosure{background:var(--surface-soft)}
+.primary-action{background:var(--accent)!important;color:#142820!important;border-color:transparent!important;font-weight:700!important;border-radius:14px!important;min-height:52px}
+.entry-actions{position:sticky;bottom:calc(80px + env(safe-area-inset-bottom));z-index:5;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:10px;box-shadow:0 6px 24px #0002}
+.settings-tabs{display:flex;gap:5px;overflow-x:auto;margin-bottom:20px;padding-bottom:4px}
+.settings-tabs button{flex:1;white-space:nowrap}
+.app-page[data-design="modern"][data-theme="light"] button{color:var(--ink)}
+.app-page[data-design="modern"][data-theme="light"] .is-active{color:#355e3b}
+.app-page[data-design="modern"][data-theme="light"] .primary-action{background:#355e3b!important;color:#fff!important}
+.join-room-dialog::backdrop{background:#0009;backdrop-filter:blur(5px)}
+#loading{display:grid;place-items:center;height:100dvh;color:#c5dc9d;font-size:13px;letter-spacing:1.5px}
+@media(min-width:600px){.app-header{padding-left:max(20px,calc((100% - 564px)/2))!important;padding-right:max(20px,calc((100% - 564px)/2))!important}}
+@media(max-width:350px){.app-content{padding-left:12px;padding-right:12px}.game-grid{gap:8px}.game-tile{padding:14px}.score-value{font-size:18px}.nav-item{font-size:9px}.scoreboard{width:calc(100% - 24px)}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+/* The classic layout uses its original inline palette and styles. */
+.app-page[data-design="legacy"]{line-height:normal;font-size:16px}
+.app-page[data-design="legacy"] .app-content{max-width:none;padding:14px 16px}
+.legacy-nav button{min-width:0}

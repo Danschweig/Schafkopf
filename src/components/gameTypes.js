@@ -4,8 +4,8 @@
       const base=type.useDefaultTariff?(type.cat==="2vs2"?tariff.sauspiel:tariff.solo):(type.customBetrag||25);
       return <div style={{...s.card("#2a5a2a",C.successBg),margin:"8px 0"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-          <div><div style={{fontSize:9,color:C.dim,marginBottom:4}}>Name</div><input style={s.input} value={type.label} onChange={e=>upd("label",e.target.value)}/></div>
-          <div><div style={{fontSize:9,color:C.dim,marginBottom:4}}>Beschreibung</div><input style={s.input} value={type.desc||""} onChange={e=>upd("desc",e.target.value)}/></div>
+          <div><div style={{fontSize:12,color:C.dim,marginBottom:4}}>Name</div><input style={s.input} value={type.label} onChange={e=>upd("label",e.target.value)}/></div>
+          <div><div style={{fontSize:12,color:C.dim,marginBottom:4}}>Beschreibung</div><input style={s.input} value={type.desc||""} onChange={e=>upd("desc",e.target.value)}/></div>
         </div>
         <div style={s.sec}>Gruppe</div>
         <div style={{display:"flex",gap:6,marginBottom:12}}>
@@ -26,7 +26,7 @@
         <div style={s.sec}>Tarif</div>
         <Toggle label={`Standard-Tarif (${base} Chips)`} value={type.useDefaultTariff} onChange={v=>upd("useDefaultTariff",v)} small/>
         {!type.useDefaultTariff&&<div style={{marginLeft:12,marginBottom:8}}>
-          <div style={{fontSize:9,color:C.dim,marginBottom:4}}>Eigener Betrag (Chips)</div>
+          <div style={{fontSize:12,color:C.dim,marginBottom:4}}>Eigener Betrag (Chips)</div>
           <input style={{...s.input,width:120}} type="number" value={type.customBetrag||0} onChange={e=>upd("customBetrag",Number(e.target.value))}/>
         </div>}
         <div style={{display:"flex",gap:8,marginTop:10}}>
@@ -57,15 +57,15 @@
           return <div key={t.id}>
             <div style={{...s.card(),display:"flex",alignItems:"center",gap:8,padding:"10px 12px",marginBottom:4}}>
               <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                <button style={{...s.btn(false),padding:"2px 6px",fontSize:10,lineHeight:1}} onClick={()=>moveType(t.id,-1)} disabled={i===0}>↑</button>
-                <button style={{...s.btn(false),padding:"2px 6px",fontSize:10,lineHeight:1}} onClick={()=>moveType(t.id,1)} disabled={i===gameTypes.length-1}>↓</button>
+                <button style={{...s.btn(false),padding:"2px 6px",fontSize:12,lineHeight:1}} onClick={()=>moveType(t.id,-1)} disabled={i===0}>↑</button>
+                <button style={{...s.btn(false),padding:"2px 6px",fontSize:12,lineHeight:1}} onClick={()=>moveType(t.id,1)} disabled={i===gameTypes.length-1}>↓</button>
               </div>
               <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:"bold",color:catInfo.color}}>{t.label}</div>
-                <div style={{fontSize:9,color:C.dim}}>{t.desc}</div>
+                <div style={{fontSize:14,fontWeight:"bold",color:catInfo.color}}>{t.label}</div>
+                <div style={{fontSize:12,color:C.dim}}>{t.desc}</div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <span style={{fontSize:9,color:catInfo.color,background:catInfo.color+"22",border:`1px solid ${catInfo.color}44`,borderRadius:10,padding:"2px 7px"}}>{catInfo.label}</span>
+                <span style={{fontSize:12,color:catInfo.color,background:catInfo.color+"22",border:`1px solid ${catInfo.color}44`,borderRadius:10,padding:"2px 7px"}}>{catInfo.label}</span>
                 <button style={{...s.btn(isEdit,"#5a9a5a"),padding:"5px 8px"}} onClick={()=>isEdit?(setEditing(null),setEditBuf(null)):startEdit(t)}>✏</button>
                 {!t.isBuiltin&&<button style={{...s.btn(false,"#e85d4a"),padding:"5px 8px"}} onClick={()=>deleteType(t.id)}>🗑</button>}
               </div>

@@ -9,11 +9,11 @@
 
       return <>
         <div style={s.card(catColor+"44",catColor+"0e")}>
-          <div style={{fontSize:11,color:catColor}}>{typeCfg.desc}</div>
-          {aussetzerList.map(p=><div key={p} style={{fontSize:11,color:"#a080e0",marginTop:4}}>⚬ {p} sitzt aus{p===spatzenAussetzer?" (6+ Spatz)":""}</div>)}
-          {forcedPflichtramsch&&<div style={{fontSize:11,color:"#a080e0",marginTop:4,fontWeight:"bold"}}>Pflichtramsch !!!</div>}
-          {forcedBockRound&&<div style={{fontSize:11,color:"#2e5b36",marginTop:4,fontWeight:"bold"}}>Bock !!!</div>}
-          <div style={{fontSize:11,color:"#8ab0aa",marginTop:4}}>
+          <div style={{fontSize:13,color:catColor}}>{typeCfg.desc}</div>
+          {aussetzerList.map(p=><div key={p} style={{fontSize:13,color:"#a080e0",marginTop:4}}>⚬ {p} sitzt aus{p===spatzenAussetzer?" (6+ Spatz)":""}</div>)}
+          {forcedPflichtramsch&&<div style={{fontSize:13,color:"#a080e0",marginTop:4,fontWeight:"bold"}}>Pflichtramsch !!!</div>}
+          {forcedBockRound&&<div style={{fontSize:13,color:"#2e5b36",marginTop:4,fontWeight:"bold"}}>Bock !!!</div>}
+          <div style={{fontSize:13,color:"#8ab0aa",marginTop:4}}>
             {typeCfg.cat==="2vs2"?`Basis: ${typeCfg.useDefaultTariff?tariff.sauspiel:typeCfg.customBetrag} + Modif. à ${tariff.sl} Chips`:
              typeCfg.cat==="ramsch"?`Basis: ${typeCfg.useDefaultTariff?tariff.sauspiel:typeCfg.customBetrag} + Jungfrauen-Verdoppelung`:
              `Basis: ${typeCfg.useDefaultTariff?tariff.solo:typeCfg.customBetrag} + Modif. à ${tariff.sl} Chips${typeCfg.hasLaufende?` · Lfd. ab ${typeCfg.laufendeFrom}`:""}`}
@@ -44,7 +44,7 @@
 
         {typeCfg.cat==="ramsch"&&<div style={s.card()}>
           <div style={s.sec}>Verlierer (meiste Augen)</div>
-          {forcedPflichtramsch&&<div style={{fontSize:11,color:"#a080e0",marginBottom:10,fontWeight:"bold"}}>Pflichtramsch !!! Andere Spiele sind gesperrt.</div>}
+          {forcedPflichtramsch&&<div style={{fontSize:13,color:"#a080e0",marginBottom:10,fontWeight:"bold"}}>Pflichtramsch !!! Andere Spiele sind gesperrt.</div>}
           <div style={{display:"flex",gap:6,marginBottom:16}}>
             {activePlayers.map((p)=>{const i=players.indexOf(p);return <button key={p} style={s.pBtn(form.verlierer===p,PCOLORS[i])} onClick={()=>upd("verlierer",form.verlierer===p?null:p)}>{p}</button>;})}
           </div>
@@ -64,13 +64,12 @@
           </div>
           {typeCfg.hasLaufende&&<Stepper label="Laufende" value={form.laufende} max={8} onChange={v=>upd("laufende",v)}
             hint={form.laufende>=(typeCfg.laufendeFrom||3)?`→ +${form.laufende} × S&L (×2)`:`Zählt ab ${typeCfg.laufendeFrom||3}`}/>}
-          <div style={{fontSize:10,color:C.dim,marginTop:8}}>Tout: Schneider & Schwarz werden nicht gerechnet</div>
+          <div style={{fontSize:12,color:C.dim,marginTop:8}}>Tout: Schneider & Schwarz werden nicht gerechnet</div>
         </div>}
 
-        <div style={s.card()}>
-          <div style={s.sec}>Sticht (Kontra / Re)</div>
+        <DesignSection title={<>Kontra / Re{form.sticht>0?` (Faktor ${Math.pow(2,form.sticht)})`:""}</>} defaultOpen={form.sticht>0}>
           <Stepper label={["–","Sticht","Re-Sticht","×8","×16"][form.sticht]||`×${Math.pow(2,form.sticht)}`} value={form.sticht} max={4} onChange={v=>upd("sticht",v)} color="#d080e0" hint={form.sticht>0?`Faktor ×${Math.pow(2,form.sticht)}`:undefined}/>
-        </div>
+        </DesignSection>
 
         {preview&&<div style={{background:C.bg1,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:10}}>
           <div style={{...s.sec,color:preview&&Object.values(preview).some(v=>v>0)?"#3a8a3a":C.subText}}>
@@ -78,18 +77,18 @@
           </div>
           <div style={{display:"grid",gridTemplateColumns:`repeat(${players.length},1fr)`,gap:8}}>
             {players.map((p,i)=>{const delta=preview[p];const isOut=aussetzerList.includes(p);const bg=delta>0?"#1a4a1a22":delta<0?"#4a1a1a22":isOut?"#2a0f3a22":C.bg2;const border=delta>0?"#2f8a3755":delta<0?"#e85d4a55":isOut?"#a080e044":C.border;return <div key={p} style={{textAlign:"center",background:bg,border:`1px solid ${border}`,borderRadius:8,padding:"8px 6px"}}>
-              <div style={{fontSize:9,color:PCOLORS[i]}}>{p}</div>
+              <div style={{fontSize:12,color:PCOLORS[i]}}>{p}</div>
               <div style={{fontSize:20,fontWeight:"bold",color:delta>0?"#7de87a":delta<0?"#e85d4a":isOut?"#a080e0":C.zero}}>{isOut?"out":delta>0?`+${delta}`:delta}</div>
-              <div style={{fontSize:10,color:delta>0?"#7de87a":delta<0?"#e85d4a":isOut?"#a080e0":"#2a5a2a"}}>{konten[p]+delta}</div>
+              <div style={{fontSize:12,color:delta>0?"#7de87a":delta<0?"#e85d4a":isOut?"#a080e0":"#2a5a2a"}}>{konten[p]+delta}</div>
             </div>;})}
           </div>
         </div>}
 
-        {!isEdit&&pendingDealDealer&&<div style={{fontSize:11,lineHeight:1.5,color:C.dim,marginBottom:10}}>Mit dem Eintragen dieses Ergebnisses werden die verdeckten Kartenbewertungen der Austeilung von {pendingDealDealer} für alle freigegeben.</div>}
-        <div style={{display:"flex",gap:8}}>
+        {!isEdit&&pendingDealDealer&&<div style={{fontSize:13,lineHeight:1.5,color:C.dim,marginBottom:10}}>Mit dem Eintragen dieses Ergebnisses werden die verdeckten Kartenbewertungen der Austeilung von {pendingDealDealer} für alle freigegeben.</div>}
+        <div className={C.legacyDesign?undefined:"entry-actions"} style={{display:"flex",gap:8}}>
           <button onClick={onBack} style={{...s.btn(false,"#5a5a8a"),padding:"12px 16px"}}>← Zurück</button>
-          <button onClick={onSave} disabled={!preview}
-            style={{flex:1,padding:14,fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:14,
+          <button className={!C.legacyDesign&&preview?"primary-action":""} onClick={onSave} disabled={!preview}
+            style={{flex:1,padding:14,fontFamily:"inherit",fontWeight:"bold",fontSize:14,
               background:preview?C.successBg:C.bg1,border:`1px solid ${preview?"#4a9a4a":C.border}`,
               color:preview?"#2f8a37":C.mute,borderRadius:8,cursor:preview?"pointer":"default"}}>
             {isEdit?"💾 Speichern":`✓ Runde ${roundNr} eintragen`}

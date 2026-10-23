@@ -55,6 +55,67 @@ function enterSauspiel(instance){
   click(button(instance,/Runde \d+ eintragen$/));
 }
 
+test("design preference: switch both layouts, retain the session and reload the device preference",()=>{
+  const instance=app();
+  const page=app=>app.rendered.root.find(node=>node.props.className==="app-page");
+  const designSwitch=app=>card(app,"Legacy Design");
+  assert.equal(page(instance).props["data-design"],"modern");
+  click(button(instance,/Einst\.$/));
+  const before=instance.state();
+  assert.equal(designSwitch(instance).props["aria-checked"],false);
+  click(designSwitch(instance));
+  assert.equal(page(instance).props["data-design"],"legacy");
+  assert.equal(designSwitch(instance).props["aria-checked"],true);
+  assert.equal(instance.storage.get("schafkopf-design-v1"),"legacy");
+  assert.deepEqual(instance.state(),before);
+  assert.equal(instance.rendered.root.findAllByType("details").length,0);
+  click(button(instance,"Hell"));
+  assert.equal(page(instance).props["data-theme"],"light");
+  click(button(instance,/Spiel$/));
+  assert.match(text(instance.rendered.root),/Spieltyp waehlen/);
+  assert.doesNotMatch(text(instance.rendered.root),/Was wird gespielt\?/);
+  // The classic tiles use the current entry flow and write the same round format.
+  click(button(instance,/^Sauspiel/));
+  act(()=>instance.rendered.root.findByType(instance.context.EntryForm).props.upd("spieler","Ben"));
+  act(()=>instance.rendered.root.findByType(instance.context.EntryForm).props.upd("partner","Clara"));
+  click(button(instance,/Runde \d+ eintragen$/));
+  const session=instance.state();
+  assert.equal(session.rounds.length,1);
+  act(()=>instance.rendered.unmount());
+
+  const restored=app(undefined,instance.storage);
+  assert.equal(page(restored).props["data-design"],"legacy");
+  assert.equal(page(restored).props["data-theme"],"light");
+  click(button(restored,/Einst\.$/));
+  click(designSwitch(restored));
+  assert.equal(page(restored).props["data-design"],"modern");
+  assert.deepEqual(restored.state(),session);
+  assert.equal(restored.storage.get("schafkopf-design-v1"),"modern");
+  click(button(restored,/Spiel$/));
+  assert.match(text(restored.rendered.root),/Was wird gespielt\?/);
+  act(()=>restored.rendered.unmount());
+  const modern=app(undefined,instance.storage);
+  assert.equal(page(modern).props["data-design"],"modern");
+  assert.deepEqual(modern.state(),session);
+  act(()=>modern.rendered.unmount());
+});
+
+test("design preference: unavailable preference storage still permits switching",()=>{
+  const instance=app(undefined,undefined,context=>{
+    const original=context.localStorage;
+    context.localStorage={...original,
+      getItem:key=>{if(key==="schafkopf-design-v1")throw Error("Storage blocked");return original.getItem(key);},
+      setItem:(key,value)=>{if(key==="schafkopf-design-v1")throw Error("Storage blocked");return original.setItem(key,value);}
+    };
+  });
+  click(button(instance,/Einst\.$/));
+  click(card(instance,"Legacy Design"));
+  assert.equal(card(instance,"Legacy Design").props["aria-checked"],true);
+  click(card(instance,"Legacy Design"));
+  assert.equal(card(instance,"Legacy Design").props["aria-checked"],false);
+  act(()=>instance.rendered.unmount());
+});
+
 test("full app: pick eight cards, explicitly confirm, replace and reload without exposing cards",()=>{
   const instance=app();
   open(instance);

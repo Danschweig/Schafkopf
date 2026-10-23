@@ -2,6 +2,7 @@
 
     const ONLINE_CONFIG_KEY="schafkopf-firebase-config-v1";
     const ONLINE_ROOM_KEY="schafkopf-firebase-room-v1";
+    const DESIGN_PREFERENCE_KEY="schafkopf-design-v1";
 
     function initialFirebaseConfigText(){
       try{
@@ -107,6 +108,9 @@
       const [showCardPenalties,setShowCardPenalties]=useState(false);
       const [settingsTab,setSettingsTab]=useState("allg"); // 0=wer, 1=spieltyp
       const [themeMode,setThemeMode]=useState(sv?.themeMode||"dark");
+      const [legacyDesign,setLegacyDesign]=useState(()=>{
+        try{return localStorage.getItem(DESIGN_PREFERENCE_KEY)==="legacy";}catch{return false;}
+      });
       const [runeMode,setRuneMode]=useState(!!sv?.runeMode);
       const [legacyRating,setLegacyRating]=useState(sv?.legacyRating===true);
       const [forcePflichtramsch,setForcePflichtramsch]=useState(!!sv?.forcePflichtramsch);
@@ -139,7 +143,7 @@
       const onlineConnectionIdRef=useRef(0);
       const applyingOnlineRef=useRef(false);
       const onlineAppliedHashRef=useRef(null);
-      applyThemeMode(themeMode);
+      applyThemeMode(themeMode,legacyDesign);
 
       useEffect(()=>{
         const prevPlayers=prevPlayersRef.current;
@@ -195,10 +199,11 @@
       },[forcePflichtramsch,forcePflichtramschChance,nav,editRound,selType,aussetzenStep,nextRoundRamsch.rolled]);
       useEffect(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,completedDeals,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock}));}catch{}},[players,fivePlayerMode,tariff,startkapital,rounds,dealRatings,completedDeals,gameTypes,yellowCards,themeMode,runeMode,legacyRating,forcePflichtramsch,forcePflichtramschChance,bockMode,bockAllowSolo,bockAllowWenz,bockAllowGeier,bockAllowRamsch,nextRoundBock]);
       useEffect(()=>{try{localStorage.setItem("schafkopf-private-ratings-v1",JSON.stringify(localPrivateRatings));}catch{}},[localPrivateRatings]);
+      useEffect(()=>{try{localStorage.setItem(DESIGN_PREFERENCE_KEY,legacyDesign?"legacy":"modern");}catch{}},[legacyDesign]);
       useEffect(()=>{
         document.body.style.background=C.themeColor;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.themeColor);
-      },[themeMode]);
+      },[themeMode,legacyDesign]);
       useEffect(()=>{
         setRuneTextMode(runeMode);
         return ()=>setRuneTextMode(false);
@@ -836,7 +841,7 @@
       const uiPlayTab=forcedRamschActive?"ramsch":visiblePlayTabs.some(t=>t.id===playTab)?playTab:visiblePlayTabs[0]?.id;
       const activePlayTab=visiblePlayTabs.find(t=>t.id===uiPlayTab)||visiblePlayTabs[0];
 
-      return <div style={s.page}>
+      return <div className="app-page" data-theme={C.mode} data-design={legacyDesign?"legacy":"modern"} style={s.page}>
         {joinRoomRequest!==null&&<JoinRoomDialog
           roomCode={joinRoomRequest}
           onCancel={()=>setJoinRoomRequest(null)}
@@ -853,7 +858,7 @@
           status={onlineStatus} syncing={onlineSyncing} roomCode={onlineRoomCode}
           error={onlineError} onCopy={copyOnlineRoomCode} onDisconnect={disconnectOnline}/>
 
-        <div style={{padding:"14px 16px"}}>
+        <main className="app-content">
           {nav==="home"&&<HomeView
             rounds={rounds} roundSummary={roundSummary} konten={konten} players={players} tariff={tariff}
             showCardPenalties={showCardPenalties} setShowCardPenalties={setShowCardPenalties}
@@ -884,6 +889,7 @@
             onStart={startDealRating} onSave={saveDealRating} onUndo={undoLastDealRating}/>}
 
           {nav==="settings"&&<SettingsView
+            legacyDesign={legacyDesign} setLegacyDesign={setLegacyDesign}
             legacyRating={legacyRating} setLegacyRating={setLegacyRating}
             settingsTab={settingsTab} setSettingsTab={setSettingsTab}
             themeMode={themeMode} setThemeMode={setThemeMode} runeMode={runeMode} setRuneMode={setRuneMode}
@@ -917,7 +923,7 @@
               disconnect:disconnectOnline
             }}
             exportData={exportData} exportSession={exportSession} exportConfig={exportConfig} importFile={importFile}/>} 
-        </div>
+        </main>
 
         <BottomNav
           nav={nav} roundsCount={rounds.length} aussetzenStep={aussetzenStep}

@@ -78,26 +78,48 @@
     }
 
     const THEMES={
+      dark:{mode:"dark",bg1:"#172b26",bg2:"#1e342e",border:"#30473f",text:"#d4dfda",title:"#f4f5ec",dim:"#a3b6ac",mute:"#849b8e",pageBg:"#10221d",topbarBg:"#10221d",inputBg:"#10221d",roundBg:"#21392f",navBg:"#142820",navActive:"#c5dc9d",subBg:"#314b36",subBorder:"#789168",subText:"#e0edc7",buttonBg:"#20382e",buttonBorder:"#3a5145",buttonText:"#d4dfda",buttonShadow:"none",switchOff:"#3a5145",switchOn:"#96b87a",switchKnob:"#142820",switchKnobOff:"#c4d0c7",chartGrid:"#30473f",chartAxis:"#a3b6ac",tooltipBg:"#172b26",zero:"#849b8e",purpleBg:"#302c42",successBg:"#314b36",themeColor:"#10221d"},
+      light:{mode:"light",bg1:"#ffffff",bg2:"#eef2e8",border:"#d9e0d3",text:"#34473b",title:"#162d21",dim:"#566b5b",mute:"#657a69",pageBg:"#f4f5ef",topbarBg:"#f4f5ef",inputBg:"#f7f8f2",roundBg:"#e8efdc",navBg:"#ffffff",navActive:"#355e3b",subBg:"#e0ebcf",subBorder:"#93ac7e",subText:"#24452b",buttonBg:"#f1f4eb",buttonBorder:"#d5decd",buttonText:"#34473b",buttonShadow:"none",switchOff:"#ccd7c5",switchOn:"#456f42",switchKnob:"#ffffff",switchKnobOff:"#63795d",chartGrid:"#d9e0d3",chartAxis:"#566b5b",tooltipBg:"#ffffff",zero:"#657a69",purpleBg:"#efebf4",successBg:"#e0ebcf",themeColor:"#f4f5ef"}
+    };
+    const LEGACY_THEMES={
       dark:{mode:"dark",bg1:"#0c180c",bg2:"#111f11",border:"#1a321a",text:"#c8e0c8",title:"#e8ead0",dim:"#4a7a4a",mute:"#2a4a2a",pageBg:"linear-gradient(160deg,#0b160b,#101e10)",topbarBg:"#080f08",inputBg:"#080f08",roundBg:"#0f1f0f",navBg:"#080f08",navActive:"#8ad08a",subBg:"#1e3a1e",subBorder:"#3a6a3a",subText:"#a0d0a0",buttonBg:"#0c180c",buttonBorder:"#1a321a",buttonText:"#4a7a4a",buttonShadow:"none",switchOff:"#1a2a1a",switchOn:"#2a5a2a",switchKnob:"#7de87a",switchKnobOff:"#3a5a3a",chartGrid:"#1e3a1e",chartAxis:"#5a8a5a",tooltipBg:"#0a1a0a",zero:"#2a4a2a",purpleBg:"#1a0a1a",successBg:"#1a4a1a",themeColor:"#0b160b"},
       light:{mode:"light",bg1:"#fff9df",bg2:"#e0edcf",border:"#4f7743",text:"#09210f",title:"#021007",dim:"#1f4f28",mute:"#315a36",pageBg:"linear-gradient(160deg,#fff3bd 0%,#e4efc8 48%,#cfe4b5 100%)",topbarBg:"#fff2be",inputBg:"#fff7d1",roundBg:"#c6ddb1",navBg:"#fff2be",navActive:"#0b5d20",subBg:"#9fc98f",subBorder:"#1f6f2d",subText:"#06260d",buttonBg:"#ead49a",buttonBorder:"#537346",buttonText:"#102817",buttonShadow:"0 2px 8px rgba(28,64,24,0.24)",switchOff:"#b6c8a8",switchOn:"#167331",switchKnob:"#ffffff",switchKnobOff:"#4d6a45",chartGrid:"#9fba91",chartAxis:"#234f2d",tooltipBg:"#fff8dc",zero:"#526a4a",purpleBg:"#eadcff",successBg:"#bfe0b4",themeColor:"#fff2be"}
     };
-    let C=THEMES.dark;
-    function createStyles(C){
+    function createLegacyStyles(C){
       return {
-        page:{background:C.pageBg,minHeight:"100vh",fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:72},
-        topbar:{background:C.topbarBg,borderBottom:`1px solid ${C.border}`,padding:"10px 16px",position:"sticky",top:0,zIndex:10,boxShadow:C.mode==="light"?"0 2px 12px rgba(45,72,36,0.14)":"none"},
+        page:{background:C.pageBg,minHeight:"100vh",fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:"calc(72px + env(safe-area-inset-bottom))"},
+        topbar:{background:C.topbarBg,borderBottom:`1px solid ${C.border}`,padding:"calc(10px + env(safe-area-inset-top)) 16px 10px",position:"sticky",top:0,zIndex:10,boxShadow:C.mode==="light"?"0 2px 12px rgba(45,72,36,0.14)":"none"},
         card:(bc=C.border,bg=C.bg1)=>({background:bg,border:`1px solid ${bc}`,borderRadius:10,padding:"12px 14px",marginBottom:10,boxShadow:C.mode==="light"?"0 2px 8px rgba(45,72,36,0.12)":"none"}),
         sec:{fontSize:9,color:C.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:8},
         btn:(on,ac="#5a9a5a")=>({background:on?ac+(C.mode==="light"?"55":"24"):C.buttonBg,border:`1px solid ${on?ac:C.buttonBorder}`,color:on&&(C.mode==="light")?C.title:on?ac:C.buttonText,borderRadius:7,padding:"8px 12px",cursor:"pointer",fontSize:12,fontFamily:"'Courier New',monospace",fontWeight:C.mode==="light"?700:400,transition:"all 0.15s",boxShadow:on&&C.mode==="light"?`inset 0 0 0 1px ${ac}88, 0 2px 7px rgba(28,64,24,0.18)`:C.buttonShadow}),
-        pBtn:(on,col)=>({flex:1,padding:"10px 4px",textAlign:"center",background:on?col+(C.mode==="light"?"55":"22"):C.buttonBg,border:`2px solid ${on?col:C.buttonBorder}`,color:on&&(C.mode==="light")?C.title:on?col:C.buttonText,borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"'Courier New',monospace",fontWeight:C.mode==="light"?700:400,transition:"all 0.15s",boxShadow:on&&C.mode==="light"?`inset 0 0 0 1px ${col}88, 0 2px 7px rgba(28,64,24,0.18)`:C.buttonShadow}),
-        navBtn:(on)=>({flex:1,padding:"10px 4px",background:on&&C.mode==="light"?C.subBg:"transparent",border:"none",borderTop:`2px solid ${on?C.navActive:"transparent"}`,color:on?C.navActive:C.mute,cursor:"pointer",fontSize:10,fontFamily:"'Courier New',monospace"}),
+        pBtn:(on,col)=>({flex:1,minWidth:0,padding:"10px 4px",textAlign:"center",background:on?col+(C.mode==="light"?"55":"22"):C.buttonBg,border:`2px solid ${on?col:C.buttonBorder}`,color:on&&(C.mode==="light")?C.title:on?col:C.buttonText,borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"'Courier New',monospace",fontWeight:C.mode==="light"?700:400,transition:"all 0.15s",boxShadow:on&&C.mode==="light"?`inset 0 0 0 1px ${col}88, 0 2px 7px rgba(28,64,24,0.18)`:C.buttonShadow}),
+        navBtn:(on)=>({flex:1,minWidth:0,padding:"10px 4px",background:on&&C.mode==="light"?C.subBg:"transparent",border:"none",borderTop:`2px solid ${on?C.navActive:"transparent"}`,color:on?C.navActive:C.mute,cursor:"pointer",fontSize:10,fontFamily:"'Courier New',monospace"}),
         subTab:(on)=>({background:on?C.subBg:C.buttonBg,border:`1px solid ${on?C.subBorder:C.buttonBorder}`,color:on?C.subText:C.buttonText,borderRadius:7,padding:"7px 16px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace",fontWeight:C.mode==="light"?600:400,boxShadow:on&&C.mode==="light"?"inset 0 0 0 1px rgba(21,95,35,0.22), 0 1px 5px rgba(45,72,36,0.12)":C.buttonShadow}),
         input:{background:C.inputBg,border:`1px solid ${C.mode==="light"?C.buttonBorder:C.border}`,borderRadius:6,padding:"8px 10px",color:C.text,fontSize:13,fontFamily:"'Courier New',monospace",width:"100%",boxShadow:C.mode==="light"?"inset 0 1px 2px rgba(45,72,36,0.12)":"none"},
         pChip:(on,col)=>({background:on?col+(C.mode==="light"?"55":"22"):C.buttonBg,border:`1px solid ${on?col:C.buttonBorder}`,color:on&&(C.mode==="light")?C.title:on?col:C.buttonText,borderRadius:20,padding:"5px 14px",cursor:"pointer",fontSize:11,fontFamily:"'Courier New',monospace",fontWeight:C.mode==="light"?700:400,transition:"all 0.15s",boxShadow:C.mode==="light"?C.buttonShadow:"none"}),
       };
     }
+    let C=THEMES.dark;
+    function createStyles(C){
+      if(C.legacyDesign)return createLegacyStyles(C);
+      return {
+        page:{background:C.pageBg,minHeight:"100dvh",fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",color:C.text,paddingBottom:"calc(96px + env(safe-area-inset-bottom))","--surface":C.bg1,"--surface-soft":C.bg2,"--line":C.border,"--ink":C.title,"--secondary":C.dim,"--accent":C.navActive},
+        topbar:{background:C.topbarBg,borderBottom:`1px solid ${C.border}`,padding:"calc(12px + env(safe-area-inset-top)) 20px 12px",position:"sticky",top:0,zIndex:10},
+        card:(bc=C.border,bg=C.bg1)=>({background:bg,border:`1px solid ${bc}`,borderRadius:18,padding:"18px",marginBottom:14}),
+        sec:{fontSize:12,fontWeight:650,color:C.dim,letterSpacing:.6,marginBottom:12},
+        btn:(on,ac="#5a9a5a")=>({background:on?ac+(C.mode==="light"?"55":"24"):C.buttonBg,border:`1px solid ${on?ac:C.buttonBorder}`,color:on&&(C.mode==="light")?C.title:on?ac:C.buttonText,borderRadius:12,minHeight:46,padding:"11px 14px",cursor:"pointer",fontSize:14,fontFamily:"inherit",fontWeight:C.mode==="light"?700:400,transition:"all 0.15s",boxShadow:on&&C.mode==="light"?`inset 0 0 0 1px ${ac}88, 0 2px 7px rgba(28,64,24,0.18)`:C.buttonShadow}),
+        pBtn:(on,col)=>({flex:1,minWidth:0,minHeight:48,padding:"12px 6px",textAlign:"center",background:on?col+(C.mode==="light"?"55":"22"):C.buttonBg,border:`2px solid ${on?col:C.buttonBorder}`,color:on&&(C.mode==="light")?C.title:on?col:C.buttonText,borderRadius:8,cursor:"pointer",fontSize:14,fontFamily:"inherit",fontWeight:C.mode==="light"?700:400,transition:"all 0.15s",boxShadow:on&&C.mode==="light"?`inset 0 0 0 1px ${col}88, 0 2px 7px rgba(28,64,24,0.18)`:C.buttonShadow}),
+        navBtn:(on)=>({flex:1,minWidth:0,minHeight:48,padding:"12px 6px",background:on&&C.mode==="light"?C.subBg:"transparent",border:"none",borderTop:`2px solid ${on?C.navActive:"transparent"}`,color:on?C.navActive:C.mute,cursor:"pointer",fontSize:10,fontFamily:"inherit"}),
+        subTab:(on)=>({background:on?C.subBg:C.buttonBg,border:`1px solid ${on?C.subBorder:C.buttonBorder}`,color:on?C.subText:C.buttonText,borderRadius:12,minHeight:44,padding:"10px 14px",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:C.mode==="light"?600:400,boxShadow:on&&C.mode==="light"?"inset 0 0 0 1px rgba(21,95,35,0.22), 0 1px 5px rgba(45,72,36,0.12)":C.buttonShadow}),
+        input:{background:C.inputBg,border:`1px solid ${C.buttonBorder}`,borderRadius:12,padding:"12px",color:C.text,fontSize:16,fontFamily:"inherit",width:"100%",minHeight:48,minWidth:0},
+        pChip:(on,col)=>({background:on?col+(C.mode==="light"?"55":"22"):C.buttonBg,border:`1px solid ${on?col:C.buttonBorder}`,color:on&&(C.mode==="light")?C.title:on?col:C.buttonText,borderRadius:20,padding:"5px 14px",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:C.mode==="light"?700:400,transition:"all 0.15s",boxShadow:C.mode==="light"?C.buttonShadow:"none"}),
+      };
+    }
     let s=createStyles(C);
-    function applyThemeMode(mode){C=THEMES[mode]||THEMES.dark;s=createStyles(C);return C;}
+    function applyThemeMode(mode,legacyDesign=false){
+      const themes=legacyDesign?LEGACY_THEMES:THEMES;
+      C={...(themes[mode]||themes.dark),legacyDesign};s=createStyles(C);return C;
+    }
 
     const RUNE_MAP={
       a:"ᚨ",b:"ᛒ",c:"ᚲ",d:"ᛞ",e:"ᛖ",f:"ᚠ",g:"ᚷ",h:"ᚺ",i:"ᛁ",j:"ᛃ",k:"ᚲ",l:"ᛚ",m:"ᛗ",n:"ᚾ",o:"ᛟ",p:"ᛈ",q:"ᚲ",r:"ᚱ",s:"ᛋ",t:"ᛏ",u:"ᚢ",v:"ᚹ",w:"ᚹ",x:"ᛉ",y:"ᛇ",z:"ᛉ",

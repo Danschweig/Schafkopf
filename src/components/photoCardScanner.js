@@ -54,39 +54,40 @@
         }finally{if(request===requestRef.current){setBusy(false);onBusyChange(false);}}
       }
       return <div style={{...s.card("#4ab8e855",C.bg2),marginBottom:12}}>
-        <div style={{fontSize:12,fontWeight:"bold",color:C.title,marginBottom:8}}>Handkarten fotografieren · Beta</div>
-        <div style={{fontSize:11,lineHeight:1.5,color:C.text,marginBottom:10}}>
-          Bayerisches Doppelbild: alle acht Karten breit auffächern und gut beleuchten. Zahl oder Buchstabe und das kleine Farbsymbol müssen bei jeder Karte sichtbar sein. Möglichst viel vom Kartenmotiv zeigen.
-          Verdeckte Motive, Spiegelungen und starke Schräglage erschweren die Erkennung. Bei eng gefächerten Handkarten ist diese Version unzuverlässig und kann falsche Karten vorschlagen. Bitte alle acht Karten kontrollieren.
-        </div>
+        <div style={{fontSize:14,fontWeight:"bold",color:C.title,marginBottom:8}}>Kartenscan (Beta)</div>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" aria-label="Foto der acht Handkarten" style={{display:"none"}} onChange={photograph}/>
-        <div style={{fontSize:11,color:C.dim,marginBottom:8}}>Kartenscan (Beta)</div>
-        <button disabled={busy} onClick={()=>fileRef.current?.click()} style={{...s.btn(!busy,"#4ab8e8"),width:"100%",minHeight:48}}>
+        <button className={C.legacyDesign?undefined:"primary-action"} disabled={busy} onClick={()=>fileRef.current?.click()} style={{...s.btn(!busy,"#4ab8e8"),width:"100%",minHeight:48}}>
           Karten fotografieren
         </button>
         {busy&&<button onClick={cancel} style={{...s.btn(false),width:"100%",minHeight:44,marginTop:6}}>Erkennung abbrechen</button>}
-        <div style={{fontSize:10,lineHeight:1.5,color:C.dim,marginTop:8}}>
+        <DesignSection title={<>Hinweise zur Fotoerkennung</>} legacyBare>
+        <div style={{fontSize:13,lineHeight:1.5,color:C.text,marginBottom:10}}>
+          Bayerisches Doppelbild: alle acht Karten breit auffächern und gut beleuchten. Zahl oder Buchstabe und das kleine Farbsymbol müssen bei jeder Karte sichtbar sein. Möglichst viel vom Kartenmotiv zeigen.
+          Verdeckte Motive, Spiegelungen und starke Schräglage erschweren die Erkennung. Bei eng gefächerten Handkarten ist diese Version unzuverlässig und kann falsche Karten vorschlagen. Bitte alle acht Karten kontrollieren.
+        </div>
+        <div style={{fontSize:12,lineHeight:1.5,color:C.dim,marginTop:8}}>
           Die Fotoerkennung läuft lokal auf deinem Gerät. Beim ersten Scan werden Modell und Erkennungsprogramm geladen.
           Die App lädt dein Foto nicht hoch und speichert es nicht dauerhaft. Ein neues Foto ersetzt deine aktuelle Kartenauswahl.
           {" "}<a href="scanner-check.html" target="_blank" rel="noopener" style={{color:C.title}}>Fotoerkennung auf diesem Handy prüfen</a>
         </div>
-        {status&&<div role="status" aria-live="polite" style={{fontSize:11,lineHeight:1.5,marginTop:10}}>{status}</div>}
-        {error&&<div role="alert" style={{fontSize:11,lineHeight:1.5,color:"#e85d4a",marginTop:8}}>{error}</div>}
+        </DesignSection>
+        {status&&<div role="status" aria-live="polite" style={{fontSize:13,lineHeight:1.5,marginTop:10}}>{status}</div>}
+        {error&&<div role="alert" style={{fontSize:13,lineHeight:1.5,color:"#e85d4a",marginTop:8}}>{error}</div>}
         {result&&<>
           <div style={{position:"relative",marginTop:10,width:"100%",aspectRatio:"1 / 1",overflow:"hidden",borderRadius:6,background:C.inputBg}}>
             <img src={result.previewUrl} alt="Dein Foto mit den erkannten Karten" style={{display:"block",width:"100%",height:"100%"}}/>
             {result.detections.slice(0,16).map((item,index)=><div key={index} aria-hidden="true" style={{position:"absolute",left:`${item.box[0]/6.4}%`,top:`${item.box[1]/6.4}%`,
               width:`${(item.box[2]-item.box[0])/6.4}%`,height:`${(item.box[3]-item.box[1])/6.4}%`,border:`2px solid ${item.uncertain?"#f5c842":"#4ab8e8"}`,pointerEvents:"none"}}>
-              <span style={{position:"absolute",top:0,left:0,fontSize:9,lineHeight:1.3,padding:"1px 3px",background:"#081208dd",color:item.uncertain?"#f5c842":"#bfeaff"}}>{cardLabel(item.cardId)}{item.uncertain?" ?":""}</span>
+              <span style={{position:"absolute",top:0,left:0,fontSize:12,lineHeight:1.3,padding:"1px 3px",background:"#081208dd",color:item.uncertain?"#f5c842":"#bfeaff"}}>{cardLabel(item.cardId)}{item.uncertain?" ?":""}</span>
             </div>)}
           </div>
-          {result.warnings.map((warning,index)=><div key={index} style={{fontSize:11,lineHeight:1.5,color:C.text,marginTop:8}}>{warning}</div>)}
-          <div style={{fontSize:10,color:C.dim,marginTop:8}}>Verwendetes Modell: {result.modelVersion}</div>
-          {result.detections.length>0&&<details style={{fontSize:11,lineHeight:1.5,marginTop:8}}>
+          {result.warnings.map((warning,index)=><div key={index} style={{fontSize:13,lineHeight:1.5,color:C.text,marginTop:8}}>{warning}</div>)}
+          <div style={{fontSize:12,color:C.dim,marginTop:8}}>Verwendetes Modell: {result.modelVersion}</div>
+          {result.detections.length>0&&<details style={{fontSize:13,lineHeight:1.5,marginTop:8}}>
             <summary style={{cursor:"pointer"}}>Erkannte Karten prüfen</summary>
             {result.detections.map((item,index)=><div key={index}>{cardLabel(item.cardId)} · {item.uncertain?"unsicher":"eindeutig"} · {selectedCardIds.includes(item.cardId)?"ausgewählt":"nicht ausgewählt"}</div>)}
           </details>}
-          <div style={{fontSize:11,lineHeight:1.5,marginTop:8}}>Auch unsichere Vorschläge werden vorausgewählt. Die Auswahl unten kannst du korrigieren: falsche Karte abwählen und die richtige auswählen. Erst bei acht ausgewählten Karten entsteht eine Bewertung; gespeichert wird erst nach deiner Bestätigung.</div>
+          <div style={{fontSize:13,lineHeight:1.5,marginTop:8}}>Auch unsichere Vorschläge werden vorausgewählt. Die Auswahl unten kannst du korrigieren: falsche Karte abwählen und die richtige auswählen. Erst bei acht ausgewählten Karten entsteht eine Bewertung; gespeichert wird erst nach deiner Bestätigung.</div>
         </>}
       </div>;
     }
